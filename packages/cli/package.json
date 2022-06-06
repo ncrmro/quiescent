@@ -1,0 +1,14 @@
+{
+  "name": "@quiescent/cli",
+  "scripts": {
+    "build": "i",
+    "dev": "ts-node src",
+    "test": "npm run dev -- --postTitle=Test"
+  },
+  "dependencies": {
+    "yargs-interactive": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/yargs-interactive": "^2.1.3"
+  }
+}
