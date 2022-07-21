@@ -1,0 +1,1 @@
+const Post: React.FC = () = {}
