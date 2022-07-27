@@ -1,11 +1,15 @@
 {
   "compilerOptions": {
+    "incremental": true,
+    "target": "es2019",
     "module": "commonjs",
-    "target": "es5",
+    "declaration": true,
     "sourceMap": true,
-    "outDir": "dist"
-  },
-  "exclude": [
-    "node_modules"
-  ]
+    "composite": true,
+    "strict": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  }
 }

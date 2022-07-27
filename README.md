@@ -1,5 +1,10 @@
 # quiescent
 
+Why: Long term documents, where the product and source both contain a humane readable document.
+
+The frontend for authoring new post which can operate locally and remotely on a git repository. This would actually allow 
+the user to view the history of a post and who authored it.
+
 Writing posts (as code) should be streamlined and extensible.
 Write posts as markdown or react components allowing you to build as simple or complex of a post as you'd like.
 Ideally these tools should work regardless of (react) framework.
@@ -31,3 +36,8 @@ A build manifest is important here to be able to do efficient lookups without ha
 ## Unanswered questions
 
 - HMR..? - Ideally for a pure markdown file
+
+
+## Other Ideas
+- 
+- Grammerly / proofreading
