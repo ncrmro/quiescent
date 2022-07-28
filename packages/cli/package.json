@@ -3,7 +3,7 @@
   "scripts": {
     "build": "i",
     "dev": "tsc-watch --outDir ./dist",
-    "test": "npm run dev -- --postTitle=Test"
+    "test": "node dist/src/index.js --title=Test"
   },
   "bin": {
     "qs": "./dist/index.js"
