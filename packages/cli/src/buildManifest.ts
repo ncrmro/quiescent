@@ -40,7 +40,7 @@ export default async function () {
     }
   }
   await fs.writeFile(
-    `${publicDirectory}/posts.manifest.json`,
+    `${publicDirectory}/posts/manifest.json`,
     JSON.stringify(manifest)
   );
 }
