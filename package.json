@@ -2,7 +2,8 @@
   "name": "quiescent",
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
-    "qs": "node packages/cli/dist"
+    "test-post": "npm run qs --workspace=quiescent-example-nextjs post -- --title 'Hello World!'",
+    "test-build": "npm run qs --workspace=quiescent-example-nextjs build"
   },
   "workspaces": [
     "examples/*",

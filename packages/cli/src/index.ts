@@ -1,5 +1,6 @@
 import yargs, { ArgumentsCamelCase } from "yargs";
 import * as inquirer from "inquirer";
+import buildManifest from "./buildManifest";
 
 const createPost = async (args: ArgumentsCamelCase) => {
   const answers = await inquirer.prompt(
@@ -19,6 +20,7 @@ const createPost = async (args: ArgumentsCamelCase) => {
 };
 
 yargs(process.argv.splice(2))
+  .command("build", "use inquirer to prompt for your name", {}, buildManifest)
   .command("post", "use inquirer to prompt for your name", {}, createPost)
   .options({
     title: {
