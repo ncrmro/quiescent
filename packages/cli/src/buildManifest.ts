@@ -35,7 +35,7 @@ export default async function () {
       tags.forEach((tag) => {
         manifest.tags[tag] ||= 0;
         manifest.tags[tag]++;
-        manifest.posts[slug].tags.push(tag);
+        manifest.posts[slug].tags?.push(tag);
       });
     }
   }
