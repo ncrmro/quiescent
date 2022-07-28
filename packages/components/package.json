@@ -9,7 +9,7 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "rehype-react": "^7.0.3"
+    "react-remark": "^2.1.0"
   },
   "files": [
     "dist"
