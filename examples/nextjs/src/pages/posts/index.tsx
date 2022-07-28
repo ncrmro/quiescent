@@ -1,11 +1,12 @@
 import { GetStaticProps } from "next";
-import { getPosts } from "@quiescent/server";
 
 export { default as default } from "../../routes/Posts";
 
 export const getStaticProps: GetStaticProps = async (context) => {
-  const { getPosts } = await import("@quiescent/server");
+  // Importing server code
+  const { getManifest } = await import("@quiescent/server");
+  const posts = (await getManifest()).posts;
   return {
-    props: { posts: await getPosts() },
+    props: { posts },
   };
 };

@@ -4,3 +4,4 @@ dist
 .next
 tsconfig.tsbuildinfo
 .env
+posts.manifest.json
