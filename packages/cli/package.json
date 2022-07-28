@@ -1,8 +1,9 @@
 {
   "name": "@quiescent/cli",
+  "license": "MIT",
   "scripts": {
     "build": "tsc",
-    "dev": "tsc-watch",
+    "dev": "tsc --watch",
     "test": "node dist/src/index.js --title=Test"
   },
   "bin": {
