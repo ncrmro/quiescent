@@ -1,7 +1,8 @@
 {
   "name": "quiescent",
   "scripts": {
-    "dev": "npm run dev --workspaces --if-present"
+    "dev": "npm run dev --workspaces --if-present",
+    "qs": "node packages/cli/dist/src"
   },
   "workspaces": [
     "examples/*",
