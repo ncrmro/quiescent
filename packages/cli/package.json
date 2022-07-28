@@ -1,8 +1,8 @@
 {
   "name": "@quiescent/cli",
   "scripts": {
-    "build": "i",
-    "dev": "tsc-watch --outDir ./dist",
+    "build": "tsc",
+    "dev": "tsc-watch",
     "test": "node dist/src/index.js --title=Test"
   },
   "bin": {
