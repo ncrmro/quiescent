@@ -1,5 +1,3 @@
-export interface Post {
-  content: string;
-  description: string;
-  tags: string[];
-}
+import { Document } from "@quiescent/server";
+
+export interface Post extends Document {}
