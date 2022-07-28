@@ -1,13 +1,12 @@
 import { Post } from "../../types";
 import { useRouter } from "next/router";
+import { ImageGallery } from "@quiescent/components";
 
 const PostRoute: React.FC<{ post: Post }> = (props) => {
-  const router = useRouter();
-
   return (
     <div>
-      <h1>{props.post.description}</h1>
-      <p>{props.post.content}</p>
+      Post
+      <ImageGallery />
     </div>
   );
 };
