@@ -2,8 +2,11 @@
   "name": "@quiescent/cli",
   "scripts": {
     "build": "i",
-    "dev": "ts-node src",
+    "dev": "tsc-watch --outDir ./dist",
     "test": "npm run dev -- --postTitle=Test"
+  },
+  "bin": {
+    "qs": "./dist/index.js"
   },
   "dependencies": {
     "inquirer": "^8.2.4",

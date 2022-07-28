@@ -3,12 +3,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3300",
-    "post": "ts-node src"
+    "post": "ts-node src",
+    "qs": "qs"
   },
   "dependencies": {
     "next": "12.1.6",
     "react": "18.1.0",
     "react-dom": "18.1.0",
+    "@quiescent/cli": "*",
     "@quiescent/server": "*"
   },
   "devDependencies": {

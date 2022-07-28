@@ -1,7 +1,7 @@
-import yargs from "yargs";
+import yargs, { ArgumentsCamelCase } from "yargs";
 import * as inquirer from "inquirer";
 
-const createPost = async (args) => {
+const createPost = async (args: ArgumentsCamelCase) => {
   const answers = await inquirer.prompt(
     [
       {
