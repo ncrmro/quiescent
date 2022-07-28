@@ -1,9 +1,6 @@
 ---
-title: "Hello World"
-slug: hello-world
-state: published
-description: Today is the Unix Epoch!
-tags: fire,red,water,ice
+title: Hello World
+description: This is an example post
 ---
 
 # Hello World!
