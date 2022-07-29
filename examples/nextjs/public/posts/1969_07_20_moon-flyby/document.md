@@ -1,7 +1,7 @@
 ---
 title: Moon landing!
 description: We did it!
-tags: news
+tags: news,space
 ---
 
 # Moon landing!
