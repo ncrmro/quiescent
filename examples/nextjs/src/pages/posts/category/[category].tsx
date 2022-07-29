@@ -1,7 +1,7 @@
 import { GetStaticPaths, GetStaticProps } from "next";
-import { Post } from "../../types";
+import { Post } from "../../../types";
 
-export { default as default } from "../../routes/Post";
+export { default as default } from "@routes/Post";
 
 export const getStaticProps: GetStaticProps<{ post: Post }> = async (
   context

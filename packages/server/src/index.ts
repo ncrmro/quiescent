@@ -1,12 +1,8 @@
 import fs from "fs/promises";
 import { parseDocument } from "./parseDocument";
 import { Manifest } from "./types";
+import { useConfig } from "./config";
 
-const publicDirectory = `${process.cwd()}/public`;
-
-function getDocumentDirectory(directory = "posts") {
-  return `${publicDirectory}/${directory}/`;
-}
 export async function buildManifest(documentDirectory: string) {
   const manifest: Manifest = { documents: {}, tags: {} };
   for (const documentFilename of await fs.readdir(documentDirectory)) {
@@ -25,14 +21,19 @@ export async function buildManifest(documentDirectory: string) {
 }
 
 export async function getManifest(
+  documentType: string,
   mode: "dynamic" | "filesystem"
 ): Promise<Manifest | undefined> {
+  const config = useConfig();
+  const documentConfig = config.documentTypes[documentType];
+  if (!documentConfig) throw "Document type not found in config";
+
   if (mode === "dynamic") {
-    return buildManifest(getDocumentDirectory());
+    return buildManifest(documentConfig.directory);
   }
   if (mode === "filesystem") {
     const manifest = JSON.parse(
-      await fs.readFile(`${publicDirectory}/posts/manifest.json`, "utf8")
+      await fs.readFile(`${documentConfig.directory}/manifest.json`, "utf8")
     );
     return {
       documents: typeof manifest.posts === "object" ? manifest.posts : {},
@@ -41,23 +42,32 @@ export async function getManifest(
   }
 }
 
-// export async function getDocumentSlugs() {
-//   return Object.keys(await manifest);
-// }
+export async function getDocumentSlugs(
+  documentType: string,
+  mode: "dynamic" | "filesystem"
+) {
+  const manifest = await getManifest(documentType, mode);
+  if (manifest) {
+    return Object.keys(manifest);
+  }
+}
 
 // export async function getDocumentBySlug(slug: string) {
 //   return (await manifest).documents[slug];
 // }
 
-export async function documentBySlug(slug: string) {
-  const documentDirectory = getDocumentDirectory();
-  const documentFilename = (await fs.readdir(documentDirectory)).find(
+export async function documentBySlug(documentType: string, slug: string) {
+  const config = useConfig();
+  const documentConfig = config.documentTypes[documentType];
+  if (!documentConfig) throw "Document type not found in config";
+  const documentFilename = (await fs.readdir(documentConfig.directory)).find(
     (fileName) => fileName.includes(slug)
   );
   if (documentFilename) {
-    return await parseDocument(documentDirectory, documentFilename);
+    return await parseDocument(documentConfig.directory, documentFilename);
   }
 }
 
 export * from "./parseDocument";
 export * from "./types";
+export { useConfig } from "./config";
