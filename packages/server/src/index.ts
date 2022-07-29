@@ -13,9 +13,20 @@ export async function getDocumentSlugs(
   }
 }
 
-// export async function getDocumentBySlug(slug: string) {
-//   return (await manifest).documents[slug];
-// }
+export async function getDocumentsByTag(
+  documentType: string,
+  mode: "dynamic" | "filesystem",
+  tag: string
+) {
+  const manifest = await getManifest(documentType, mode);
+  if (manifest) {
+    const slugs = manifest.tags[tag];
+    return slugs.reduce<Record<string, Document>>((acc, slug) => {
+      acc[slug] = manifest.documents[slug];
+      return acc;
+    }, {});
+  }
+}
 
 export async function documentBySlug(documentType: string, slug: string) {
   const config = useConfig();
