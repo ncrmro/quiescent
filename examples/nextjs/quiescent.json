@@ -1,7 +1,13 @@
 {
   "documentTypes": {
-    "jobs": {},
-    "posts": {},
-    "recipes": {}
+    "jobs": {
+      "directory": "public/jobs"
+    },
+    "posts": {
+      "directory": "public/posts"
+    },
+    "recipes": {
+      "directory": "public/jobs"
+    }
   }
 }
