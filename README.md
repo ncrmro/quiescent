@@ -12,6 +12,7 @@ Ideally these tools should be framework agnostic.
 
 ## Packages
 
+- [server](packages/server/README.md) - Tools to store, parse and index documents
 - [CLI](packages/cli/README.md) - A cli for generating new posts
 - components - React Components for parsing markdown
-- Server - Tools to git based coument storage integrate into your server
+
