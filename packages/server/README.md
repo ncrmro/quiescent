@@ -56,3 +56,6 @@ The manifest allows us to efficiently do the following without having hit the de
 
 - iterate over over all of out posts
 - filter posts based on their category (primary tag)
+
+From a design standpoint I don't think the Manifest should ever be public, we expose only methods to utilize the documents
+in the most efficient way possible using the manifest

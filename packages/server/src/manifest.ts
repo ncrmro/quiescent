@@ -2,12 +2,12 @@ import fs from "fs/promises";
 import { Document, parseDocument } from "./parseDocument";
 import { useConfig } from "./config";
 
-export interface Manifest {
+interface Manifest {
   documents: Record<string, Document>;
   tags: Record<string, string[]>;
 }
 
-export async function buildManifest(documentDirectory: string) {
+async function buildManifest(documentDirectory: string) {
   const manifest: Manifest = { documents: {}, tags: {} };
   for (const documentFilename of await fs.readdir(documentDirectory)) {
     if (documentFilename === "manifest.json") continue;
