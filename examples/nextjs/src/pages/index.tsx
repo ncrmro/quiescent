@@ -13,7 +13,9 @@ const DocumentListItem: React.FC<{
       <Link href={props.href}>{props.children}</Link>
       <div>
         {tags.map((tag) => (
-          <Link href={`${props.href}/category/${tag}`}>{tag}</Link>
+          <Link key={tag} href={`${props.href}/category/${tag}`}>
+            {tag}
+          </Link>
         ))}
       </div>
     </li>
