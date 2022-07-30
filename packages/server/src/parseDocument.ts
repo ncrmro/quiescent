@@ -19,7 +19,7 @@ export async function parseDocument(
   documentFilename: string
 ) {
   const documentMatch = documentFilename.match(
-    /(?<year>\d{4})_(?<month>\d{2})_(?<date>\d{2})_(?<slug>[A-Za-z0-9-]*)[\.md|$]/
+    /(?<year>\d{4})_(?<month>\d{2})_(?<date>\d{2})_(?<slug>[A-Za-z0-9-]*)[\.md]?/
   );
   if (!documentMatch?.groups)
     throw `Document file name does not match YYYY_MM_DD-document-slug ${documentFilename}`;
