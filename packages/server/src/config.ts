@@ -20,9 +20,15 @@ export function useConfig(): Config {
   const config: Config = {
     documentTypes: {},
   };
-  const fileContents = JSON.parse(
-    fs.readFileSync(`${process.cwd()}/quiescent.json`, "utf8")
-  );
+  let fileContents;
+  try {
+    fileContents = JSON.parse(
+      fs.readFileSync(`${process.cwd()}/quiescent.json`, "utf8")
+    );
+  } catch {
+    throw "Quiescent config file does not exist, please create one";
+  }
+
   if (typeof fileContents.documentTypes !== "object")
     throw "Config is missing documentTypes";
 
