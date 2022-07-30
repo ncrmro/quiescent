@@ -11,7 +11,7 @@ export async function buildManifest(documentDirectory: string) {
   const manifest: Manifest = { documents: {}, tags: {} };
   for (const documentFilename of await fs.readdir(documentDirectory)) {
     if (documentFilename === "manifest.json") continue;
-    const doc = await parseDocument(documentDirectory, documentFilename);
+    const doc = await parseDocument(`${documentDirectory}/${documentFilename}`);
     if (doc) {
       manifest.documents[doc.slug] = doc;
       doc.tags?.forEach((tag) => {
@@ -27,7 +27,7 @@ export async function buildManifest(documentDirectory: string) {
 export async function getManifest(
   documentType: string,
   mode: "dynamic" | "filesystem"
-): Promise<Manifest | undefined> {
+): Promise<Manifest> {
   const config = useConfig();
   const documentConfig = config.documentTypes[documentType];
   if (!documentConfig) throw "Document type not found in config";
@@ -44,4 +44,5 @@ export async function getManifest(
       tags: Array.isArray(manifest.tags) ? manifest.tags : [],
     };
   }
+  throw "Mode was not correctly defined";
 }
