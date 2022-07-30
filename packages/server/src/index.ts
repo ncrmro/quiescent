@@ -13,21 +13,6 @@ export async function getDocumentSlugs(
   }
 }
 
-export async function getDocumentsByTag(
-  documentType: string,
-  mode: "dynamic" | "filesystem",
-  tag: string
-) {
-  const manifest = await getManifest(documentType, mode);
-  if (manifest) {
-    const slugs = manifest.tags[tag];
-    return slugs.reduce<Record<string, Document>>((acc, slug) => {
-      acc[slug] = manifest.documents[slug];
-      return acc;
-    }, {});
-  }
-}
-
 export async function documentBySlug(documentType: string, slug: string) {
   const config = useConfig();
   const documentConfig = config.documentTypes[documentType];
@@ -38,6 +23,22 @@ export async function documentBySlug(documentType: string, slug: string) {
   if (documentFilename) {
     return await parseDocument(documentConfig.directory, documentFilename);
   }
+}
+
+export async function getDocuments(
+  documentType: string,
+  mode: "dynamic" | "filesystem",
+  category?: string
+) {
+  const manifest = await getManifest(documentType, mode);
+  if (category) {
+    const slugs = manifest.tags[category];
+    return slugs.reduce<Record<string, Document>>((acc, slug) => {
+      acc[slug] = manifest.documents[slug];
+      return acc;
+    }, {});
+  }
+  return manifest.documents;
 }
 
 export * from "./manifest";
