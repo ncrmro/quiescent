@@ -8,7 +8,7 @@ documents that are stored in git with any media (stored in git-lfs, thought this
 Ideally these tools should be framework agnostic.
 
 - Next.JS - Server Side Render/Static Site Generation
-- Remix - Server Sie Rendered
+- Remix - Server Side Rendered
 
 ## Packages
 
