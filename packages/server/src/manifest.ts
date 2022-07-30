@@ -11,7 +11,7 @@ export async function buildManifest(documentDirectory: string) {
   const manifest: Manifest = { documents: {}, tags: {} };
   for (const documentFilename of await fs.readdir(documentDirectory)) {
     if (documentFilename === "manifest.json") continue;
-    const doc = await parseDocument(`${documentDirectory}/${documentFilename}`);
+    const doc = await parseDocument(documentDirectory, documentFilename);
     if (doc) {
       manifest.documents[doc.slug] = doc;
       doc.tags?.forEach((tag) => {

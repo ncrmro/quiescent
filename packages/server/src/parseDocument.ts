@@ -14,7 +14,10 @@ export interface Document {
  * @param documentDirectory
  * @param documentFilename
  */
-export async function parseDocument(documentFilename: string) {
+export async function parseDocument(
+  documentDirectory: string,
+  documentFilename: string
+) {
   const documentMatch = documentFilename.match(
     /(?<year>\d{4})_(?<month>\d{2})_(?<date>\d{2})_(?<slug>[A-Za-z0-9-]*)[\.md|$]/
   );
@@ -27,7 +30,10 @@ export async function parseDocument(documentFilename: string) {
   if (!documentFilename.includes(".md")) {
     documentFilename = `${documentFilename}/document.md`;
   }
-  let content = await fs.readFile(documentFilename, "utf8");
+  let content = await fs.readFile(
+    `${documentDirectory}/${documentFilename}`,
+    "utf8"
+  );
 
   // Extract the header from the file contents
   const match = content.match(/---\n((\w*:) .*\n)*---/)?.[0];
