@@ -5,5 +5,6 @@ stages:
 
 build:
   stage: build
-  before_script: npm install
+  before_script:
+    - npm install
   script: npm run build --workspace=@quiescent/server
