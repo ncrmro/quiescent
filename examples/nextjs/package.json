@@ -2,9 +2,11 @@
   "name": "quiescent-example-nextjs",
   "private": true,
   "scripts": {
+    "build": "echo 'Place holder'",
     "dev": "next dev -p 3300",
     "post": "ts-node src",
-    "qs": "qs"
+    "qs": "node ../../packages/cli/dist",
+    "qs:man": "node ../../packages/cli/dist build"
   },
   "dependencies": {
     "next": "12.1.6",
