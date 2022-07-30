@@ -8,6 +8,10 @@ interface Config {
   documentTypes: Record<string, DocumentConfig>;
 }
 
+function isDocumentConfig(object: any): object is DocumentConfig {
+  return "directory" in object;
+}
+
 /**
  * Reads the quiescent.json from project root
  * validates and returns it.
@@ -22,13 +26,12 @@ export function useConfig(): Config {
   if (typeof fileContents.documentTypes !== "object")
     throw "Config is missing documentTypes";
 
-  for (const [key, value] of Object.entries(fileContents.documentTypes)) {
-    if (typeof value === "object") {
-      config.documentTypes[key] = {
-        directory: `${process.cwd()}/public/${key}`,
-        ...value,
-      } as DocumentConfig;
-    }
+  for (const [documentType, documentConfig] of Object.entries(
+    fileContents.documentTypes
+  )) {
+    if (!isDocumentConfig(documentConfig))
+      throw `Error processing document type ${documentType}`;
+    config.documentTypes[documentType] = documentConfig;
   }
   return config;
 }
