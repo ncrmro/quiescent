@@ -26,7 +26,8 @@ the posts document type.
 The manifest is an object that we build dynamically or read from a JSON file depending the the mode the server package
 is operating in.
 
-The manifest looks like this and can be found 
+The manifest looks like this and can be found ad the root for the documentType directory,
+eg `public/posts/manifest.json`.
 
 ```json
 {
