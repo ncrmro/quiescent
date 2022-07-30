@@ -42,4 +42,4 @@ export async function documentBySlug(documentType: string, slug: string) {
 
 export * from "./manifest";
 export * from "./parseDocument";
-export { useConfig } from "./config";
+export * from "./config";

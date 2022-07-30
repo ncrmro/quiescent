@@ -1,6 +1,6 @@
 import fs from "fs";
 
-interface DocumentConfig {
+export interface DocumentConfig {
   directory: string;
 }
 
