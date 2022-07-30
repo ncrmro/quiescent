@@ -8,6 +8,10 @@ interface Config {
   documentTypes: Record<string, DocumentConfig>;
 }
 
+/**
+ * Reads the quiescent.json from project root
+ * validates and returns it.
+ */
 export function useConfig(): Config {
   const config: Config = {
     documentTypes: {},
