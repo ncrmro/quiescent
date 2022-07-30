@@ -7,6 +7,7 @@
     "test-build": "npm run qs --workspace=quiescent-example-nextjs build"
   },
   "workspaces": [
+    "e2e-testing",
     "examples/*",
     "packages/*"
   ],
