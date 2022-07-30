@@ -1,0 +1,10 @@
+image: node:16-alpine
+
+stages:
+  - build
+
+build:
+  stage: build
+  before_script:
+    - npm install
+  script: npm run build --workspace=@quiescent/server
