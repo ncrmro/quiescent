@@ -31,14 +31,18 @@ export async function getDocuments(
   category?: string
 ) {
   const manifest = await getManifest(documentType, mode);
+  let documents = Object.values(manifest.documents);
   if (category) {
-    const slugs = manifest.tags[category];
-    return slugs.reduce<Record<string, Document>>((acc, slug) => {
-      acc[slug] = manifest.documents[slug];
-      return acc;
-    }, {});
+    documents = manifest.tags[category].map(
+      (documentSlug) => manifest.documents[documentSlug]
+    );
   }
-  return manifest.documents;
+  documents.sort((a, b) => {
+    return (
+      new Date(b.date).getMilliseconds() - new Date(a.date).getMilliseconds()
+    );
+  });
+  return documents.reverse();
 }
 
 export * from "./manifest";
