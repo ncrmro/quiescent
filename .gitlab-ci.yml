@@ -1,0 +1,13 @@
+image: node:16-alpine
+
+stages:
+  - build
+
+build:
+  stage: build
+  before_script:
+    - npm install --cache .npm --prefer-offline
+    - npm run clean
+  script:
+    - npm run build --workspace=@quiescent/server
+    - npm run build --workspace=@quiescent/cli --workspace=@quiescent/components
