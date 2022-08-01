@@ -48,14 +48,14 @@ export async function parseDocument(
     document[k] = v;
   }
   const tags = document.tags?.split(",") || [];
-  if (document.title && document.description) {
-    return {
-      title: document.title,
-      description: document.description,
-      content,
-      date: `${year}-${month}-${date}`,
-      slug,
-      tags,
-    } as Document;
-  }
+  if (!document.title)
+    throw `Document ${documentFilename} in ${documentDirectory} missing title`;
+
+  return {
+    ...document,
+    content,
+    date: `${year}-${month}-${date}`,
+    slug,
+    tags,
+  } as Document;
 }

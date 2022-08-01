@@ -12,14 +12,12 @@ async function buildManifest(documentDirectory: string) {
   for (const documentFilename of await fs.readdir(documentDirectory)) {
     if (documentFilename === "manifest.json") continue;
     const doc = await parseDocument(documentDirectory, documentFilename);
-    if (doc) {
-      manifest.documents[doc.slug] = doc;
-      doc.tags?.forEach((tag) => {
-        manifest.tags[tag] ||= [];
-        manifest.tags[tag].push(doc.slug);
-        manifest.documents[doc.slug].tags?.push(tag);
-      });
-    }
+    manifest.documents[doc.slug] = doc;
+    doc.tags?.forEach((tag) => {
+      manifest.tags[tag] ||= [];
+      manifest.tags[tag].push(doc.slug);
+      manifest.documents[doc.slug].tags?.push(tag);
+    });
   }
   return manifest;
 }
