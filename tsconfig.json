@@ -12,5 +12,9 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "exclude": ["examples", "e2e-testing"]
+  "exclude": [
+    "**/dist",
+    "examples/nextjs",
+    "e2e-testing"
+  ]
 }
