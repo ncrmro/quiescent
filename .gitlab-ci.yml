@@ -9,3 +9,7 @@ build:
     - npm install --cache .npm --prefer-offline
   script:
     - npm run build
+  artifacts:
+    paths:
+      - packages/**/dist/
+    expire_in: 1 week
