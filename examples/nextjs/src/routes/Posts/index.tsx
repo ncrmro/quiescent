@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { Post } from "../../types";
 
-const PostsRoute: React.FC<{ posts: Post[] }> = (props) => {
+const PostsRoute: React.FC<{ documentType: string; documents: Post[] }> = (
+  props
+) => {
   return (
     <div>
-      {Object.entries(props.posts).map(([slug, post]) => (
+      {Object.entries(props.documents).map(([slug, post]) => (
         <div key={slug}>
           <span>
-            <Link href={`/posts/${slug}`}>{post.title}</Link>
+            <Link href={`/${props.documentType}/${slug}`}>{post.title}</Link>
           </span>
           <br />
           <p>{post.description}</p>
