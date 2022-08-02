@@ -1,7 +1,13 @@
 {
   "documentTypes": {
     "posts": {
-      "directory": "public/posts"
+      "directory": "public/posts",
+      "additionalKeys": [
+        {
+          "key": "description",
+          "required": false
+        }
+      ]
     }
   }
 }
