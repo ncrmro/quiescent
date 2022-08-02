@@ -1,17 +1,17 @@
 import fs from "fs/promises";
 import { Document, parseDocument } from "./parseDocument";
-import { useConfig } from "./config";
+import { DocumentConfig, useConfig } from "./config";
 
 interface Manifest {
   documents: Record<string, Document>;
   tags: Record<string, string[]>;
 }
 
-async function buildManifest(documentDirectory: string) {
+async function buildManifest(documentConfig: DocumentConfig) {
   const manifest: Manifest = { documents: {}, tags: {} };
-  for (const documentFilename of await fs.readdir(documentDirectory)) {
+  for (const documentFilename of await fs.readdir(documentConfig.directory)) {
     if (documentFilename === "manifest.json") continue;
-    const doc = await parseDocument(documentDirectory, documentFilename);
+    const doc = await parseDocument(documentConfig, documentFilename);
     if (doc) {
       manifest.documents[doc.slug] = doc;
       doc.tags?.forEach((tag) => {
@@ -33,7 +33,7 @@ export async function getManifest(
   if (!documentConfig) throw "Document type not found in config";
 
   if (mode === "dynamic") {
-    return buildManifest(documentConfig.directory);
+    return buildManifest(documentConfig);
   }
   if (mode === "filesystem") {
     const manifest = JSON.parse(

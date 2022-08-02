@@ -1,7 +1,8 @@
 import fs from "fs";
 
-interface DocumentConfig {
+export interface DocumentConfig {
   directory: string;
+  additionalKeys: { key: string; required: boolean }[];
 }
 
 interface Config {

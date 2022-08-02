@@ -1,8 +1,9 @@
 {
   "name": "quiescent",
+  "private": true,
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
-    "build": "npm run clean && tsc --build packages/components packages/server packages/cli examples/express",
+    "build": "tsc --build",
     "test-post": "npm run qs --workspace=quiescent-example-nextjs post -- --title 'Hello World!'",
     "test-build": "npm run qs --workspace=quiescent-example-nextjs build",
     "clean": "rm -rf ./packages/**/dist/ ./packages/**/tsconfig.tsbuildinfo"

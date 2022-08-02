@@ -41,7 +41,7 @@ async function getDocumentBySlug(documentType: string, slug: string) {
     (fileName) => fileName.includes(slug)
   );
   if (documentFilename) {
-    return await parseDocument(documentConfig.directory, documentFilename);
+    return await parseDocument(documentConfig, documentFilename);
   }
 }
 
