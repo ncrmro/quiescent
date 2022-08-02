@@ -7,7 +7,7 @@
       "directory": "public/posts"
     },
     "recipes": {
-      "directory": "public/jobs"
+      "directory": "public/recipes"
     }
   }
 }
