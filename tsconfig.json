@@ -10,11 +10,27 @@
     "moduleResolution": "node",
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
   },
   "exclude": [
-    "**/dist",
-    "examples/nextjs",
+    "examples/**/dist",
+    "examples/nextjs", // nextjs has it's own build tools
+    "packages/**/dist",
+    "packages/components", // issues with jst rn.
     "e2e-testing"
+  ],
+  "references": [
+    {
+      "path": "examples/express"
+    },
+    {
+      "path": "packages/cli"
+    },
+//    {
+//      "path": "packages/components"
+//    },
+    {
+      "path": "packages/server"
+    }
   ]
 }

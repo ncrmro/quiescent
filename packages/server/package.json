@@ -7,7 +7,7 @@
   "license": "MIT",
   "scripts": {
     "build": "tsc",
-    "watch": "tsc --watch"
+    "watch": "tsc-watch --onSuccess 'node ./dist/index.js'"
   },
   "dependencies": {},
   "devDependencies": {},

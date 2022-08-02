@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import { DocumentConfig } from "./config";
 
 export interface Document {
   title: string;
@@ -10,12 +11,12 @@ export interface Document {
 }
 
 /**
- * Parse the specified markdown file into our document format
- * @param documentDirectory
+ * Parse the header from the markdown file.
+ * @param documentConfig
  * @param documentFilename
  */
 export async function parseDocument(
-  documentDirectory: string,
+  documentConfig: DocumentConfig,
   documentFilename: string
 ) {
   const documentMatch = documentFilename.match(
@@ -31,7 +32,7 @@ export async function parseDocument(
     documentFilename = `${documentFilename}/document.md`;
   }
   let content = await fs.readFile(
-    `${documentDirectory}/${documentFilename}`,
+    `${documentConfig.directory}/${documentFilename}`,
     "utf8"
   );
 
@@ -42,11 +43,31 @@ export async function parseDocument(
   // Remove the header from markdown file contents
   content = content.replace(match, "");
 
+  const requiredKeys: string[] = [];
+  // Since we are converting from array, convert to map
+  const additionalKeys = new Map(
+    documentConfig.additionalKeys.map(({ key, ...config }) => {
+      if (config.required) requiredKeys.push(key);
+      return [key, config];
+    })
+  );
+
   const document: Record<string, string> = {};
+
   // For each attribute in the header file add to the post object
   for (const [_, k, v] of match.matchAll(/^(?<key>\w*): (?<value>.*)$/gm)) {
+    // On first loop we should make sure the key is defined in the documentConfig
+    if (!additionalKeys.get(k))
+      throw `Key ${k} in ${documentFilename} was not defined in your config`;
     document[k] = v;
   }
+
+  for (const key in additionalKeys) {
+    if (!(key in document)) {
+      throw `Required key ${key} was not found in document ${documentFilename}`;
+    }
+  }
+
   const tags = document.tags?.split(",") || [];
   if (document.title && document.description) {
     return {
