@@ -2,7 +2,7 @@
   "name": "quiescent",
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
-    "build": "npm run clean && npm run build --workspaces",
+    "build": "npm run clean && tsc --build packages/components packages/server packages/cli",
     "test-post": "npm run qs --workspace=quiescent-example-nextjs post -- --title 'Hello World!'",
     "test-build": "npm run qs --workspace=quiescent-example-nextjs build",
     "clean": "rm -rf ./packages/**/dist/ ./packages/**/tsconfig.tsbuildinfo"

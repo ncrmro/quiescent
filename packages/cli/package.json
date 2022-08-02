@@ -10,6 +10,7 @@
     "qs": "./dist/index.js"
   },
   "dependencies": {
+    "@quiescent/server": "^0.0.5",
     "inquirer": "^8.2.4",
     "yargs": "^17.5.1"
   },
