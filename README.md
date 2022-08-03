@@ -55,3 +55,11 @@ Content goes here.
 The first tag of a document is it's primary category, we index the primary category in
 the [manifest](packages/server/README.md#manifest).
 
+
+## Local Development
+
+After installing dependencies the document folder will be system linked into each of the example directories.
+
+```bash
+npm run cli post
+```
