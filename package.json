@@ -9,7 +9,9 @@
     "test-post": "npm run qs --workspace=quiescent-example-nextjs post -- --title 'Hello World!'",
     "test-build": "npm run qs --workspace=quiescent-example-nextjs build",
     "clean": "rm -rf ./packages/**/dist/ ./packages/**/tsconfig.tsbuildinfo",
-    "cli": "npm run -w @quiescent/cli test"
+    "cli": "npm run -w @quiescent/cli test",
+    "link-documents": "npm run --workspaces link-documents --if-present",
+    "postinstall": "npm run link-documents"
   },
   "workspaces": [
     "e2e-testing",

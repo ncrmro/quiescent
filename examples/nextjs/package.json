@@ -7,7 +7,8 @@
     "dev": "next dev -p 3300",
     "post": "ts-node src",
     "qs": "node ../../packages/cli/dist",
-    "qs:man": "node ../../packages/cli/dist build"
+    "qs:man": "node ../../packages/cli/dist build",
+    "link-documents": "mkdir -p public && ln -sf ${PWD}/../../documents ${PWD}/public/"
   },
   "dependencies": {
     "next": "12.1.6",
