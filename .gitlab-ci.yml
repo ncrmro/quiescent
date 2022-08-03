@@ -6,9 +6,10 @@ stages:
 build:
   stage: build
   before_script:
-    - yarn install --frozen-lockfile --cache-folder .yarn
+    - ln -sf documents examples/nextjs/public/documents
+    - npm install --cache .npm --prefer-offline
   script:
-    - yarn build
+    - npm run build
   artifacts:
     paths:
       - packages/**/dist/
