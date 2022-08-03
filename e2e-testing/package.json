@@ -1,4 +1,5 @@
 {
+  "name": "quiescent-e2e",
   "private": true,
   "dependencies": {
     "@playwright/test": "^1.16.1"
