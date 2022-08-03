@@ -12,6 +12,6 @@
   "scripts": {
     "dev": "tsc-watch --onSuccess 'node ./dist/index.js'",
     "post": "qs",
-    "link-documents": "ln -sf ${PWD}/../../documents ${PWD}/public/"
+    "link-documents": "mkdir -p public && ln -sf ${PWD}/../../documents ${PWD}/public/"
   }
 }
