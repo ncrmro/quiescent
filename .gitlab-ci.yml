@@ -6,9 +6,9 @@ stages:
 build:
   stage: build
   before_script:
-    - npm install --cache .npm --prefer-offline
+    - yarn install --frozen-lockfile --cache-folder .yarn
   script:
-    - npm run build
+    - yarn build
   artifacts:
     paths:
       - packages/**/dist/
