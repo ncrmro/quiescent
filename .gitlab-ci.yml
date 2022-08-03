@@ -6,6 +6,7 @@ stages:
 build:
   stage: build
   before_script:
+    - ls examples/nextjs/public/
     - ln -sf documents examples/nextjs/public/documents
     - npm install --cache .npm --prefer-offline
   script:
