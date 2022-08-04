@@ -47,6 +47,6 @@ async function getDocumentBySlug(documentType: string, slug: string) {
 
 export default {
   get: getDocuments,
-  getSlugs: getDocuments,
-  getBySlug: getDocumentSlugs,
+  getSlugs: getDocumentSlugs,
+  getBySlug: getDocumentBySlug,
 };
