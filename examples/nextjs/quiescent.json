@@ -1,13 +1,45 @@
 {
   "documentTypes": {
     "jobs": {
-      "directory": "public/jobs"
+      "directory": "public/documents/jobs",
+      "additionalKeys": [
+        {
+          "key": "url",
+          "required": true
+        },
+        {
+          "key": "favicon",
+          "required": true
+        },
+        {
+          "key": "role",
+          "required": true
+        },
+        {
+          "key": "type",
+          "required": true
+        },
+        {
+          "key": "end",
+          "required": true
+        },
+        {
+          "key": "tech",
+          "required": true
+        }
+      ]
     },
     "posts": {
-      "directory": "public/posts"
+      "directory": "public/documents/posts",
+      "additionalKeys": [
+        {
+          "key": "description",
+          "required": true
+        }
+      ]
     },
     "recipes": {
-      "directory": "public/recipes"
+      "directory": "public/documents/recipes"
     }
   }
 }

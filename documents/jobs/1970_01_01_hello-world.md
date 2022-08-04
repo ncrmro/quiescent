@@ -4,7 +4,6 @@ url: https://www.merckgroup.com
 favicon: /job_icons/merck.ico
 role: Platform Engineer
 type: Contract
-start: 2020-08
 end: Present
 tech: Node,Typescript,GraphQL,React,Next.JS,Kubernetes,Helm,Playwright,Gitlab,CI,Backstage
 ---

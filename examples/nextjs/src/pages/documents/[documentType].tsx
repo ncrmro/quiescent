@@ -1,7 +1,7 @@
 import { GetStaticPaths, GetStaticProps } from "next";
 import { getManifest } from "@quiescent/server";
 
-export { default as default } from "../routes/Posts";
+export { default as default } from "../../routes/Posts";
 
 // TODO this should eventually be generated from the config.
 export const DocumentTypes = ["posts", "guides", "recipes"] as const;
