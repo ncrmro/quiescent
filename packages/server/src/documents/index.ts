@@ -3,7 +3,7 @@ import { useConfig } from "../config";
 import fs from "fs/promises";
 import { parseDocument } from "../parseDocument";
 
-async function getDocuments(
+export async function getDocuments(
   documentType: string,
   mode: "dynamic" | "filesystem",
   category?: string
@@ -23,7 +23,7 @@ async function getDocuments(
   return documents.reverse();
 }
 
-async function getDocumentSlugs(
+export async function getDocumentSlugs(
   documentType: string,
   mode: "dynamic" | "filesystem"
 ) {
@@ -33,7 +33,7 @@ async function getDocumentSlugs(
   }
 }
 
-async function getDocumentBySlug(documentType: string, slug: string) {
+export async function getDocumentBySlug(documentType: string, slug: string) {
   const config = useConfig();
   const documentConfig = config.documentTypes[documentType];
   if (!documentConfig) throw "Document type not found in config";
@@ -44,9 +44,3 @@ async function getDocumentBySlug(documentType: string, slug: string) {
     return await parseDocument(documentConfig, documentFilename);
   }
 }
-
-export default {
-  get: getDocuments,
-  getSlugs: getDocumentSlugs,
-  getBySlug: getDocumentBySlug,
-};

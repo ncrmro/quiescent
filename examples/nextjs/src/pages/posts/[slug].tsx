@@ -1,25 +1,24 @@
 import { GetStaticPaths, GetStaticProps } from "next";
 import { Post } from "../../types";
+import { getDocumentSlugs, getDocumentBySlug } from "@quiescent/server";
 
 export { default as default } from "../../routes/Post";
 
 export const getStaticProps: GetStaticProps<{ post: Post }> = async (
   context
 ) => {
-  const { documentBySlug } = await import("@quiescent/server");
-  if (typeof context.params.slug === "string") {
-    return {
-      props: { post: await documentBySlug("posts", context.params.slug) },
-    };
-  }
+  if (typeof context.params.slug !== "string")
+    throw "Slug was not defined or not string";
+  const document = await getDocumentBySlug("posts", context.params.slug);
+  return {
+    props: { post: document },
+  };
 };
 
 export const getStaticPaths: GetStaticPaths = async (context) => {
-  // Importing server code
-  const { getDocumentSlugs } = await import("@quiescent/server");
-
+  const slugs = await getDocumentSlugs("posts", "dynamic");
   return {
-    paths: (await getDocumentSlugs("posts", "dynamic")).map((slug) => ({
+    paths: slugs.map((slug) => ({
       params: {
         slug,
       },
