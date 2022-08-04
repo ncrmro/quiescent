@@ -3,22 +3,24 @@ import { getManifest } from "@quiescent/server";
 
 export { default as default } from "../routes/Posts";
 
-export const getStaticProps: GetStaticProps = async (context) => {
-  const documentType = context.params.documentType;
-  if (typeof documentType === "string") {
-    const manifest = await getManifest(documentType, "dynamic");
+// TODO this should eventually be generated from the config.
+export const DocumentTypes = ["posts", "guides", "recipes"] as const;
 
-    return {
-      props: { documentType, documents: manifest.documents },
-    };
-  }
+export const getStaticProps: GetStaticProps = async (context) => {
+  const documentType = DocumentTypes.find(
+    (d) => d === context.params?.documentType
+  );
+  if (!documentType)
+    throw "Document type param doesn't match existing documents.";
+  const manifest = await getManifest(documentType, "dynamic");
+  return {
+    props: { documentType, documents: manifest.documents },
+  };
 };
 
 export const getStaticPaths: GetStaticPaths = async (context) => {
-  // Importing server code
-
   return {
-    paths: ["posts", "jobs", "recipes"].map((documentType) => ({
+    paths: DocumentTypes.map((documentType) => ({
       params: {
         documentType,
       },
