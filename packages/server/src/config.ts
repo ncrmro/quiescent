@@ -2,7 +2,7 @@ import fs from "fs";
 
 export interface DocumentConfig {
   directory: string;
-  additionalKeys: { key: string; required: boolean }[];
+  additionalKeys?: { key: string; required: boolean }[];
 }
 
 interface Config {

@@ -10,6 +10,19 @@ export interface Document {
   tags?: string[];
 }
 
+function useAdditionalKeys(documentConfig: DocumentConfig) {
+  const requiredKeys: string[] = ["title"];
+
+  // Since we are converting from array, convert to map
+  const additionalKeys = new Map(
+    documentConfig.additionalKeys?.map(({ key, ...config }) => {
+      if (config.required) requiredKeys.push(key);
+      return [key, config];
+    })
+  );
+  return { additionalKeys, requiredKeys };
+}
+
 /**
  * Parse the header from the markdown file.
  * @param documentConfig
@@ -43,33 +56,27 @@ export async function parseDocument(
   // Remove the header from markdown file contents
   content = content.replace(match, "");
 
-  const requiredKeys: string[] = [];
-  // Since we are converting from array, convert to map
-  const additionalKeys = new Map(
-    documentConfig.additionalKeys.map(({ key, ...config }) => {
-      if (config.required) requiredKeys.push(key);
-      return [key, config];
-    })
-  );
-
+  const { additionalKeys, requiredKeys } = useAdditionalKeys(documentConfig);
   const document: Record<string, string> = {};
 
   // For each attribute in the header file add to the post object
   for (const [_, k, v] of match.matchAll(/^(?<key>\w*): (?<value>.*)$/gm)) {
-    // On first loop we should make sure the key is defined in the documentConfig
-    if (!additionalKeys.get(k))
+    // Make sure only keys defined in the config are allowed
+    if (!["title", "tags"].includes(k) && !additionalKeys.get(k)) {
       throw `Key ${k} in ${documentFilename} was not defined in your config`;
+    }
+
     document[k] = v;
   }
 
-  for (const key in additionalKeys) {
+  for (const key of requiredKeys) {
     if (!(key in document)) {
       throw `Required key ${key} was not found in document ${documentFilename}`;
     }
   }
 
   const tags = document.tags?.split(",") || [];
-  if (document.title && document.description) {
+  if (document.title) {
     return {
       title: document.title,
       description: document.description,
