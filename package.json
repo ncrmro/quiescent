@@ -2,7 +2,7 @@
   "name": "quiescent",
   "private": true,
   "scripts": {
-    "dev": "npm run dev --workspaces --if-present",
+    "dev": "yarn build-packages --watch",
     "build": "yarn build-packages && yarn build-examples",
     "build-packages": "tsc --build packages/server packages/cli",
     "build-examples": "tsc --build examples/express",
