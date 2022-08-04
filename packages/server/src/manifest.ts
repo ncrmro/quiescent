@@ -7,7 +7,7 @@ interface Manifest {
   tags: Record<string, string[]>;
 }
 
-async function buildManifest(documentConfig: DocumentConfig) {
+export async function buildManifest(documentConfig: DocumentConfig) {
   const manifest: Manifest = { documents: {}, tags: {} };
   for (const documentFilename of await fs.readdir(documentConfig.directory)) {
     if (documentFilename === "manifest.json") continue;

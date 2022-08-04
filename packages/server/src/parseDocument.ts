@@ -51,7 +51,7 @@ export async function parseDocument(
 
   // Extract the header from the file contents
   const match = content.match(/---\n((\w*:) .*\n)*---/)?.[0];
-  if (!match) throw `Error parsing the header for ${documentFilename}`;
+  if (!match) throw new Error(`Unable to parse header for ${documentFilename}`);
 
   // Remove the header from markdown file contents
   content = content.replace(match, "");
