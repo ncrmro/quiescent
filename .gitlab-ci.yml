@@ -1,4 +1,10 @@
 image: node:16-alpine
+cache: &global_cache
+  key:
+    files:
+      - yarn.lock
+  paths:
+    - .yarn-cache/
 
 stages:
   - build
@@ -6,9 +12,9 @@ stages:
 build:
   stage: build
   before_script:
-    - npm install --cache .npm --prefer-offline
+    - yarn install --frozen-lockfile --cache-folder .yarn-cache --prefer-offline
   script:
-    - npm run build
+    - yarn build
   artifacts:
     paths:
       - packages/**/dist/
