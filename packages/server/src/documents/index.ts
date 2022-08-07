@@ -1,14 +1,14 @@
 import { getManifest } from "../manifest";
 import { useConfig } from "../config";
 import fs from "fs/promises";
-import { parseDocument } from "../parseDocument";
+import { Document, parseDocument } from "../parseDocument";
 
-export async function getDocuments(
+export async function getDocuments<D extends Document = Document>(
   documentType: string,
   mode: "dynamic" | "filesystem",
   category?: string
 ) {
-  const manifest = await getManifest(documentType, mode);
+  const manifest = await getManifest<D>(documentType, mode);
   let documents = Object.values(manifest.documents);
   if (category) {
     documents = manifest.tags[category].map(
@@ -23,7 +23,7 @@ export async function getDocuments(
   return documents.reverse();
 }
 
-export async function getDocumentSlugs(
+export async function getDocumentSlugs<D extends Document = Document>(
   documentType: string,
   mode: "dynamic" | "filesystem"
 ) {
@@ -33,7 +33,10 @@ export async function getDocumentSlugs(
   }
 }
 
-export async function getDocumentBySlug(documentType: string, slug: string) {
+export async function getDocumentBySlug<D extends Document = Document>(
+  documentType: string,
+  slug: string
+) {
   const config = useConfig();
   const documentConfig = config.documentTypes[documentType];
   if (!documentConfig) throw "Document type not found in config";
@@ -41,6 +44,6 @@ export async function getDocumentBySlug(documentType: string, slug: string) {
     (fileName) => fileName.includes(slug)
   );
   if (documentFilename) {
-    return await parseDocument(documentConfig, documentFilename);
+    return await parseDocument<D>(documentConfig, documentFilename);
   }
 }

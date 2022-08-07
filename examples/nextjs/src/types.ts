@@ -1,3 +1,5 @@
 import { Document } from "@quiescent/server";
 
-export interface Post extends Document {}
+export interface Post extends Document {
+  description: string;
+}
