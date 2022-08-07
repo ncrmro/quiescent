@@ -24,6 +24,20 @@ function useAdditionalKeys(documentConfig: DocumentConfig) {
 }
 
 /**
+ * Extract the date and slug from the document file name
+ * @param documentFilename
+ */
+function parseDocumentFilename(documentFilename: string) {
+  const documentMatch = documentFilename.match(
+    /(?<year>\d{4})_(?<month>\d{2})_(?<date>\d{2})_(?<slug>[A-Za-z0-9-]*)[\.md]?/
+  );
+  if (!documentMatch?.groups)
+    throw `Document file name does not match YYYY_MM_DD-document-slug ${documentFilename}`;
+  const { year, month, date, slug } = documentMatch.groups;
+  return { year, month, date, slug };
+}
+
+/**
  * Parse the header from the markdown file.
  * @param documentConfig
  * @param documentFilename
@@ -32,13 +46,7 @@ export async function parseDocument(
   documentConfig: DocumentConfig,
   documentFilename: string
 ) {
-  const documentMatch = documentFilename.match(
-    /(?<year>\d{4})_(?<month>\d{2})_(?<date>\d{2})_(?<slug>[A-Za-z0-9-]*)[\.md]?/
-  );
-  if (!documentMatch?.groups)
-    throw `Document file name does not match YYYY_MM_DD-document-slug ${documentFilename}`;
-  // console.log(re?.groups);
-  const { year, month, date, slug } = documentMatch.groups;
+  const { year, month, date, slug } = parseDocumentFilename(documentFilename);
 
   // If document is in a folder with assets
   if (!documentFilename.includes(".md")) {
@@ -51,7 +59,7 @@ export async function parseDocument(
 
   // Extract the header from the file contents
   const match = content.match(/---\n((\w*:) .*\n)*---/)?.[0];
-  if (!match) throw `Error parsing the header for ${documentFilename}`;
+  if (!match) throw new Error(`Unable to parse header for ${documentFilename}`);
 
   // Remove the header from markdown file contents
   content = content.replace(match, "");
