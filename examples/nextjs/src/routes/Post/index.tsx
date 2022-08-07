@@ -1,8 +1,8 @@
-import { Post } from "../../types";
+import { MDXPost } from "../../types";
 import { MDXRemote } from "next-mdx-remote";
 
 const components = {};
-const PostRoute: React.FC<{ post: Post }> = (props) => {
+const PostRoute: React.FC<{ post: MDXPost }> = (props) => {
   return (
     <div>
       <h1>{props.post.title}</h1>
