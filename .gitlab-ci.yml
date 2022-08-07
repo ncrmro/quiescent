@@ -14,9 +14,11 @@ build:
   before_script:
     - yarn install --frozen-lockfile --cache-folder .yarn-cache --prefer-offline
   script:
-    - yarn test
+    - yarn test --ci --reporters=default --reporters=jest-junit
     - yarn build
   artifacts:
     paths:
       - packages/**/dist/
     expire_in: 1 week
+    reports:
+      junit: junit.xml
