@@ -1,26 +1,47 @@
 import fs from "fs/promises";
 import { DocumentConfig } from "./config";
 
+export const defaultKeys = ["title", "content", "tags", "slug", "date"];
+
+/**
+ * This function type guards our generic document type
+ * @param documentConfig
+ * @param documentFilename
+ * @param object
+ */
+function isDocument<D = Document>(
+  documentConfig: DocumentConfig,
+  documentFilename: string,
+  object: any
+): object is D {
+  const additionalKeys = documentConfig.additionalKeys;
+  if (!additionalKeys) return true;
+  // Find any keys that aren't in the defaults or additional keys
+  const unknownKey = Object.keys(object).find(
+    (key) => !defaultKeys.includes(key) && !(key in additionalKeys)
+  );
+  if (unknownKey)
+    throw `Key ${unknownKey} was found in document ${documentFilename}`;
+
+  for (const [key, atr] of Object.entries(additionalKeys)) {
+    // If key is in object but not correct type return false
+    if (key in object && typeof object[key] !== atr.type) {
+      throw `Key ${key} was not the correct type in document ${documentFilename}`;
+    }
+    // If attribute required and not in object return false
+    if (atr.required && !(key in object)) {
+      throw `Required key ${key} was not found in document ${documentFilename}`;
+    }
+  }
+  return true;
+}
+
 export interface Document {
   title: string;
-  description: string;
   content: string;
   date: string;
   slug: string;
   tags?: string[];
-}
-
-function useAdditionalKeys(documentConfig: DocumentConfig) {
-  const requiredKeys: string[] = ["title"];
-
-  // Since we are converting from array, convert to map
-  const additionalKeys = new Map(
-    documentConfig.additionalKeys?.map(({ key, ...config }) => {
-      if (config.required) requiredKeys.push(key);
-      return [key, config];
-    })
-  );
-  return { additionalKeys, requiredKeys };
 }
 
 /**
@@ -42,10 +63,10 @@ function parseDocumentFilename(documentFilename: string) {
  * @param documentConfig
  * @param documentFilename
  */
-export async function parseDocument(
+export async function parseDocument<D extends Document = Document>(
   documentConfig: DocumentConfig,
   documentFilename: string
-) {
+): Promise<D> {
   const { year, month, date, slug } = parseDocumentFilename(documentFilename);
 
   // If document is in a folder with assets
@@ -61,37 +82,23 @@ export async function parseDocument(
   const match = content.match(/---\n((\w*:) .*\n)*---/)?.[0];
   if (!match) throw new Error(`Unable to parse header for ${documentFilename}`);
 
-  // Remove the header from markdown file contents
-  content = content.replace(match, "");
-
-  const { additionalKeys, requiredKeys } = useAdditionalKeys(documentConfig);
-  const document: Record<string, string> = {};
+  const document: Record<string, string | string[]> = {
+    slug,
+    date: `${year}-${month}-${date}`,
+    // Remove the header from markdown file contents
+    content: content.replace(match, ""),
+  };
 
   // For each attribute in the header file add to the post object
   for (const [_, k, v] of match.matchAll(/^(?<key>\w*): (?<value>.*)$/gm)) {
     // Make sure only keys defined in the config are allowed
-    if (!["title", "tags"].includes(k) && !additionalKeys.get(k)) {
-      throw `Key ${k} in ${documentFilename} was not defined in your config`;
-    }
-
     document[k] = v;
   }
-
-  for (const key of requiredKeys) {
-    if (!(key in document)) {
-      throw `Required key ${key} was not found in document ${documentFilename}`;
-    }
+  if (typeof document.tags === "string") {
+    document.tags = document.tags?.split(",") || [];
   }
 
-  const tags = document.tags?.split(",") || [];
-  if (document.title) {
-    return {
-      title: document.title,
-      description: document.description,
-      content,
-      date: `${year}-${month}-${date}`,
-      slug,
-      tags,
-    } as Document;
-  }
+  if (!isDocument<D>(documentConfig, documentFilename, document))
+    throw "Document was not parseable";
+  return document;
 }
