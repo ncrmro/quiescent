@@ -2,41 +2,34 @@
   "documentTypes": {
     "jobs": {
       "directory": "public/documents/jobs",
-      "additionalKeys": [
-        {
-          "key": "url",
+      "additionalKeys": {
+        "url": {
           "required": true
         },
-        {
-          "key": "favicon",
+        "favicon": {
           "required": true
         },
-        {
-          "key": "role",
+        "role": {
           "required": true
         },
-        {
-          "key": "type",
+        "type": {
           "required": true
         },
-        {
-          "key": "end",
+        "end": {
           "required": true
         },
-        {
-          "key": "tech",
+        "tech": {
           "required": true
         }
-      ]
+      }
     },
     "posts": {
       "directory": "public/documents/posts",
-      "additionalKeys": [
-        {
-          "key": "description",
+      "additionalKeys": {
+        "description": {
           "required": true
         }
-      ]
+      }
     },
     "recipes": {
       "directory": "public/documents/recipes"

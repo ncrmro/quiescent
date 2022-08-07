@@ -2,16 +2,18 @@ import fs from "fs/promises";
 import { Document, parseDocument } from "./parseDocument";
 import { DocumentConfig, useConfig } from "./config";
 
-interface Manifest {
-  documents: Record<string, Document>;
+interface Manifest<D extends Document = Document> {
+  documents: Record<string, D>;
   tags: Record<string, string[]>;
 }
 
-export async function buildManifest(documentConfig: DocumentConfig) {
-  const manifest: Manifest = { documents: {}, tags: {} };
+export async function buildManifest<D extends Document = Document>(
+  documentConfig: DocumentConfig
+) {
+  const manifest: Manifest<D> = { documents: {}, tags: {} };
   for (const documentFilename of await fs.readdir(documentConfig.directory)) {
     if (documentFilename === "manifest.json") continue;
-    const doc = await parseDocument(documentConfig, documentFilename);
+    const doc = await parseDocument<D>(documentConfig, documentFilename);
     if (doc) {
       manifest.documents[doc.slug] = doc;
       doc.tags?.forEach((tag) => {
@@ -24,16 +26,16 @@ export async function buildManifest(documentConfig: DocumentConfig) {
   return manifest;
 }
 
-export async function getManifest(
+export async function getManifest<D extends Document = Document>(
   documentType: string,
   mode: "dynamic" | "filesystem"
-): Promise<Manifest> {
+): Promise<Manifest<D>> {
   const config = useConfig();
   const documentConfig = config.documentTypes[documentType];
   if (!documentConfig) throw "Document type not found in config";
 
   if (mode === "dynamic") {
-    return buildManifest(documentConfig);
+    return buildManifest<D>(documentConfig);
   }
   if (mode === "filesystem") {
     const manifest = JSON.parse(
