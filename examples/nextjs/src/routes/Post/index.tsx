@@ -1,11 +1,12 @@
 import { Post } from "../../types";
-import { Markdown } from "@quiescent/components";
+import { MDXRemote } from "next-mdx-remote";
 
+const components = {};
 const PostRoute: React.FC<{ post: Post }> = (props) => {
   return (
     <div>
       <h1>{props.post.title}</h1>
-      <Markdown>{props.post.content}</Markdown>
+      <MDXRemote {...props.post.content} components={components} />
     </div>
   );
 };
