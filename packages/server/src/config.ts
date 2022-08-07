@@ -6,6 +6,7 @@ export interface DocumentConfig {
     string,
     { required: boolean; type: "string" | "array" }
   >;
+  generatedTypesFile: string;
 }
 
 interface Config {

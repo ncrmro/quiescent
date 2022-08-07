@@ -1674,6 +1674,11 @@
   dependencies:
     json-parse-even-better-errors "^2.3.1"
 
+"@quiescent/server@^0.0.12":
+  version "0.0.12"
+  resolved "https://registry.yarnpkg.com/@quiescent/server/-/server-0.0.12.tgz#bf957174bdaa66b4da8ba26e7edea33da9304f9e"
+  integrity sha512-gU+gjebzcs5oLRsUSkIA0Fm661uLo3zYeiAwuAGdbzndp7y8fe3HjBi82rXNJpM+IyLBnu/PBEVN6/KpoVNiDQ==
+
 "@quiescent/server@^0.0.5":
   version "0.0.5"
   resolved "https://registry.yarnpkg.com/@quiescent/server/-/server-0.0.5.tgz#634565516c6fa5795499651c79c9c31006acbaaf"

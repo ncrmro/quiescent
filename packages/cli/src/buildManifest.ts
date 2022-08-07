@@ -10,14 +10,19 @@ import { ArgumentsCamelCase } from "yargs";
 export default async function (args: ArgumentsCamelCase) {
   const config = useConfig();
   const documentConfigs = Object.entries(config.documentTypes);
-  await Promise.all(
-    documentConfigs.map(([documentType, documentConfig]) =>
-      getManifest(documentType, "dynamic").then((manifest) =>
-        fs.writeFile(
-          `${documentConfig.directory}/manifest.json`,
-          JSON.stringify(manifest)
-        )
-      )
-    )
-  );
+  for (const [documentType, documentConfig] of documentConfigs) {
+    const documentManifest = await getManifest(documentType, "dynamic");
+    await fs.writeFile(
+      `${documentConfig.directory}/manifest.json`,
+      JSON.stringify(documentManifest)
+    );
+    await fs.writeFile(
+      documentConfig.generatedTypesFile,
+      `
+interface ${documentType} extends Document {
+  ${documentConfig.additionalKeys.}
+}    
+`
+    );
+  }
 }
