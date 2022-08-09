@@ -1,4 +1,4 @@
-import { DocumentConfig } from "./config";
+import { Config, DocumentConfig } from "./config";
 import fs from "fs/promises";
 
 export async function useTempDocumentConfig(
@@ -10,6 +10,21 @@ export async function useTempDocumentConfig(
   }
   await fs.mkdir(documentConfig.directory, { recursive: true });
   return { directory: documentConfig.directory, ...documentConfig };
+}
+
+export async function useTempConfig(config: Partial<Config> = {}) {
+  const tempDir = `/tmp/quiescent-tests-${Date.now().toString()}`;
+  config.documentTypes ||= {};
+  config.documentTypes.posts ||= { directory: `${tempDir}/posts` };
+
+  const configPath = `${tempDir}/quiescent.json`;
+
+  await fs.mkdir(tempDir, { recursive: true });
+  await fs.writeFile(configPath, JSON.stringify(config));
+  return {
+    configPath,
+    config,
+  };
 }
 
 export async function useTempDocument(
