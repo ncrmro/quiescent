@@ -1,15 +1,37 @@
 import fs from "fs";
 
-export interface DocumentConfig {
-  directory: string;
-  additionalKeys?: Record<
-    string,
-    { required: boolean; type: "string" | "array" }
-  >;
+export const additionalKeyTypes = ["string", "array"] as const;
+
+export interface AdditionalKey {
+  required: boolean;
+  type: typeof additionalKeyTypes[number];
 }
 
-interface Config {
+export interface DocumentConfig {
+  directory: string;
+  additionalKeys?: Record<string, AdditionalKey>;
+}
+
+export interface Config {
   documentTypes: Record<string, DocumentConfig>;
+}
+
+function isAdditionalKeysObj(
+  documentType: string,
+  key: string,
+  object: any
+): object is AdditionalKey {
+  if (!("required" in object) || typeof object.required !== "boolean")
+    throw new Error(
+      `Additional key ${key} is missing required or is not of type boolean`
+    );
+  if (!("type" in object))
+    throw new Error(
+      `Error parsing config documentType ${documentType}, additional key ${key} is missing type.`
+    );
+  if (!additionalKeyTypes.find((i) => i === object.type))
+    throw new Error(`Additional key ${key} with value ${object.type}`);
+  return true;
 }
 
 function isDocumentConfig(object: any): object is DocumentConfig {
@@ -20,15 +42,15 @@ function isDocumentConfig(object: any): object is DocumentConfig {
  * Reads the quiescent.json from project root
  * validates and returns it.
  */
-export function useConfig(): Config {
+export function useConfig(
+  documentConfigPath = `${process.cwd()}/quiescent.json`
+): Config {
   const config: Config = {
     documentTypes: {},
   };
   let fileContents;
   try {
-    fileContents = JSON.parse(
-      fs.readFileSync(`${process.cwd()}/quiescent.json`, "utf8")
-    );
+    fileContents = JSON.parse(fs.readFileSync(documentConfigPath, "utf8"));
   } catch {
     throw "Quiescent config file does not exist, please create one";
   }
@@ -41,6 +63,14 @@ export function useConfig(): Config {
   )) {
     if (!isDocumentConfig(documentConfig))
       throw `Error processing document type ${documentType}`;
+    if (documentConfig.additionalKeys) {
+      for (const [key, additionalKey] of Object.entries(
+        documentConfig.additionalKeys
+      )) {
+        isAdditionalKeysObj(documentType, key, additionalKey);
+      }
+    }
+
     config.documentTypes[documentType] = documentConfig;
   }
   return config;
