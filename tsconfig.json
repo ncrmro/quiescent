@@ -17,7 +17,8 @@
     "examples/nextjs", // nextjs has it's own build tools
     "packages/**/dist",
     "packages/components", // issues with jst rn.
-    "e2e-testing"
+    "e2e-testing",
+    "**/*.test.ts"
   ],
   "references": [
     {

@@ -1,5 +1,5 @@
 {
-  "name": "quiescent-example-express",
+  "name": "express",
   "version": "0.0.1",
   "private": true,
   "dependencies": {
@@ -10,7 +10,7 @@
     "@types/express": "^4.17.13"
   },
   "scripts": {
-    "dev": "tsc-watch --onSuccess 'node ./dist/index.js'",
+    "dev": "concurrently 'tsc --build --watch' 'node dist'",
     "post": "qs",
     "link-documents": "mkdir -p public && ln -sf ${PWD}/../../documents ${PWD}/public/"
   }
