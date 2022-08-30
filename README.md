@@ -63,3 +63,9 @@ After installing dependencies the document folder will be system linked into eac
 ```bash
 npm run cli post
 ```
+
+## Publishing 
+
+```bash
+yarn workspace @quiescent/server publish
+```

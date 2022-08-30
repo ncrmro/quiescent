@@ -29,7 +29,7 @@ export async function getDocumentSlugs<D extends Document = Document>(
 ) {
   const manifest = await getManifest(documentType, mode);
   if (manifest) {
-    return Object.keys(manifest);
+    return Object.keys(manifest.documents);
   }
 }
 
