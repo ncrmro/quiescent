@@ -9,9 +9,11 @@
     "dev:wrangler": "cross-env NODE_ENV=development wrangler pages dev ./public",
     "dev": "remix build && run-p \"dev:*\"",
     "start": "cross-env NODE_ENV=production npm run dev:wrangler",
-    "link-documents": "mkdir -p public && ln -sf ${PWD}/../../documents ${PWD}/public/"
+    "link-documents": "mkdir -p public && ln -sf ${PWD}/../../documents ${PWD}/public/",
+    "load": "node_modules/@q"
   },
   "dependencies": {
+    "@quiescent/cloudflare-kv": "^0.0.1",
     "@remix-run/cloudflare": "^1.6.7",
     "@remix-run/cloudflare-pages": "^1.6.7",
     "@remix-run/react": "^1.6.7",
