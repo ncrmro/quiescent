@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "yarn build-packages --watch",
     "build": "yarn build-packages && yarn build-examples",
-    "build-packages": "tsc --build packages/server packages/cli",
+    "build-packages": "tsc --build packages/server packages/cli  packages/cloudflare",
     "build-examples": "tsc --build examples/express",
     "test-post": "npm run qs --workspace=quiescent-example-nextjs post -- --title 'Hello World!'",
     "test-build": "npm run qs --workspace=quiescent-example-nextjs build",
@@ -14,11 +14,14 @@
     "postinstall": "npm run link-documents",
     "test": "jest"
   },
-  "workspaces": [
-    "clients/*",
-    "examples/*",
-    "packages/*"
-  ],
+  "workspaces": {
+    "packages": [
+      "clients/*",
+      "examples/*",
+      "packages/*"
+    ],
+    "nohoist": ["**/expo**"]
+  },
   "devDependencies": {
     "@types/jest": "^28.1.6",
     "@types/node": "^17.0.38",
