@@ -1,0 +1,13 @@
+{
+  "name": "@ncrmro/quiescent",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "code/*"
+  ],
+  "scripts": {
+    "test": "bun test code/git code/editor",
+    "typecheck": "bun run --filter '*' typecheck",
+    "build": "bun run --filter '@ncrmro/quiescent-web' build"
+  }
+}
