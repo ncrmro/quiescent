@@ -9,5 +9,5 @@
 
   # `devenv up` (or `devenv up -d`) starts the editing UI; needs
   # code/web/.dev.vars for OAuth credentials.
-  processes.web.exec = "cd code/web && bun run dev";
+  processes.web.exec = "cd code/web && bun run dev -- --host 0.0.0.0";
 }
