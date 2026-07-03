@@ -1,0 +1,75 @@
+---
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+const session = Astro.locals.session;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · quiescent</title>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/">quiescent</a>
+      {
+        session && (
+          <div class="user">
+            <span>
+              {session.login} · {session.canPush ? "notes mode" : "contributor mode"}
+            </span>
+            <form method="post" action="/auth/logout">
+              <button type="submit">Log out</button>
+            </form>
+          </div>
+        )
+      }
+    </header>
+    <main>
+      <slot />
+    </main>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    color-scheme: light dark;
+    font-family: system-ui, sans-serif;
+  }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  }
+  .brand {
+    font-weight: 700;
+    text-decoration: none;
+    color: inherit;
+  }
+  .user {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.9rem;
+  }
+  main {
+    flex: 1;
+    padding: 1rem;
+    max-width: 72rem;
+    width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box;
+  }
+</style>

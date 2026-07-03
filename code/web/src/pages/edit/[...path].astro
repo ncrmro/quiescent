@@ -1,0 +1,154 @@
+---
+import { createForge } from "@ncrmro/quiescent-git";
+import Layout from "../../layouts/Layout.astro";
+import { getDraft } from "../../lib/drafts.ts";
+import { forgeConfig } from "../../lib/env.ts";
+import { getValidAccessToken } from "../../lib/session.ts";
+
+const env = Astro.locals.runtime.env;
+const session = Astro.locals.session!;
+const path = Astro.params.path;
+if (!path) return Astro.redirect("/");
+
+const isNew = Astro.url.searchParams.has("new");
+const token = await getValidAccessToken(env, Astro.url.origin, Astro.locals.sessionId!, session);
+const forge = createForge(forgeConfig(env, token));
+
+const file = isNew ? null : await forge.getFile(path, env.DEFAULT_BRANCH);
+if (!file && !isNew) return new Response("Not found", { status: 404 });
+
+// Resume an unflushed draft over the committed version.
+const draft = await getDraft(env, session.userId, path);
+const doc = draft?.content ?? file?.content ?? "";
+const editorData = { path, baseSha: file?.sha, doc, canPush: session.canPush };
+---
+
+<Layout title={path}>
+  <div class="toolbar">
+    <h1>{path}</h1>
+    <span id="status">{draft ? "unflushed draft restored" : "loaded"}</span>
+    <button id="flush-now" type="button">
+      {session.canPush ? "Commit now" : "Open pull request"}
+    </button>
+  </div>
+  <div class="panes">
+    <div id="editor"></div>
+    <article id="preview"></article>
+  </div>
+  <script is:inline type="application/json" id="editor-data" set:html={JSON.stringify(editorData)} />
+</Layout>
+
+<script>
+  import { createEditor, createPreview } from "@ncrmro/quiescent-editor";
+
+  const data = JSON.parse(document.getElementById("editor-data")!.textContent!) as {
+    path: string;
+    baseSha?: string;
+    doc: string;
+    canPush: boolean;
+  };
+  const status = document.getElementById("status")!;
+  const preview = createPreview(document.getElementById("preview")!);
+  preview.update(data.doc);
+
+  async function saveDraft(doc: string): Promise<void> {
+    status.textContent = "saving draft…";
+    const response = await fetch(`/api/draft/${data.path}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: doc, baseSha: data.baseSha }),
+    });
+    status.textContent = response.ok ? "draft saved" : "draft save failed";
+  }
+
+  async function flush(): Promise<void> {
+    status.textContent = data.canPush ? "committing…" : "opening pull request…";
+    const response = await fetch("/api/flush", { method: "POST" });
+    const result = (await response.json()) as { mode?: string; url?: string; error?: string };
+    if (!response.ok) {
+      status.textContent = `flush failed: ${result.error ?? response.status}`;
+      return;
+    }
+    editor.markClean();
+    status.textContent =
+      result.mode === "commit"
+        ? "committed"
+        : result.mode === "pull-request"
+          ? "pull request opened"
+          : "nothing to flush";
+    if (result.mode === "pull-request" && result.url) {
+      status.innerHTML = `<a href="${result.url}" target="_blank" rel="noopener">pull request opened</a>`;
+    }
+  }
+
+  const editor = createEditor({
+    parent: document.getElementById("editor")!,
+    doc: data.doc,
+    idleMs: 30_000,
+    onChange: (doc) => {
+      preview.update(doc);
+      void saveDraft(doc);
+    },
+    onIdle: () => void flush(),
+    onSave: async (doc) => {
+      await saveDraft(doc);
+      await flush();
+    },
+  });
+
+  document.getElementById("flush-now")!.addEventListener("click", async () => {
+    await saveDraft(editor.getDoc());
+    await flush();
+  });
+
+  // Best-effort draft persistence when the tab closes mid-edit; the cron
+  // trigger flushes whatever landed in KV.
+  window.addEventListener("pagehide", () => {
+    if (!editor.isDirty()) return;
+    navigator.sendBeacon?.(
+      `/api/draft/${data.path}`,
+      new Blob([JSON.stringify({ content: editor.getDoc(), baseSha: data.baseSha })], {
+        type: "application/json",
+      }),
+    );
+  });
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .toolbar h1 {
+    font-size: 1.1rem;
+    margin: 0;
+    flex: 1;
+  }
+  #status {
+    font-size: 0.85rem;
+    opacity: 0.7;
+  }
+  .panes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+    align-items: start;
+  }
+  #editor {
+    border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+    min-height: 60vh;
+  }
+  #preview {
+    border: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+    padding: 0 1rem;
+    min-height: 60vh;
+    overflow-wrap: anywhere;
+  }
+  @media (max-width: 60rem) {
+    .panes {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

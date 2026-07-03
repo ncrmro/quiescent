@@ -1,0 +1,74 @@
+---
+import { createForge } from "@ncrmro/quiescent-git";
+import Layout from "../layouts/Layout.astro";
+import { forgeConfig } from "../lib/env.ts";
+import { getValidAccessToken } from "../lib/session.ts";
+
+const env = Astro.locals.runtime.env;
+const session = Astro.locals.session!;
+const dir = Astro.url.searchParams.get("dir") ?? "";
+
+const token = await getValidAccessToken(env, Astro.url.origin, Astro.locals.sessionId!, session);
+const forge = createForge(forgeConfig(env, token));
+const entries = await forge.listDir(dir, env.DEFAULT_BRANCH);
+entries.sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1));
+
+const parent = dir.includes("/") ? dir.slice(0, dir.lastIndexOf("/")) : "";
+---
+
+<Layout title={dir || `${env.REPO_OWNER}/${env.REPO_NAME}`}>
+  <h1>
+    {env.REPO_OWNER}/{env.REPO_NAME}{dir ? ` / ${dir}` : ""}
+  </h1>
+
+  <form class="new-file" method="get" action="/edit-new">
+    <input
+      type="text"
+      name="path"
+      placeholder={dir ? `${dir}/new-note.md` : "new-note.md"}
+      required
+    />
+    <button type="submit">New file</button>
+  </form>
+
+  <ul class="entries">
+    {dir && (
+      <li>
+        <a href={parent ? `/?dir=${encodeURIComponent(parent)}` : "/"}>../</a>
+      </li>
+    )}
+    {
+      entries.map((entry) =>
+        entry.type === "dir" ? (
+          <li>
+            <a href={`/?dir=${encodeURIComponent(entry.path)}`}>{entry.name}/</a>
+          </li>
+        ) : (
+          <li>
+            <a href={`/edit/${entry.path}`}>{entry.name}</a>
+          </li>
+        ),
+      )
+    }
+  </ul>
+</Layout>
+
+<style>
+  .entries {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .new-file {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .new-file input {
+    flex: 1;
+    max-width: 24rem;
+    padding: 0.4rem;
+  }
+</style>

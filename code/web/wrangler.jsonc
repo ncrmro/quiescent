@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "quiescent",
+  "main": "./dist/_worker.js/index.js",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist"
+  },
+  "kv_namespaces": [
+    // Replace ids after `wrangler kv namespace create SESSIONS` / `... DRAFTS`.
+    { "binding": "SESSIONS", "id": "REPLACE_WITH_SESSIONS_NAMESPACE_ID" },
+    { "binding": "DRAFTS", "id": "REPLACE_WITH_DRAFTS_NAMESPACE_ID" }
+  ],
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+  "vars": {
+    "FORGE_KIND": "github",
+    "FORGE_BASE_URL": "",
+    "REPO_OWNER": "ncrmro",
+    "REPO_NAME": "notes",
+    "DEFAULT_BRANCH": "main"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
