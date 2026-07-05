@@ -24,6 +24,11 @@ jobs:
     needs: release-please
     if: ${{ needs.release-please.outputs.paths_released != '[]' && needs.release-please.outputs.paths_released != '' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # OIDC for npm trusted publishing; until it is configured on npmjs
+      # (requires the packages to exist), bun publish falls back to NPM_TOKEN.
+      id-token: write
     strategy:
       matrix:
         path: ${{ fromJSON(needs.release-please.outputs.paths_released) }}
