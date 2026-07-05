@@ -3,6 +3,15 @@ name: release-please
 on:
   push:
     branches: [main]
+  # Manual catch-up publish when a release exists but its publish failed;
+  # must live in this file because npm's trusted publisher is pinned to it.
+  workflow_dispatch:
+    inputs:
+      paths:
+        description: JSON array of package paths to publish
+        required: true
+        default: '["code/git","code/server","code/editor"]'
+        type: string
 
 permissions:
   contents: write
@@ -10,6 +19,7 @@ permissions:
 
 jobs:
   release-please:
+    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     outputs:
       paths_released: ${{ steps.release.outputs.paths_released }}
@@ -22,7 +32,11 @@ jobs:
 
   publish:
     needs: release-please
-    if: ${{ needs.release-please.outputs.paths_released != '[]' && needs.release-please.outputs.paths_released != '' }}
+    if: >-
+      ${{ always() && (
+        github.event_name == 'workflow_dispatch' ||
+        (needs.release-please.outputs.paths_released != '[]' && needs.release-please.outputs.paths_released != '')
+      ) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,12 +45,14 @@ jobs:
       id-token: write
     strategy:
       matrix:
-        path: ${{ fromJSON(needs.release-please.outputs.paths_released) }}
+        path: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.paths || needs.release-please.outputs.paths_released) }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      # quiescent-server depends on quiescent-git via workspace:*; build
+      # Not frozen: release-please bumps package versions without
+      # regenerating bun.lock, so a frozen install can fail here.
+      - run: bun install
+      # quiescent-server depends on quiescent-git in-workspace; build
       # everything so cross-package type resolution works regardless of
       # which package is being published.
       - run: bun run build:packages
