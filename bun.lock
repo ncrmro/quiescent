@@ -6,7 +6,7 @@
       "name": "@ncrmro/quiescent",
     },
     "code/editor": {
-      "name": "@ncrmro/quiescent-editor",
+      "name": "@quiescent/editor",
       "version": "0.1.0",
       "dependencies": {
         "@codemirror/commands": "^6.8.0",
@@ -22,7 +22,7 @@
       },
     },
     "code/git": {
-      "name": "@ncrmro/quiescent-git",
+      "name": "@quiescent/git",
       "version": "0.1.0",
       "devDependencies": {
         "@types/bun": "^1.2.0",
@@ -30,11 +30,10 @@
       },
     },
     "code/server": {
-      "name": "@ncrmro/quiescent-server",
+      "name": "@quiescent/server",
       "version": "0.1.0",
       "dependencies": {
-        "@cloudflare/workers-types": "^4.20250620.0",
-        "@ncrmro/quiescent-git": "workspace:*",
+        "@quiescent/git": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "^1.2.0",
@@ -42,13 +41,13 @@
       },
     },
     "code/web": {
-      "name": "@ncrmro/quiescent-web",
+      "name": "@quiescent/web",
       "version": "0.1.0",
       "dependencies": {
         "@astrojs/cloudflare": "^12.6.0",
-        "@ncrmro/quiescent-editor": "workspace:*",
-        "@ncrmro/quiescent-git": "workspace:*",
-        "@ncrmro/quiescent-server": "workspace:*",
+        "@quiescent/editor": "workspace:*",
+        "@quiescent/git": "workspace:*",
+        "@quiescent/server": "workspace:*",
         "astro": "^5.12.0",
       },
       "devDependencies": {
@@ -268,14 +267,6 @@
 
     "@marijn/find-cluster-break": ["@marijn/find-cluster-break@1.0.3", "", {}, "sha512-FY+MKLBoTsLNJF/eLWaOsXGdz6uh3Iu1axjPf6TUq92IYumcTcXWHoS747JARLkcdlJ/Waiaxc5wQfFO8jC6NA=="],
 
-    "@ncrmro/quiescent-editor": ["@ncrmro/quiescent-editor@workspace:code/editor"],
-
-    "@ncrmro/quiescent-git": ["@ncrmro/quiescent-git@workspace:code/git"],
-
-    "@ncrmro/quiescent-server": ["@ncrmro/quiescent-server@workspace:code/server"],
-
-    "@ncrmro/quiescent-web": ["@ncrmro/quiescent-web@workspace:code/web"],
-
     "@oslojs/encoding": ["@oslojs/encoding@1.1.0", "", {}, "sha512-70wQhgYmndg4GCPxPPxPGevRKqTIJ2Nh4OkiMWmDAVYsTQ+Ta7Sq+rPevXyXGdzr30/qZBnyOalCszoMxlyldQ=="],
 
     "@poppinss/colors": ["@poppinss/colors@4.1.6", "", { "dependencies": { "kleur": "^4.1.5" } }, "sha512-H9xkIdFswbS8n1d6vmRd8+c10t2Qe+rZITbbDHHkQixH5+2x1FDGmi/0K+WgWiqQFKPSlIYB7jlH6Kpfn6Fleg=="],
@@ -283,6 +274,14 @@
     "@poppinss/dumper": ["@poppinss/dumper@0.6.5", "", { "dependencies": { "@poppinss/colors": "^4.1.5", "@sindresorhus/is": "^7.0.2", "supports-color": "^10.0.0" } }, "sha512-NBdYIb90J7LfOI32dOewKI1r7wnkiH6m920puQ3qHUeZkxNkQiFnXVWoE6YtFSv6QOiPPf7ys6i+HWWecDz7sw=="],
 
     "@poppinss/exception": ["@poppinss/exception@1.2.3", "", {}, "sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw=="],
+
+    "@quiescent/editor": ["@quiescent/editor@workspace:code/editor"],
+
+    "@quiescent/git": ["@quiescent/git@workspace:code/git"],
+
+    "@quiescent/server": ["@quiescent/server@workspace:code/server"],
+
+    "@quiescent/web": ["@quiescent/web@workspace:code/web"],
 
     "@rollup/pluginutils": ["@rollup/pluginutils@5.4.0", "", { "dependencies": { "@types/estree": "^1.0.0", "estree-walker": "^2.0.2", "picomatch": "^4.0.2" }, "peerDependencies": { "rollup": "^1.20.0||^2.0.0||^3.0.0||^4.0.0" }, "optionalPeers": ["rollup"] }, "sha512-MfPp06CjRLfXQ3wY0R8vJDYBy/MvVcc9OulEfR0B8Iv9ko+GCNaRZ+EpJYFl27LhKsZK0o420sYCRHCjfCgeUg=="],
 

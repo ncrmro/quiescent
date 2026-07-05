@@ -7,6 +7,7 @@ export {
   type Draft,
 } from "./drafts.ts";
 export { forgeConfig, oauthConfig, type Env } from "./env.ts";
+export { createMemoryStore, type KeyValueStore } from "./kv.ts";
 export {
   flushDrafts,
   flushStaleDrafts,

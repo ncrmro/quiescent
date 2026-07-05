@@ -1,5 +1,5 @@
 {
-  "name": "@ncrmro/quiescent-editor",
+  "name": "@quiescent/editor",
   "version": "0.1.0",
   "type": "module",
   "description": "CodeMirror 6 markdown editor with idle detection for quiescent's flush-on-stop workflow",

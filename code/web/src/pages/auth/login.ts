@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
-import { authorizeUrl } from "@ncrmro/quiescent-git";
-import { oauthConfig } from "@ncrmro/quiescent-server";
+import { authorizeUrl } from "@quiescent/git";
+import { oauthConfig } from "@quiescent/server";
 
 export const GET: APIRoute = async ({ locals, url, cookies, redirect }) => {
   const env = locals.runtime.env;

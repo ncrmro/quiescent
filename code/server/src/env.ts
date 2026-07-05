@@ -1,9 +1,14 @@
-import type { KVNamespace } from "@cloudflare/workers-types";
-import type { ForgeConfig, ForgeKind, OAuthConfig } from "@ncrmro/quiescent-git";
+import type { ForgeConfig, ForgeKind, OAuthConfig } from "@quiescent/git";
+import type { KeyValueStore } from "./kv.ts";
 
+/**
+ * Deployment-agnostic runtime configuration. On Cloudflare Workers this is
+ * the worker env (KV bindings + vars); self-hosted deployments construct the
+ * same shape with their own stores and configuration source.
+ */
 export interface Env {
-  SESSIONS: KVNamespace;
-  DRAFTS: KVNamespace;
+  SESSIONS: KeyValueStore;
+  DRAFTS: KeyValueStore;
   FORGE_KIND: ForgeKind;
   FORGE_BASE_URL?: string;
   REPO_OWNER: string;

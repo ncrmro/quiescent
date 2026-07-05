@@ -1,4 +1,4 @@
-import { refreshToken, type TokenSet } from "@ncrmro/quiescent-git";
+import { refreshToken, type TokenSet } from "@quiescent/git";
 import { oauthConfig, type Env } from "./env.ts";
 
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;

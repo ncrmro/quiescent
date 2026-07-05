@@ -1,8 +1,8 @@
 {
-  "name": "@ncrmro/quiescent-server",
+  "name": "@quiescent/server",
   "version": "0.1.0",
   "type": "module",
-  "description": "Worker-side sessions, KV drafts, and flush-to-commit logic for quiescent",
+  "description": "Server-side sessions, drafts, and flush-to-commit logic for quiescent; storage-agnostic (Cloudflare KV, or any KeyValueStore)",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -29,8 +29,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cloudflare/workers-types": "^4.20250620.0",
-    "@ncrmro/quiescent-git": "workspace:*"
+    "@quiescent/git": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",

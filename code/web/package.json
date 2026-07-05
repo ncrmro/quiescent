@@ -1,5 +1,5 @@
 {
-  "name": "@ncrmro/quiescent-web",
+  "name": "@quiescent/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,9 +12,9 @@
   },
   "dependencies": {
     "@astrojs/cloudflare": "^12.6.0",
-    "@ncrmro/quiescent-editor": "workspace:*",
-    "@ncrmro/quiescent-git": "workspace:*",
-    "@ncrmro/quiescent-server": "workspace:*",
+    "@quiescent/editor": "workspace:*",
+    "@quiescent/git": "workspace:*",
+    "@quiescent/server": "workspace:*",
     "astro": "^5.12.0"
   },
   "devDependencies": {

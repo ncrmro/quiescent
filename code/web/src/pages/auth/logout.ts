@@ -4,7 +4,7 @@ import {
   readCookie,
   SESSION_COOKIE,
   verifySessionCookie,
-} from "@ncrmro/quiescent-server";
+} from "@quiescent/server";
 
 export const POST: APIRoute = async ({ locals, request, cookies, redirect }) => {
   const env = locals.runtime.env;

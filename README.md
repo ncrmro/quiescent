@@ -1,8 +1,8 @@
 # quiescent
 
-npm packages for editing documents in a git repo from the browser, on
-Cloudflare Workers. Authenticate against a git forge, edit markdown with
-CodeMirror, and let quiescent quietly persist your work:
+npm packages for editing documents in a git repo from the browser.
+Authenticate against a git forge, edit markdown with CodeMirror, and let
+quiescent quietly persist your work:
 
 - **Notes mode** (you have push access) — edits accumulate as drafts and are
   flushed to commits on the default branch when you stop typing, press
@@ -14,16 +14,22 @@ All git operations use forge HTTP APIs (no git binary). Supported forges:
 GitHub, Gitea, Forgejo, and Codeberg. The Gitea/Forgejo/Codeberg client is
 implemented but not yet tested against a live instance.
 
+The packages are deployment-agnostic: storage is a small `KeyValueStore`
+interface (Cloudflare KV satisfies it structurally; self-hosted deployments
+bring Redis, SQLite, or the in-memory store). Cloudflare Workers is the
+first supported target — the example app below — with self-hosted Node as a
+planned second.
+
 ## Layout
 
 Bun workspace with packages under `code/`:
 
 | Package | Published | Purpose |
 | --- | --- | --- |
-| `@ncrmro/quiescent-git` | npm | Forge API abstraction: contents, multi-file commits, branches, pull requests, forks, OAuth |
-| `@ncrmro/quiescent-server` | npm | Worker-side sessions, KV drafts, and flush-to-commit logic |
-| `@ncrmro/quiescent-editor` | npm | CodeMirror 6 markdown editor with idle detection (the flush-on-stop signal) |
-| `@ncrmro/quiescent-web` | no (example) | Reference Astro app on Cloudflare Workers wiring the packages together: auth routes, draft API, cron flush |
+| `@quiescent/git` | npm | Forge API abstraction: contents, multi-file commits, branches, pull requests, forks, OAuth |
+| `@quiescent/server` | npm | Worker-side sessions, KV drafts, and flush-to-commit logic |
+| `@quiescent/editor` | npm | CodeMirror 6 markdown editor with idle detection (the flush-on-stop signal) |
+| `@quiescent/web` | no (example) | Reference Astro app on Cloudflare Workers wiring the packages together: auth routes, draft API, cron flush |
 
 Consumers (e.g. [ncrmro/website](https://github.com/ncrmro/website)) install
 the published packages and copy the thin Astro glue from `code/web`

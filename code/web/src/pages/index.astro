@@ -1,8 +1,8 @@
 ---
-import { createForge } from "@ncrmro/quiescent-git";
+import { createForge } from "@quiescent/git";
 import Layout from "../layouts/Layout.astro";
-import { forgeConfig } from "@ncrmro/quiescent-server";
-import { getValidAccessToken } from "@ncrmro/quiescent-server";
+import { forgeConfig } from "@quiescent/server";
+import { getValidAccessToken } from "@quiescent/server";
 
 const env = Astro.locals.runtime.env;
 const session = Astro.locals.session!;

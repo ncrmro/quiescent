@@ -3,7 +3,7 @@ import {
   ForgeError,
   type CommitFileChange,
   type ForgeClient,
-} from "@ncrmro/quiescent-git";
+} from "@quiescent/git";
 import { deleteDraft, listAllDrafts, type Draft } from "./drafts.ts";
 import { forgeConfig, type Env } from "./env.ts";
 import { getSessionById, getValidAccessToken, type Session } from "./session.ts";
