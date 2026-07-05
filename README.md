@@ -1,8 +1,8 @@
 # quiescent
 
-Edit documents in a git repo from the browser, deployed on Cloudflare Workers.
-Authenticate against a git forge, edit markdown with CodeMirror, and let
-quiescent quietly persist your work:
+npm packages for editing documents in a git repo from the browser, on
+Cloudflare Workers. Authenticate against a git forge, edit markdown with
+CodeMirror, and let quiescent quietly persist your work:
 
 - **Notes mode** (you have push access) — edits accumulate as drafts and are
   flushed to commits on the default branch when you stop typing, press
@@ -18,11 +18,23 @@ implemented but not yet tested against a live instance.
 
 Bun workspace with packages under `code/`:
 
-| Package | Purpose |
-| --- | --- |
-| `@ncrmro/quiescent-git` | Forge API abstraction: contents, multi-file commits, branches, pull requests, forks, OAuth |
-| `@ncrmro/quiescent-editor` | CodeMirror 6 markdown editor with idle detection (the flush-on-stop signal) |
-| `@ncrmro/quiescent-web` | Astro app on Cloudflare Workers: auth, KV drafts/sessions, cron flush |
+| Package | Published | Purpose |
+| --- | --- | --- |
+| `@ncrmro/quiescent-git` | npm | Forge API abstraction: contents, multi-file commits, branches, pull requests, forks, OAuth |
+| `@ncrmro/quiescent-server` | npm | Worker-side sessions, KV drafts, and flush-to-commit logic |
+| `@ncrmro/quiescent-editor` | npm | CodeMirror 6 markdown editor with idle detection (the flush-on-stop signal) |
+| `@ncrmro/quiescent-web` | no (example) | Reference Astro app on Cloudflare Workers wiring the packages together: auth routes, draft API, cron flush |
+
+Consumers (e.g. [ncrmro/website](https://github.com/ncrmro/website)) install
+the published packages and copy the thin Astro glue from `code/web`
+(middleware, auth/draft/flush routes, worker entry) into their own site.
+
+## Releases
+
+[release-please](https://github.com/googleapis/release-please) manages
+versioning from Conventional Commits: merging the release PR tags each
+changed package and the `publish` job publishes it to npm with
+`bun publish` (requires the `NPM_TOKEN` repo secret).
 
 ## Development
 
