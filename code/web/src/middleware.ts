@@ -4,7 +4,7 @@ import {
   readCookie,
   SESSION_COOKIE,
   verifySessionCookie,
-} from "./lib/session.ts";
+} from "@ncrmro/quiescent-server";
 
 // Everything except the auth flow requires a session: quiescent is an editing
 // tool, not a public site.

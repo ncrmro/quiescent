@@ -29,6 +29,18 @@
         "typescript": "^5.8.0",
       },
     },
+    "code/server": {
+      "name": "@ncrmro/quiescent-server",
+      "version": "0.1.0",
+      "dependencies": {
+        "@cloudflare/workers-types": "^4.20250620.0",
+        "@ncrmro/quiescent-git": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.2.0",
+        "typescript": "^5.8.0",
+      },
+    },
     "code/web": {
       "name": "@ncrmro/quiescent-web",
       "version": "0.1.0",
@@ -36,6 +48,7 @@
         "@astrojs/cloudflare": "^12.6.0",
         "@ncrmro/quiescent-editor": "workspace:*",
         "@ncrmro/quiescent-git": "workspace:*",
+        "@ncrmro/quiescent-server": "workspace:*",
         "astro": "^5.12.0",
       },
       "devDependencies": {
@@ -258,6 +271,8 @@
     "@ncrmro/quiescent-editor": ["@ncrmro/quiescent-editor@workspace:code/editor"],
 
     "@ncrmro/quiescent-git": ["@ncrmro/quiescent-git@workspace:code/git"],
+
+    "@ncrmro/quiescent-server": ["@ncrmro/quiescent-server@workspace:code/server"],
 
     "@ncrmro/quiescent-web": ["@ncrmro/quiescent-web@workspace:code/web"],
 

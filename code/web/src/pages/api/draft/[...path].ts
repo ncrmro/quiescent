@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { deleteDraft, saveDraft } from "../../../lib/drafts.ts";
+import { deleteDraft, saveDraft } from "@ncrmro/quiescent-server";
 
 export const PUT: APIRoute = async ({ locals, params, request }) => {
   const env = locals.runtime.env;

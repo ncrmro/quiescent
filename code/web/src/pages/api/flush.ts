@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import { ConflictError } from "@ncrmro/quiescent-git";
-import { listUserDrafts } from "../../lib/drafts.ts";
-import { flushDrafts } from "../../lib/flush.ts";
+import { listUserDrafts } from "@ncrmro/quiescent-server";
+import { flushDrafts } from "@ncrmro/quiescent-server";
 
 export const POST: APIRoute = async ({ locals, url }) => {
   const env = locals.runtime.env;

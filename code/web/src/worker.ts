@@ -2,8 +2,8 @@ import { handle } from "@astrojs/cloudflare/handler";
 import type { SSRManifest } from "astro";
 import { App } from "astro/app";
 import type { ExecutionContext, Request as WorkersRequest, ScheduledController } from "@cloudflare/workers-types";
-import { flushStaleDrafts } from "./lib/flush.ts";
-import type { Env } from "./lib/env.ts";
+import { flushStaleDrafts } from "@ncrmro/quiescent-server";
+import type { Env } from "@ncrmro/quiescent-server";
 
 export function createExports(manifest: SSRManifest) {
   const app = new App(manifest);

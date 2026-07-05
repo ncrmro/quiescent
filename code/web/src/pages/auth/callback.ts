@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import { createForge, exchangeCode } from "@ncrmro/quiescent-git";
-import { forgeConfig, oauthConfig } from "../../lib/env.ts";
-import { createSession, SESSION_COOKIE, sessionCookieValue } from "../../lib/session.ts";
+import { forgeConfig, oauthConfig } from "@ncrmro/quiescent-server";
+import { createSession, SESSION_COOKIE, sessionCookieValue } from "@ncrmro/quiescent-server";
 
 export const GET: APIRoute = async ({ locals, url, cookies, redirect }) => {
   const env = locals.runtime.env;
