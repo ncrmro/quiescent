@@ -49,6 +49,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+      # Trusted publishing needs npm >= 11.5; the runner default can be older.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm install -g npm@latest
       # Not frozen: release-please bumps package versions without
       # regenerating bun.lock, so a frozen install can fail here.
       - run: bun install
