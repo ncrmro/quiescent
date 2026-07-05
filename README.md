@@ -57,7 +57,25 @@ bun run dev                   # astro dev with Cloudflare platform proxy
 bun run build && bun run preview # wrangler dev against the built worker
 ```
 
-## Deployment
+## Consuming in your own Astro + Cloudflare site
+
+The intended use: install `@quiescent/{git,server,editor}` and copy the thin
+glue from `code/web` into your site, mounted under a prefix so the public
+site is untouched (see
+[ncrmro/website](https://github.com/ncrmro/website) for a real example
+mounted at `/admin`):
+
+- middleware guarding the editor prefix and its API routes
+- auth routes (`login`/`callback`/`logout`); set the `OAUTH_CALLBACK_PATH`
+  var when the callback isn't at `/auth/callback`
+- draft + flush API routes, editor page, and a custom worker entry whose
+  `scheduled` handler calls `flushStaleDrafts` on a cron trigger
+- `SESSIONS`/`DRAFTS` KV namespaces (any `KeyValueStore` works; KV is the
+  Cloudflare-shaped one) and the `FORGE_KIND`/`REPO_OWNER`/`REPO_NAME`/
+  `DEFAULT_BRANCH` vars, plus `OAUTH_CLIENT_ID`/`OAUTH_CLIENT_SECRET`/
+  `SESSION_SECRET` secrets
+
+## Deploying the example app
 
 One deployment edits one repo, configured in `code/web/wrangler.jsonc` `vars`:
 `FORGE_KIND` (`github` | `gitea` | `forgejo` | `codeberg`), `FORGE_BASE_URL`
