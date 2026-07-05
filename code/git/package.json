@@ -1,17 +1,30 @@
 {
   "name": "@ncrmro/quiescent-git",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Forge API abstraction (GitHub, Gitea, Forgejo, Codeberg) for committing and opening pull requests over HTTP",
-  "exports": {
-    ".": "./src/index.ts"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ncrmro/quiescent.git",
+    "directory": "code/git"
   },
-  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
   "files": [
-    "src"
+    "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "bun run build",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

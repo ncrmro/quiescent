@@ -1,17 +1,30 @@
 {
   "name": "@ncrmro/quiescent-editor",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "CodeMirror 6 markdown editor with idle detection for quiescent's flush-on-stop workflow",
-  "exports": {
-    ".": "./src/index.ts"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ncrmro/quiescent.git",
+    "directory": "code/editor"
   },
-  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
   "files": [
-    "src"
+    "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "bun run build",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

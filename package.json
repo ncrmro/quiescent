@@ -8,6 +8,7 @@
   "scripts": {
     "test": "bun test code/git code/editor",
     "typecheck": "bun run --filter '*' typecheck",
-    "build": "bun run --filter '@ncrmro/quiescent-web' build"
+    "build": "bun run build:packages && bun run --filter '@ncrmro/quiescent-web' build",
+    "build:packages": "bun run --filter '@ncrmro/quiescent-git' build && bun run --filter '@ncrmro/quiescent-server' build && bun run --filter '@ncrmro/quiescent-editor' build"
   }
 }
