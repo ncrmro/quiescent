@@ -7,7 +7,7 @@
     },
     "code/editor": {
       "name": "@quiescent/editor",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "@codemirror/commands": "^6.8.0",
         "@codemirror/lang-markdown": "^6.3.0",
@@ -23,7 +23,7 @@
     },
     "code/git": {
       "name": "@quiescent/git",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "devDependencies": {
         "@types/bun": "^1.2.0",
         "typescript": "^5.8.0",
@@ -31,9 +31,9 @@
     },
     "code/server": {
       "name": "@quiescent/server",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
-        "@quiescent/git": "workspace:*",
+        "@quiescent/git": "^0.1.0",
       },
       "devDependencies": {
         "@types/bun": "^1.2.0",
@@ -982,6 +982,8 @@
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
 
     "@astrojs/cloudflare/wrangler": ["wrangler@4.59.2", "", { "dependencies": { "@cloudflare/kv-asset-handler": "0.4.2", "@cloudflare/unenv-preset": "2.10.0", "blake3-wasm": "2.1.5", "esbuild": "0.27.0", "miniflare": "4.20260114.0", "path-to-regexp": "6.3.0", "unenv": "2.0.0-rc.24", "workerd": "1.20260114.0" }, "optionalDependencies": { "fsevents": "~2.3.2" }, "peerDependencies": { "@cloudflare/workers-types": "^4.20260114.0" }, "optionalPeers": ["@cloudflare/workers-types"], "bin": { "wrangler": "bin/wrangler.js", "wrangler2": "bin/wrangler.js" } }, "sha512-Z4xn6jFZTaugcOKz42xvRAYKgkVUERHVbuCJ5+f+gK+R6k12L02unakPGOA0L0ejhUl16dqDjKe4tmL9sedHcw=="],
+
+    "@quiescent/server/@quiescent/git": ["@quiescent/git@0.1.0", "", {}, "sha512-HCrxn3Q704y25F1dv23HjqKS2yI1B/SLi15B6S8meWRi07e7mRor2uv5gqguBVSJPogxNmhLsb68iLvRgyphpQ=="],
 
     "@rollup/pluginutils/estree-walker": ["estree-walker@2.0.2", "", {}, "sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w=="],
 
