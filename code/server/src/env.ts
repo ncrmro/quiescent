@@ -16,6 +16,8 @@ export interface Env {
   DEFAULT_BRANCH: string;
   OAUTH_CLIENT_ID: string;
   OAUTH_CLIENT_SECRET: string;
+  /** Where the app mounts its OAuth callback route; defaults to /auth/callback. */
+  OAUTH_CALLBACK_PATH?: string;
   SESSION_SECRET: string;
 }
 
@@ -35,6 +37,6 @@ export function oauthConfig(env: Env, origin: string): OAuthConfig {
     baseUrl: env.FORGE_BASE_URL || undefined,
     clientId: env.OAUTH_CLIENT_ID,
     clientSecret: env.OAUTH_CLIENT_SECRET,
-    redirectUri: `${origin}/auth/callback`,
+    redirectUri: `${origin}${env.OAUTH_CALLBACK_PATH ?? "/auth/callback"}`,
   };
 }
