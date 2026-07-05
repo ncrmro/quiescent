@@ -26,8 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # OIDC for npm trusted publishing; until it is configured on npmjs
-      # (requires the packages to exist), bun publish falls back to NPM_TOKEN.
+      # npm trusted publishing: bun publish exchanges the workflow's OIDC
+      # token with the registry; no npm token is stored anywhere.
       id-token: write
     strategy:
       matrix:
@@ -43,5 +43,3 @@ jobs:
       - name: Publish ${{ matrix.path }}
         working-directory: ${{ matrix.path }}
         run: bun publish --access public
-        env:
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
