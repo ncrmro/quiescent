@@ -56,6 +56,8 @@ jobs:
       # everything so cross-package type resolution works regardless of
       # which package is being published.
       - run: bun run build:packages
+      # npm (not bun) — the npm CLI implements trusted publishing (OIDC
+      # exchange + provenance); bun 1.3 does not and fails wanting a token.
       - name: Publish ${{ matrix.path }}
         working-directory: ${{ matrix.path }}
-        run: bun publish --access public
+        run: npm publish --access public
