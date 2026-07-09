@@ -146,6 +146,14 @@ export class GiteaForge implements ForgeClient {
     });
   }
 
+  async resetBranch(name: string, sha: string): Promise<void> {
+    // Gitea has no force-update-ref endpoint; recreate the branch at the sha.
+    await this.http.request(`${this.repoPath}/branches/${encodePath(name)}`, {
+      method: "DELETE",
+    });
+    await this.createBranch(name, sha);
+  }
+
   async createPullRequest(options: CreatePullRequestOptions): Promise<PullRequest> {
     const pull = await this.http.json<{ number: number; html_url: string }>(
       `${this.repoPath}/pulls`,
@@ -160,6 +168,29 @@ export class GiteaForge implements ForgeClient {
       },
     );
     return { number: pull.number, url: pull.html_url };
+  }
+
+  async findOpenPullRequest(head: string, base: string): Promise<PullRequest | null> {
+    // Gitea's list endpoint has no head filter; match on the head label
+    // ("owner:branch" for cross-repo heads, plain branch otherwise).
+    const [headOwner, headBranch] = head.includes(":")
+      ? (head.split(":", 2) as [string, string])
+      : [this.config.owner, head];
+    const pulls = await this.http.json<
+      {
+        number: number;
+        html_url: string;
+        base: { ref: string };
+        head: { ref: string; repo?: { owner?: { login?: string } } };
+      }[]
+    >(`${this.repoPath}/pulls?state=open&limit=50`);
+    const pull = pulls.find(
+      (p) =>
+        p.base.ref === base &&
+        p.head.ref === headBranch &&
+        (p.head.repo?.owner?.login ?? this.config.owner) === headOwner,
+    );
+    return pull ? { number: pull.number, url: pull.html_url } : null;
   }
 
   async ensureFork(): Promise<{ owner: string; repo: string }> {

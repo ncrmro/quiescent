@@ -40,7 +40,7 @@ export async function flushDrafts(options: {
   const message = commitMessage(files);
 
   let result: FlushResult;
-  if (session.canPush) {
+  if (session.canPush && env.FLUSH_MODE !== "pull-request") {
     const commit = await forge.commitFiles({
       branch: env.DEFAULT_BRANCH,
       message,
@@ -63,19 +63,28 @@ async function proposeViaPullRequest(
   files: CommitFileChange[],
   message: string,
 ): Promise<FlushResult> {
-  const branch = `quiescent/${session.login}/${Date.now()}`;
+  // One stable branch per user: repeated flushes stack commits onto the same
+  // open pull request instead of spawning a branch + PR (and a CI run per PR)
+  // every time.
+  const branch = `quiescent/${session.login}`;
   const title = `Suggested edits from ${session.login}`;
   const body = `Proposed via [quiescent](https://github.com/ncrmro/quiescent).\n\n${files
     .map((f) => `- \`${f.path}\``)
     .join("\n")}`;
-  const baseSha = await forge.getBranchSha(env.DEFAULT_BRANCH);
 
   try {
     // Some repos allow contributors to push branches directly.
-    await forge.createBranch(branch, baseSha);
-    await forge.commitFiles({ branch, message, files });
-    const pr = await forge.createPullRequest({ head: branch, base: env.DEFAULT_BRANCH, title, body });
-    return { mode: "pull-request", url: pr.url, paths: files.map((f) => f.path) };
+    return await flushToBranchPullRequest({
+      env,
+      prForge: forge,
+      commitForge: forge,
+      head: branch,
+      branch,
+      files,
+      message,
+      title,
+      body,
+    });
   } catch (error) {
     if (!(error instanceof ForgeError) || (error.status !== 403 && error.status !== 404)) {
       throw error;
@@ -85,16 +94,62 @@ async function proposeViaPullRequest(
   // No branch permission: fork, commit there, open a cross-repo PR.
   const fork = await forge.ensureFork();
   const forkForge = createForge({ ...forgeConfig(env, token), owner: fork.owner, repo: fork.repo });
-  const forkBaseSha = await forkForge.getBranchSha(env.DEFAULT_BRANCH);
-  await forkForge.createBranch(branch, forkBaseSha);
-  await forkForge.commitFiles({ branch, message, files });
-  const pr = await forge.createPullRequest({
+  return flushToBranchPullRequest({
+    env,
+    prForge: forge,
+    commitForge: forkForge,
     head: `${fork.owner}:${branch}`,
-    base: env.DEFAULT_BRANCH,
+    branch,
+    files,
+    message,
     title,
     body,
   });
-  return { mode: "pull-request", url: pr.url, paths: files.map((f) => f.path) };
+}
+
+/**
+ * Commits onto the user's quiescent branch, reusing the open pull request for
+ * it when one exists; otherwise points the branch at the current base head
+ * (creating or resetting it) and opens a fresh pull request.
+ */
+async function flushToBranchPullRequest(options: {
+  env: Env;
+  /** Upstream repo: where pull requests live. */
+  prForge: ForgeClient;
+  /** Where the branch and commits go — upstream, or the user's fork. */
+  commitForge: ForgeClient;
+  head: string;
+  branch: string;
+  files: CommitFileChange[];
+  message: string;
+  title: string;
+  body: string;
+}): Promise<FlushResult> {
+  const { env, prForge, commitForge, head, branch, files, message, title, body } = options;
+  const paths = files.map((f) => f.path);
+
+  const existing = await prForge.findOpenPullRequest(head, env.DEFAULT_BRANCH);
+  if (existing) {
+    await commitForge.commitFiles({ branch, message, files });
+    return { mode: "pull-request", url: existing.url, paths };
+  }
+
+  // No open PR: any commits left on the branch belong to a merged or closed
+  // PR, so (re)point it at the base head before committing.
+  const baseSha = await commitForge.getBranchSha(env.DEFAULT_BRANCH);
+  let branchSha: string | null;
+  try {
+    branchSha = await commitForge.getBranchSha(branch);
+  } catch (error) {
+    if (error instanceof ForgeError && error.status === 404) branchSha = null;
+    else throw error;
+  }
+  if (branchSha === null) await commitForge.createBranch(branch, baseSha);
+  else if (branchSha !== baseSha) await commitForge.resetBranch(branch, baseSha);
+
+  await commitForge.commitFiles({ branch, message, files });
+  const pr = await prForge.createPullRequest({ head, base: env.DEFAULT_BRANCH, title, body });
+  return { mode: "pull-request", url: pr.url, paths };
 }
 
 /**
