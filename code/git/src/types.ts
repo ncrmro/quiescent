@@ -81,7 +81,14 @@ export interface ForgeClient {
   getBranchSha(branch: string): Promise<string>;
   commitFiles(options: CommitFilesOptions): Promise<CommitResult>;
   createBranch(name: string, fromSha: string): Promise<void>;
+  /** Force-moves an existing branch head to the given sha. */
+  resetBranch(name: string, sha: string): Promise<void>;
   createPullRequest(options: CreatePullRequestOptions): Promise<PullRequest>;
+  /**
+   * Finds the open pull request from the given head (same "branch" or
+   * "owner:branch" convention as CreatePullRequestOptions) into base, or null.
+   */
+  findOpenPullRequest(head: string, base: string): Promise<PullRequest | null>;
   /** Fork the repo for contributors without push access. Returns the fork's owner/repo. */
   ensureFork(): Promise<{ owner: string; repo: string }>;
 }

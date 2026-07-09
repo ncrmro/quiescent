@@ -150,6 +150,13 @@ export class GitHubForge implements ForgeClient {
     });
   }
 
+  async resetBranch(name: string, sha: string): Promise<void> {
+    await this.http.json(`${this.repoPath}/git/refs/heads/${encodePath(name)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ sha, force: true }),
+    });
+  }
+
   async createPullRequest(options: CreatePullRequestOptions): Promise<PullRequest> {
     const pull = await this.http.json<{ number: number; html_url: string }>(
       `${this.repoPath}/pulls`,
@@ -164,6 +171,16 @@ export class GitHubForge implements ForgeClient {
       },
     );
     return { number: pull.number, url: pull.html_url };
+  }
+
+  async findOpenPullRequest(head: string, base: string): Promise<PullRequest | null> {
+    // GitHub's head filter requires the owner-qualified form.
+    const qualified = head.includes(":") ? head : `${this.config.owner}:${head}`;
+    const pulls = await this.http.json<{ number: number; html_url: string }[]>(
+      `${this.repoPath}/pulls?state=open&head=${encodeURIComponent(qualified)}&base=${encodeURIComponent(base)}`,
+    );
+    const pull = pulls[0];
+    return pull ? { number: pull.number, url: pull.html_url } : null;
   }
 
   async ensureFork(): Promise<{ owner: string; repo: string }> {

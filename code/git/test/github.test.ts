@@ -107,4 +107,28 @@ describe("GitHubForge", () => {
     expect(pr).toEqual({ number: 7, url: "http://pr" });
     expect(requests[0]?.body).toEqual({ ref: "refs/heads/quiescent/ncrmro/1", sha: "head1" });
   });
+
+  test("resetBranch force-updates the ref", async () => {
+    const { client, requests } = forge([
+      { method: "PATCH", url: "/git/refs/heads/quiescent/ncrmro", response: {} },
+    ]);
+    await client.resetBranch("quiescent/ncrmro", "base1");
+    expect(requests[0]?.body).toEqual({ sha: "base1", force: true });
+  });
+
+  test("findOpenPullRequest owner-qualifies bare heads and returns first match or null", async () => {
+    const { client, requests } = forge([
+      { method: "GET", url: "/pulls?state=open", response: [{ number: 3, html_url: "http://pr3" }] },
+    ]);
+    expect(await client.findOpenPullRequest("quiescent/ncrmro", "main")).toEqual({
+      number: 3,
+      url: "http://pr3",
+    });
+    expect(requests[0]?.url).toContain(
+      `head=${encodeURIComponent("ncrmro:quiescent/ncrmro")}&base=main`,
+    );
+
+    const { client: empty } = forge([{ method: "GET", url: "/pulls?state=open", response: [] }]);
+    expect(await empty.findOpenPullRequest("fork-owner:quiescent/x", "main")).toBeNull();
+  });
 });

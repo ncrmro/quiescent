@@ -29,7 +29,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@quiescent/git": "^0.1.0"
+    "@quiescent/git": "^0.2.0"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",

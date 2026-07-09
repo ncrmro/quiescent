@@ -18,7 +18,14 @@ export interface Env {
   OAUTH_CLIENT_SECRET: string;
   /** Where the app mounts its OAuth callback route; defaults to /auth/callback. */
   OAUTH_CALLBACK_PATH?: string;
+  /**
+   * "pull-request" routes every flush through a pull request, even for users
+   * with push access; unset/"auto" keeps notes mode (direct commit) for them.
+   */
+  FLUSH_MODE?: "auto" | "pull-request";
   SESSION_SECRET: string;
+  /** Injectable for tests. */
+  fetch?: typeof fetch;
 }
 
 export function forgeConfig(env: Env, token: string): ForgeConfig {
@@ -28,6 +35,7 @@ export function forgeConfig(env: Env, token: string): ForgeConfig {
     owner: env.REPO_OWNER,
     repo: env.REPO_NAME,
     token,
+    fetch: env.fetch,
   };
 }
 

@@ -72,6 +72,35 @@ describe("GiteaForge", () => {
     await client.createBranch("suggest-1", "head1");
     expect(requests[0]?.body).toEqual({ new_branch_name: "suggest-1", old_ref_name: "head1" });
   });
+
+  test("resetBranch deletes then recreates the branch", async () => {
+    const { client, requests } = forge([
+      { method: "DELETE", url: "/branches/quiescent/ncrmro", response: {} },
+      { method: "POST", url: "/branches", response: {} },
+    ]);
+    await client.resetBranch("quiescent/ncrmro", "base1");
+    expect(requests.map((r) => r.method)).toEqual(["DELETE", "POST"]);
+    expect(requests[1]?.body).toEqual({ new_branch_name: "quiescent/ncrmro", old_ref_name: "base1" });
+  });
+
+  test("findOpenPullRequest matches head ref, owner, and base", async () => {
+    const pulls = [
+      { number: 1, html_url: "http://pr1", base: { ref: "main" }, head: { ref: "other" } },
+      {
+        number: 2,
+        html_url: "http://pr2",
+        base: { ref: "main" },
+        head: { ref: "quiescent/ncrmro", repo: { owner: { login: "ncrmro" } } },
+      },
+    ];
+    const { client } = forge([{ method: "GET", url: "/pulls?state=open", response: pulls }]);
+    expect(await client.findOpenPullRequest("quiescent/ncrmro", "main")).toEqual({
+      number: 2,
+      url: "http://pr2",
+    });
+    expect(await client.findOpenPullRequest("someone-else:quiescent/ncrmro", "main")).toBeNull();
+    expect(await client.findOpenPullRequest("quiescent/ncrmro", "develop")).toBeNull();
+  });
 });
 
 describe("base64", () => {
