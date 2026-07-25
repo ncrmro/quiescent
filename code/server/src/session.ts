@@ -1,5 +1,5 @@
 import { refreshToken, type TokenSet } from "@quiescent/git";
-import { oauthConfig, type Env } from "./env.ts";
+import { oauthConfig, requireSessions, requireSessionSecret, type Env } from "./env.ts";
 
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 export const SESSION_COOKIE = "qs_session";
@@ -30,29 +30,29 @@ async function hmac(secret: string, value: string): Promise<string> {
 
 export async function createSession(env: Env, session: Session): Promise<string> {
   const id = crypto.randomUUID();
-  await env.SESSIONS.put(sessionKey(id), JSON.stringify(session), {
+  await requireSessions(env).put(sessionKey(id), JSON.stringify(session), {
     expirationTtl: SESSION_TTL_SECONDS,
   });
   return id;
 }
 
 export async function saveSession(env: Env, id: string, session: Session): Promise<void> {
-  await env.SESSIONS.put(sessionKey(id), JSON.stringify(session), {
+  await requireSessions(env).put(sessionKey(id), JSON.stringify(session), {
     expirationTtl: SESSION_TTL_SECONDS,
   });
 }
 
 export async function getSessionById(env: Env, id: string): Promise<Session | null> {
-  const raw = await env.SESSIONS.get(sessionKey(id));
+  const raw = await requireSessions(env).get(sessionKey(id));
   return raw ? (JSON.parse(raw) as Session) : null;
 }
 
 export async function deleteSession(env: Env, id: string): Promise<void> {
-  await env.SESSIONS.delete(sessionKey(id));
+  await requireSessions(env).delete(sessionKey(id));
 }
 
 export async function sessionCookieValue(env: Env, id: string): Promise<string> {
-  return `${id}.${await hmac(env.SESSION_SECRET, id)}`;
+  return `${id}.${await hmac(requireSessionSecret(env), id)}`;
 }
 
 /** Verifies the signed cookie value and returns the session id, or null. */
@@ -61,7 +61,7 @@ export async function verifySessionCookie(env: Env, value: string): Promise<stri
   if (dot === -1) return null;
   const id = value.slice(0, dot);
   const signature = value.slice(dot + 1);
-  const expected = await hmac(env.SESSION_SECRET, id);
+  const expected = await hmac(requireSessionSecret(env), id);
   if (signature.length !== expected.length) return null;
   let mismatch = 0;
   for (let i = 0; i < expected.length; i++) {

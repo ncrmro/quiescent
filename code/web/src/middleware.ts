@@ -4,6 +4,7 @@ import {
   readCookie,
   SESSION_COOKIE,
   verifySessionCookie,
+  wikiUserFromSession,
 } from "@quiescent/server";
 
 // Everything except the auth flow requires a session: quiescent is an editing
@@ -29,5 +30,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   context.locals.session = session;
   context.locals.sessionId = sessionId;
+  context.locals.user = wikiUserFromSession(session);
   return next();
 });

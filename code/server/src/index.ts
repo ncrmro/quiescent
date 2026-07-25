@@ -6,14 +6,26 @@ export {
   listAllDrafts,
   type Draft,
 } from "./drafts.ts";
-export { forgeConfig, oauthConfig, type Env } from "./env.ts";
+export { forgeConfig, oauthConfig, requireSessions, requireSessionSecret, type Env } from "./env.ts";
 export { createMemoryStore, type KeyValueStore } from "./kv.ts";
 export {
   flushDrafts,
   flushStaleDrafts,
   CRON_FLUSH_AFTER_MS,
+  type FlushOptions,
   type FlushResult,
 } from "./flush.ts";
+export {
+  serviceTokenSource,
+  forgeSessionTokenSource,
+  resolveTokenSource,
+  wikiUserFromSession,
+  MissingAuthorEmailError,
+  type WikiUser,
+  type AuthAdapter,
+  type CommitIdentity,
+  type TokenSource,
+} from "./auth.ts";
 export {
   createSession,
   saveSession,

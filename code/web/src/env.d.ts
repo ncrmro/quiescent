@@ -7,5 +7,6 @@ declare namespace App {
   interface Locals extends Runtime {
     session?: import("@quiescent/server").Session;
     sessionId?: string;
+    user?: import("@quiescent/server").WikiUser;
   }
 }

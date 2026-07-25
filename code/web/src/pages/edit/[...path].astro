@@ -18,7 +18,7 @@ const file = isNew ? null : await forge.getFile(path, env.DEFAULT_BRANCH);
 if (!file && !isNew) return new Response("Not found", { status: 404 });
 
 // Resume an unflushed draft over the committed version.
-const draft = await getDraft(env, session.userId, path);
+const draft = await getDraft(env, Astro.locals.user!.id, path);
 const doc = draft?.content ?? file?.content ?? "";
 const editorData = { path, baseSha: file?.sha, doc, canPush: session.canPush };
 ---

@@ -1,11 +1,13 @@
+import type { WikiUser } from "./auth.ts";
 import type { Env } from "./env.ts";
 
 const DRAFT_PREFIX = "draft:";
 
 export interface Draft {
-  userId: number;
-  /** Session that produced the draft; the cron flush uses its stored tokens. */
-  sessionId: string;
+  /** Snapshot of the editor; the flush uses it for attribution and mode. */
+  user: WikiUser;
+  /** Session that produced the draft; required only in forge-OAuth mode. */
+  sessionId?: string;
   path: string;
   content: string;
   /** Blob sha the edit was based on; absent for new files. */
@@ -13,25 +15,25 @@ export interface Draft {
   updatedAt: number;
 }
 
-function draftKey(userId: number, path: string): string {
-  return `${DRAFT_PREFIX}${userId}:${path}`;
+function draftKey(userId: string, path: string): string {
+  return `${DRAFT_PREFIX}${encodeURIComponent(userId)}:${path}`;
 }
 
 export async function saveDraft(env: Env, draft: Draft): Promise<void> {
-  await env.DRAFTS.put(draftKey(draft.userId, draft.path), JSON.stringify(draft));
+  await env.DRAFTS.put(draftKey(draft.user.id, draft.path), JSON.stringify(draft));
 }
 
-export async function deleteDraft(env: Env, userId: number, path: string): Promise<void> {
+export async function deleteDraft(env: Env, userId: string, path: string): Promise<void> {
   await env.DRAFTS.delete(draftKey(userId, path));
 }
 
-export async function getDraft(env: Env, userId: number, path: string): Promise<Draft | null> {
+export async function getDraft(env: Env, userId: string, path: string): Promise<Draft | null> {
   const raw = await env.DRAFTS.get(draftKey(userId, path));
   return raw ? (JSON.parse(raw) as Draft) : null;
 }
 
-export async function listUserDrafts(env: Env, userId: number): Promise<Draft[]> {
-  return listDrafts(env, `${DRAFT_PREFIX}${userId}:`);
+export async function listUserDrafts(env: Env, userId: string): Promise<Draft[]> {
+  return listDrafts(env, `${DRAFT_PREFIX}${encodeURIComponent(userId)}:`);
 }
 
 export async function listAllDrafts(env: Env): Promise<Draft[]> {
