@@ -133,6 +133,8 @@ export class GitHubForge implements ForgeClient {
           message: options.message,
           tree: tree.sha,
           parents: [headSha],
+          ...(options.author ? { author: options.author } : {}),
+          ...(options.committer ? { committer: options.committer } : {}),
         }),
       },
     );

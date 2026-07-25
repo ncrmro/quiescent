@@ -133,6 +133,8 @@ export class GiteaForge implements ForgeClient {
           branch: options.branch,
           message: options.message,
           files: operations,
+          ...(options.author ? { author: options.author } : {}),
+          ...(options.committer ? { committer: options.committer } : {}),
         }),
       },
     );

@@ -79,6 +79,29 @@ describe("GitHubForge", () => {
     expect(ref?.body).toEqual({ sha: "commit1" });
   });
 
+  test("commitFiles passes author override to the commit call", async () => {
+    const { client, requests } = forge([
+      { method: "GET", url: "/git/ref/heads/main", response: { object: { sha: "head1" } } },
+      { method: "GET", url: "/git/commits/head1", response: { tree: { sha: "tree0" } } },
+      { method: "POST", url: "/git/trees", response: { sha: "tree1" } },
+      { method: "POST", url: "/git/commits", response: { sha: "commit1" } },
+      { method: "PATCH", url: "/git/refs/heads/main", response: {} },
+    ]);
+    await client.commitFiles({
+      branch: "main",
+      message: "m",
+      files: [{ path: "a.md", content: "x" }],
+      author: { name: "Nico", email: "nico@example.com" },
+    });
+    const commit = requests.find((r) => r.method === "POST" && r.url.includes("/git/commits"));
+    expect(commit?.body).toEqual({
+      message: "m",
+      tree: "tree1",
+      parents: ["head1"],
+      author: { name: "Nico", email: "nico@example.com" },
+    });
+  });
+
   test("commitFiles throws ConflictError when branch moved", async () => {
     const { client } = forge([
       { method: "GET", url: "/git/ref/heads/main", response: { object: { sha: "head2" } } },

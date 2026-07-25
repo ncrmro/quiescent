@@ -43,6 +43,11 @@ export interface CommitFileChange {
   content: string;
 }
 
+export interface CommitSignature {
+  name: string;
+  email: string;
+}
+
 export interface CommitFilesOptions {
   branch: string;
   message: string;
@@ -52,6 +57,12 @@ export interface CommitFilesOptions {
    * the caller's drafts were based on a stale ref.
    */
   expectedHeadSha?: string;
+  /**
+   * Override the commit author, e.g. attributing a service-token commit to
+   * the human who made the edit. Defaults to the token's identity.
+   */
+  author?: CommitSignature;
+  committer?: CommitSignature;
 }
 
 export interface CommitResult {

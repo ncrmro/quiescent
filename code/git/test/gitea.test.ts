@@ -65,6 +65,25 @@ describe("GiteaForge", () => {
     ]);
   });
 
+  test("commitFiles passes author and committer overrides", async () => {
+    const { client, requests } = forge([
+      { method: "GET", url: "/branches/main", response: { commit: { id: "head1" } } },
+      { method: "GET", url: "/contents/note.md", status: 404, response: {} },
+      { method: "POST", url: "/contents", response: { commit: { sha: "commit1" } } },
+    ]);
+    await client.commitFiles({
+      branch: "main",
+      message: "edit",
+      files: [{ path: "note.md", content: "hi" }],
+      author: { name: "Nico", email: "nico@example.com" },
+    });
+    const batch = requests.find((r) => r.method === "POST" && r.url.endsWith("/contents"));
+    expect((batch?.body as { author: unknown }).author).toEqual({
+      name: "Nico",
+      email: "nico@example.com",
+    });
+  });
+
   test("createBranch uses gitea branch endpoint", async () => {
     const { client, requests } = forge([
       { method: "POST", url: "/branches", response: {} },
