@@ -10,6 +10,14 @@ const RESOLVED_ID = `\0${VIRTUAL_ID}`;
 export interface QuiescentWikiOptions extends WikiOptions {
   /** Add tag nodes + membership edges to the graph (Obsidian style). Default true. */
   tagsInGraph?: boolean;
+  /**
+   * Inject the wikilink remark plugin via `markdown.remarkPlugins`. Works with
+   * Astro's classic markdown pipeline (≤6). Astro 7's default `satteri`
+   * processor ignores `remarkPlugins` — set this to false and wire the plugin
+   * yourself: `markdown.processor: unified({ remarkPlugins: [remarkWikiLinks({ dir })] })`
+   * with `unified` from `@astrojs/markdown-remark`. Default true.
+   */
+  remark?: boolean;
 }
 
 /**
@@ -24,7 +32,9 @@ export function quiescentWiki(options: QuiescentWikiOptions): AstroIntegration {
     hooks: {
       "astro:config:setup": ({ updateConfig }) => {
         updateConfig({
-          markdown: { remarkPlugins: [remarkWikiLinks(options)] },
+          ...(options.remark === false
+            ? {}
+            : { markdown: { remarkPlugins: [remarkWikiLinks(options)] } }),
           vite: {
             plugins: [
               {
