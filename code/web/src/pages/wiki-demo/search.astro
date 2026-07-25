@@ -1,0 +1,50 @@
+---
+import Layout from "../../layouts/Layout.astro";
+---
+
+<Layout title="wiki search">
+  <h1>Search</h1>
+  <input id="q" type="search" placeholder="Search the wiki…" autofocus />
+  <ul id="results"></ul>
+</Layout>
+
+<script>
+  import { fetchWikiSearch } from "@quiescent/wiki/client";
+
+  const input = document.getElementById("q") as HTMLInputElement;
+  const results = document.getElementById("results") as HTMLUListElement;
+  const search = await fetchWikiSearch("/api/wiki/search-index");
+
+  input.addEventListener("input", () => {
+    results.replaceChildren(
+      ...search.search(input.value, 20).map((hit) => {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = hit.url;
+        a.textContent = hit.title;
+        const excerpt = document.createElement("p");
+        excerpt.textContent = hit.excerpt;
+        li.append(a, ` (${hit.type ?? "note"})`, excerpt);
+        return li;
+      }),
+    );
+  });
+</script>
+
+<style>
+  #q {
+    width: 100%;
+    max-width: 28rem;
+    padding: 0.5rem;
+    font-size: 1rem;
+  }
+  #results {
+    list-style: none;
+    padding: 0;
+  }
+  #results p {
+    margin: 0.2rem 0 0.8rem;
+    font-size: 0.85rem;
+    opacity: 0.7;
+  }
+</style>

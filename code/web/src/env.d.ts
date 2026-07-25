@@ -1,4 +1,5 @@
 /// <reference types="astro/client" />
+/// <reference types="@quiescent/wiki/virtual" />
 
 type Env = import("@quiescent/server").Env;
 type Runtime = import("@astrojs/cloudflare").Runtime<Env>;

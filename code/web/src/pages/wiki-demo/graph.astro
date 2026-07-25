@@ -1,0 +1,33 @@
+---
+import Layout from "../../layouts/Layout.astro";
+---
+
+<Layout title="wiki graph">
+  <h1>Graph</h1>
+  <label><input type="checkbox" id="show-tags" checked /> show tags</label>
+  <div id="graph"></div>
+</Layout>
+
+<script>
+  import { mountWikiGraph, type WikiGraphView } from "@quiescent/wiki/client";
+  import type { WikiGraph } from "@quiescent/wiki";
+
+  const container = document.getElementById("graph") as HTMLElement;
+  const toggle = document.getElementById("show-tags") as HTMLInputElement;
+  const graph: WikiGraph = await (await fetch("/api/wiki/graph.json")).json();
+
+  let view: WikiGraphView = mountWikiGraph(container, graph, { showTags: toggle.checked });
+  toggle.addEventListener("change", () => {
+    view.destroy();
+    view = mountWikiGraph(container, graph, { showTags: toggle.checked });
+  });
+</script>
+
+<style>
+  #graph {
+    height: 70vh;
+    border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+    border-radius: 4px;
+    margin-top: 0.5rem;
+  }
+</style>

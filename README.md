@@ -1,14 +1,24 @@
 # quiescent
 
-npm packages for editing documents in a git repo from the browser.
-Authenticate against a git forge, edit markdown with CodeMirror, and let
-quiescent quietly persist your work:
+npm packages for editing documents in a git repo from the browser, and for
+turning a directory of markdown into a wiki (search, tags, note graph). Edit
+markdown with CodeMirror and let quiescent quietly persist your work:
 
-- **Notes mode** (you have push access) — edits accumulate as drafts and are
-  flushed to commits on the default branch when you stop typing, press
-  Ctrl/Cmd+S, or a cron trigger notices a stale draft.
+- **Notes mode** (push access) — edits accumulate as drafts and are flushed
+  to commits on the default branch when you stop typing, press Ctrl/Cmd+S,
+  or a cron trigger notices a stale draft.
 - **Contributor mode** (no push access) — your edits become a branch and a
   pull request, like "suggest an edit" on a docs or blog site.
+
+Two auth modes decide whose credential commits:
+
+- **Forge OAuth** — users log in against the forge and commit with their own
+  token (the original mode).
+- **Host auth + service token** — your app already has auth (e.g.
+  better-auth); a single forge token (`SERVICE_TOKEN`) authors commits
+  attributed to the editing user via git author override + `Co-authored-by`.
+  A user without an email cannot flush (`MissingAuthorEmailError`) — the
+  service token never authors an unattributable commit.
 
 All git operations use forge HTTP APIs (no git binary). Supported forges:
 GitHub, Gitea, Forgejo, and Codeberg. The Gitea/Forgejo/Codeberg client is
@@ -29,11 +39,17 @@ Bun workspace with packages under `code/`:
 | `@quiescent/git` | npm | Forge API abstraction: contents, multi-file commits, branches, pull requests, forks, OAuth |
 | `@quiescent/server` | npm | Worker-side sessions, KV drafts, and flush-to-commit logic |
 | `@quiescent/editor` | npm | CodeMirror 6 markdown editor with idle detection (the flush-on-stop signal) |
-| `@quiescent/web` | no (example) | Reference Astro app on Cloudflare Workers wiring the packages together: auth routes, draft API, cron flush |
+| `@quiescent/wiki` | npm | Astro wiki toolkit: wikilinks remark plugin, tag index, MiniSearch index, d3-force note graph, all baked at build time (`virtual:quiescent-wiki`) |
+| `@quiescent/web` | no (example) | Reference Astro app on Cloudflare Workers wiring the packages together: auth routes, draft API, cron flush, wiki demo pages |
 
 Consumers (e.g. [ncrmro/website](https://github.com/ncrmro/website)) install
 the published packages and copy the thin Astro glue from `code/web`
 (middleware, auth/draft/flush routes, worker entry) into their own site.
+
+Docs: [content conventions](docs/conventions.md) ·
+[deploy on Cloudflare](docs/deploy-cloudflare.md) ·
+[deploy in a container](docs/deploy-container.md) ·
+[`@quiescent/wiki` API](code/wiki/README.md)
 
 ## Releases
 

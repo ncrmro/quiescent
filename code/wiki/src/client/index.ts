@@ -14,6 +14,7 @@ import { SEARCH_OPTIONS } from "../search.ts";
 
 export interface WikiSearchHit {
   url: string;
+  relPath: string;
   title: string;
   type?: string;
   tags: string;

@@ -8,7 +8,7 @@ import type { WikiIndex } from "./graph.ts";
 export const SEARCH_OPTIONS: MiniSearchOptions = {
   idField: "url",
   fields: ["title", "tags", "headings", "text"],
-  storeFields: ["url", "title", "type", "tags", "excerpt"],
+  storeFields: ["url", "relPath", "title", "type", "tags", "excerpt"],
   searchOptions: {
     prefix: true,
     fuzzy: 0.2,
@@ -22,6 +22,7 @@ export function buildSearchIndex(index: WikiIndex): string {
   search.addAll(
     index.notes.map((note) => ({
       url: note.url,
+      relPath: note.relPath,
       title: note.title ?? note.basename,
       type: note.type,
       tags: note.tags.join(" "),

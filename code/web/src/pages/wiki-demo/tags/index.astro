@@ -1,0 +1,29 @@
+---
+import { tags } from "virtual:quiescent-wiki";
+import Layout from "../../../layouts/Layout.astro";
+
+// Group `namespace/value` tags by namespace for browsing.
+const namespaces = new Map<string, Array<[string, number]>>();
+for (const [tag, notes] of Object.entries(tags)) {
+  const ns = tag.includes("/") ? tag.split("/")[0]! : "other";
+  namespaces.set(ns, [...(namespaces.get(ns) ?? []), [tag, notes.length]]);
+}
+---
+
+<Layout title="wiki tags">
+  <h1>Tags</h1>
+  {
+    [...namespaces.entries()].map(([ns, entries]) => (
+      <section>
+        <h2>{ns}</h2>
+        <ul>
+          {entries.map(([tag, count]) => (
+            <li>
+              <a href={`/wiki-demo/tags/${tag}`}>{tag}</a> ({count})
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))
+  }
+</Layout>
