@@ -12,6 +12,9 @@
     },
     "code/editor": {
       "component": "quiescent-editor"
+    },
+    "code/wiki": {
+      "component": "quiescent-wiki"
     }
   }
 }

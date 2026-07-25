@@ -1,0 +1,59 @@
+{
+  "name": "@quiescent/wiki",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Astro-focused wiki toolkit: Obsidian-style wikilinks, tag index, search, and note graph over a directory of markdown, built at build time for Cloudflare Workers or Node",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ncrmro/quiescent.git",
+    "directory": "code/wiki"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "default": "./dist/client/index.js"
+    },
+    "./virtual": {
+      "types": "./virtual.d.ts"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "virtual.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "tsc -p tsconfig.build.json",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "d3-force": "^3.0.0",
+    "github-slugger": "^2.0.0",
+    "minisearch": "^7.1.0",
+    "yaml": "^2.9.0"
+  },
+  "peerDependencies": {
+    "astro": ">=4"
+  },
+  "peerDependenciesMeta": {
+    "astro": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "@types/d3-force": "^3.0.0",
+    "astro": "^5.0.0",
+    "typescript": "^5.8.0"
+  }
+}

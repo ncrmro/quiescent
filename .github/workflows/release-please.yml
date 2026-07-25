@@ -10,7 +10,7 @@ on:
       paths:
         description: JSON array of package paths to publish
         required: true
-        default: '["code/git","code/server","code/editor"]'
+        default: '["code/git","code/server","code/editor","code/wiki"]'
         type: string
 
 permissions:

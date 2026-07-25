@@ -9,6 +9,6 @@
     "test": "bun test code/git code/server code/editor",
     "typecheck": "bun run --filter '*' typecheck",
     "build": "bun run build:packages && bun run --filter '@quiescent/web' build",
-    "build:packages": "bun run --filter '@quiescent/git' build && bun run --filter '@quiescent/server' build && bun run --filter '@quiescent/editor' build"
+    "build:packages": "bun run --filter '@quiescent/git' build && bun run --filter '@quiescent/server' build && bun run --filter '@quiescent/editor' build && bun run --filter '@quiescent/wiki' build"
   }
 }
