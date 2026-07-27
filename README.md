@@ -40,7 +40,7 @@ Bun workspace with packages under `code/`:
 | `@quiescent/server` | npm | Worker-side sessions, KV drafts, and flush-to-commit logic |
 | `@quiescent/editor` | npm | CodeMirror 6 markdown editor with idle detection (the flush-on-stop signal) |
 | `@quiescent/wiki` | npm | Astro wiki toolkit: wikilinks remark plugin, tag index, MiniSearch index, d3-force note graph, all baked at build time (`virtual:quiescent-wiki`) |
-| `@quiescent/web` | no (example) | Reference Astro app on Cloudflare Workers wiring the packages together: auth routes, draft API, cron flush, wiki demo pages |
+| `@quiescent/web` | no (example) | Reference Astro app on Cloudflare Workers wiring the packages together: auth routes, draft API, cron flush, and the `/demo` blog + wiki apps |
 
 Consumers (e.g. [ncrmro/website](https://github.com/ncrmro/website)) install
 the published packages and copy the thin Astro glue from `code/web`
@@ -50,6 +50,23 @@ Docs: [content conventions](docs/conventions.md) ·
 [deploy on Cloudflare](docs/deploy-cloudflare.md) ·
 [deploy in a container](docs/deploy-container.md) ·
 [`@quiescent/wiki` API](code/wiki/README.md)
+
+## Demos
+
+`code/web` serves two demo apps under `/demo`, showing the two shapes a
+consumer usually wants:
+
+- **`/demo/blog`** — posts in a content directory, edited in the browser;
+  typing saves a draft, going idle (or Ctrl/Cmd+S) commits it, and the post
+  re-renders from the commit.
+- **`/demo/wiki`** — `@quiescent/wiki` resolving `[[wikilinks]]`, plus tag
+  browsing, client-side search, and the note graph.
+
+Both run the published packages against an in-memory `KeyValueStore` and a
+stubbed forge injected through `Env.fetch`, so they need no OAuth app, token,
+or KV binding — `devenv up web`, then open <http://localhost:4000/demo>.
+Playwright drives them (`bun run test:e2e`); browsers come from the
+Nix-managed bundle in `devenv.nix`, so don't run `playwright install`.
 
 ## Releases
 
@@ -65,8 +82,9 @@ first use).
 
 ```sh
 bun install
-bun test                      # code/git + code/editor unit tests
+bun test                      # unit tests across the packages
 bun run typecheck             # tsc / astro check per package
+bun run test:e2e              # Playwright specs driving the /demo apps
 cd code/web
 cp .dev.vars.example .dev.vars   # fill in OAuth app credentials
 bun run dev                   # astro dev with Cloudflare platform proxy

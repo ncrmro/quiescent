@@ -6,3 +6,5 @@ dist/
 .direnv/
 .devenv/
 *.tsbuildinfo
+test-results/
+playwright-report/

@@ -1,0 +1,98 @@
+---
+import { getDraft } from "@quiescent/server";
+import { getEntry, render } from "astro:content";
+import Layout from "../../../layouts/Layout.astro";
+import { demoEnv, DEMO_USER } from "../../../demo/env.ts";
+
+export const prerender = false;
+
+// `[...slug]` captures the note id — the lowercase slug of its path under the
+// wiki dir. The index links and the build-time wikilink resolver both target
+// this same id, so every generated href lands here.
+const slug = Astro.params.slug ?? "";
+const entry = await getEntry("wiki", slug);
+if (!entry) return new Response("Not found", { status: 404 });
+
+const { Content } = await render(entry);
+const title = entry.data.title ?? entry.id;
+// filePath is repo-relative (demo/wiki/…); the stub forge stores the same
+// notes under wiki/…, which is what the editor and draft keys use.
+const relPath = entry.filePath?.replace(/^.*demo\/wiki\//, "") ?? `${entry.id}.md`;
+const repoPath = `wiki/${relPath}`;
+
+// Content is baked at build time, so a flushed edit shows up on the next
+// build; until then, say so rather than silently serving stale text.
+const draft = await getDraft(demoEnv(), DEMO_USER.id, repoPath);
+---
+
+<Layout title={title}>
+  <p><a href="/demo/wiki">← all notes</a></p>
+  {
+    draft && (
+      <p class="draft-banner" data-testid="draft-banner">
+        You have an unflushed draft of this note —{" "}
+        <a href={`/demo/wiki/edit/${repoPath}`}>resume editing</a>. The version below is the
+        last built one.
+      </p>
+    )
+  }
+  <article>
+    <h1 data-testid="note-title">{title}</h1>
+    <p class="meta">
+      {entry.data.type && <span>{entry.data.type}</span>}
+      {entry.data.status && <span>{entry.data.status}</span>}
+      <a href={`/demo/wiki/edit/${repoPath}`} data-testid="edit-note">Edit</a>
+    </p>
+    {
+      entry.data.tags && (
+        <p class="tags">
+          {entry.data.tags.map((tag: string) => (
+            <a class="tag" href={`/demo/wiki/tags/${tag}`}>
+              {tag}
+            </a>
+          ))}
+        </p>
+      )
+    }
+    <div class="prose" data-testid="note-body">
+      <Content />
+    </div>
+  </article>
+</Layout>
+
+<style>
+  .meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.85rem;
+    opacity: 0.75;
+  }
+  .tags {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-size: 0.75rem;
+    border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+    border-radius: 999px;
+    padding: 0 0.5rem;
+    text-decoration: none;
+  }
+  .draft-banner {
+    border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+  .prose {
+    max-width: 44rem;
+    line-height: 1.6;
+  }
+  /* Dead wikilinks render as a visible marker instead of raw [[...]]. */
+  .prose :global(.wikilink--dead) {
+    border-bottom: 1px dashed currentColor;
+    opacity: 0.6;
+    cursor: help;
+  }
+</style>

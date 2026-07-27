@@ -6,9 +6,10 @@
     "code/*"
   ],
   "scripts": {
-    "test": "bun test code/git code/server code/editor",
+    "test": "bun test --path-ignore-patterns 'code/web/tests/**'",
     "typecheck": "bun run --filter '*' typecheck",
     "build": "bun run build:packages && bun run --filter '@quiescent/web' build",
-    "build:packages": "bun run --filter '@quiescent/git' build && bun run --filter '@quiescent/server' build && bun run --filter '@quiescent/editor' build && bun run --filter '@quiescent/wiki' build"
+    "build:packages": "bun run --filter '@quiescent/git' build && bun run --filter '@quiescent/server' build && bun run --filter '@quiescent/editor' build && bun run --filter '@quiescent/wiki' build",
+    "test:e2e": "bun run --filter '@quiescent/web' test:e2e"
   }
 }

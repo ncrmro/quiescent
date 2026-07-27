@@ -1,0 +1,33 @@
+---
+import { tags } from "virtual:quiescent-wiki";
+import Layout from "../../../../layouts/Layout.astro";
+
+export const prerender = false;
+
+const tag = Astro.params.tag ?? "";
+const notes = tags[tag];
+if (!notes) return new Response("Not found", { status: 404 });
+---
+
+<Layout title={`tag: ${tag}`}>
+  <p><a href="/demo/wiki/tags">← all tags</a></p>
+  <h1 data-testid="tag-title">#{tag}</h1>
+  <ul class="notes" data-testid="tagged-notes">
+    {
+      notes.map((note) => (
+        <li>
+          <a href={note.url}>{note.title}</a>
+        </li>
+      ))
+    }
+  </ul>
+</Layout>
+
+<style>
+  .notes {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: 0.3rem;
+  }
+</style>

@@ -12,7 +12,11 @@ export default defineConfig({
     workerEntryPoint: { path: "src/worker.ts" },
   }),
   integrations: [
-    // Demo wiki content; point `dir` at your own wiki tree.
-    quiescentWiki({ dir: fileURLToPath(new URL("../wiki/test/fixtures/wiki", import.meta.url)) }),
+    // The demo wiki tree, mounted under /demo/wiki so wikilink hrefs, tag
+    // pages, search hits, and graph nodes all agree with the real routes.
+    quiescentWiki({
+      dir: fileURLToPath(new URL("./demo/wiki", import.meta.url)),
+      base: "/demo/wiki",
+    }),
   ],
 });

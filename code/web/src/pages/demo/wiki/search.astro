@@ -1,0 +1,69 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+
+export const prerender = false;
+---
+
+<Layout title="Wiki search">
+  <p><a href="/demo/wiki">← wiki</a></p>
+  <h1>Search</h1>
+  <p class="lead">
+    MiniSearch over a build-time index, fetched once and queried in the browser.
+  </p>
+  <input id="q" type="search" placeholder="Try “nutrient” or “thermal”…" data-testid="search-input" autofocus />
+  <ul id="results" data-testid="search-results"></ul>
+</Layout>
+
+<script>
+  import { fetchWikiSearch } from "@quiescent/wiki/client";
+
+  const input = document.getElementById("q") as HTMLInputElement;
+  const results = document.getElementById("results") as HTMLUListElement;
+  const search = await fetchWikiSearch("/api/demo/wiki/search-index");
+  results.dataset.ready = "true";
+
+  const render = () => {
+    const hits = search.search(input.value, 20);
+    results.dataset.count = String(hits.length);
+    results.replaceChildren(
+      ...hits.map((hit) => {
+        const li = document.createElement("li");
+        li.dataset.testid = "search-hit";
+        const a = document.createElement("a");
+        a.href = hit.url;
+        a.textContent = hit.title;
+        const meta = document.createElement("span");
+        meta.className = "type";
+        meta.textContent = ` ${hit.type ?? "note"}`;
+        const excerpt = document.createElement("p");
+        excerpt.textContent = hit.excerpt;
+        li.append(a, meta, excerpt);
+        return li;
+      }),
+    );
+  };
+
+  input.addEventListener("input", render);
+</script>
+
+<style>
+  #q {
+    width: 100%;
+    max-width: 28rem;
+    padding: 0.5rem;
+    font-size: 1rem;
+  }
+  #results {
+    list-style: none;
+    padding: 0;
+  }
+  #results p {
+    margin: 0.2rem 0 0.9rem;
+    font-size: 0.85rem;
+    opacity: 0.7;
+  }
+  .type {
+    font-size: 0.75rem;
+    opacity: 0.6;
+  }
+</style>

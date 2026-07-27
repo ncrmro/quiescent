@@ -1,0 +1,142 @@
+---
+/**
+ * The demo editor: @quiescent/editor wired to the /api/demo draft + flush
+ * routes. Identical wiring to the OAuth-gated editor at src/pages/edit — only
+ * the API prefix and the (stubbed) backend differ.
+ */
+interface Props {
+  path: string;
+  doc: string;
+  baseSha?: string;
+  backHref: string;
+  backLabel: string;
+  hadDraft: boolean;
+}
+const { path, doc, baseSha, backHref, backLabel, hadDraft } = Astro.props;
+const editorData = { path, baseSha, doc };
+---
+
+<div class="toolbar">
+  <a href={backHref}>← {backLabel}</a>
+  <h1>{path}</h1>
+  <span id="status" data-testid="status">{hadDraft ? "unflushed draft restored" : "loaded"}</span>
+  <button id="flush-now" type="button" data-testid="commit">Commit now</button>
+</div>
+<div class="panes">
+  <div id="editor" data-testid="editor"></div>
+  <article id="preview" data-testid="preview"></article>
+</div>
+<script is:inline type="application/json" id="editor-data" set:html={JSON.stringify(editorData)} />
+
+<script>
+  import { createEditor, createPreview } from "@quiescent/editor";
+
+  const data = JSON.parse(document.getElementById("editor-data")!.textContent!) as {
+    path: string;
+    baseSha?: string;
+    doc: string;
+  };
+  const status = document.getElementById("status")!;
+  const preview = createPreview(document.getElementById("preview")!);
+  preview.update(data.doc);
+
+  async function saveDraft(doc: string): Promise<void> {
+    status.textContent = "saving draft…";
+    const response = await fetch(`/api/demo/draft/${data.path}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: doc, baseSha: data.baseSha }),
+    });
+    status.textContent = response.ok ? "draft saved" : "draft save failed";
+  }
+
+  async function flush(): Promise<void> {
+    status.textContent = "committing…";
+    const response = await fetch("/api/demo/flush", { method: "POST" });
+    const result = (await response.json()) as { mode?: string; sha?: string; error?: string };
+    if (!response.ok) {
+      status.textContent = `flush failed: ${result.error ?? response.status}`;
+      return;
+    }
+    editor.markClean();
+    status.textContent =
+      result.mode === "commit"
+        ? `committed ${result.sha?.slice(0, 7) ?? ""}`.trim()
+        : result.mode === "pull-request"
+          ? "pull request opened"
+          : "nothing to flush";
+  }
+
+  const editor = createEditor({
+    parent: document.getElementById("editor")!,
+    doc: data.doc,
+    // Short in the demo so "stop typing → it saves itself" is observable;
+    // production defaults to 30s.
+    idleMs: 3_000,
+    onChange: (doc) => {
+      preview.update(doc);
+      void saveDraft(doc);
+    },
+    onIdle: () => void flush(),
+    onSave: async (doc) => {
+      await saveDraft(doc);
+      await flush();
+    },
+  });
+
+  document.getElementById("flush-now")!.addEventListener("click", async () => {
+    await saveDraft(editor.getDoc());
+    await flush();
+  });
+
+  window.addEventListener("pagehide", () => {
+    if (!editor.isDirty()) return;
+    navigator.sendBeacon?.(
+      `/api/demo/draft/${data.path}`,
+      new Blob([JSON.stringify({ content: editor.getDoc(), baseSha: data.baseSha })], {
+        type: "application/json",
+      }),
+    );
+  });
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .toolbar h1 {
+    font-size: 1.05rem;
+    margin: 0;
+    flex: 1;
+    overflow-wrap: anywhere;
+  }
+  #status {
+    font-size: 0.85rem;
+    opacity: 0.7;
+  }
+  .panes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+    align-items: start;
+  }
+  #editor {
+    border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+    min-height: 60vh;
+  }
+  #preview {
+    border: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+    padding: 0 1rem;
+    min-height: 60vh;
+    overflow-wrap: anywhere;
+  }
+  @media (max-width: 60rem) {
+    .panes {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

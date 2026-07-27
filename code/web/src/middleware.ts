@@ -8,10 +8,15 @@ import {
 } from "@quiescent/server";
 
 // Everything except the auth flow requires a session: quiescent is an editing
-// tool, not a public site.
+// tool, not a public site. The /demo routes are the exception — they run the
+// same packages against an in-memory store and a stubbed forge, so they need
+// no forge account and are what the Playwright specs drive.
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
   if (pathname.startsWith("/auth/")) return next();
+  if (pathname === "/demo" || pathname.startsWith("/demo/") || pathname.startsWith("/api/demo/")) {
+    return next();
+  }
 
   const env = context.locals.runtime.env;
   const cookie = readCookie(context.request.headers.get("Cookie"), SESSION_COOKIE);

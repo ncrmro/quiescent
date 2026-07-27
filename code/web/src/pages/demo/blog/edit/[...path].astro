@@ -1,0 +1,33 @@
+---
+import { createForge } from "@quiescent/git";
+import { forgeConfig, getDraft } from "@quiescent/server";
+import Layout from "../../../../layouts/Layout.astro";
+import Editor from "../../../../demo/Editor.astro";
+import { demoEnv, DEMO_USER } from "../../../../demo/env.ts";
+import { postSlug } from "../../../../demo/posts.ts";
+
+export const prerender = false;
+
+const path = Astro.params.path;
+if (!path) return Astro.redirect("/demo/blog");
+
+const env = demoEnv();
+const forge = createForge(forgeConfig(env, env.SERVICE_TOKEN!));
+const file = await forge.getFile(path, env.DEFAULT_BRANCH);
+if (!file) return new Response("Not found", { status: 404 });
+
+// An unflushed draft wins over the committed version.
+const draft = await getDraft(env, DEMO_USER.id, path);
+const doc = draft?.content ?? file.content;
+---
+
+<Layout title={`edit: ${path}`}>
+  <Editor
+    path={path}
+    doc={doc}
+    baseSha={file.sha}
+    backHref={`/demo/blog/${postSlug(path)}`}
+    backLabel="post"
+    hadDraft={Boolean(draft)}
+  />
+</Layout>

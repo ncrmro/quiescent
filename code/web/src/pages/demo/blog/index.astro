@@ -1,0 +1,59 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import { listPosts, postSlug } from "../../../demo/posts.ts";
+
+export const prerender = false;
+
+// Read through the ForgeClient-backed stub, so the list reflects whatever the
+// last flush committed.
+const posts = listPosts();
+---
+
+<Layout title="Blog demo">
+  <p><a href="/demo">← demos</a></p>
+  <h1>Blog</h1>
+  <p class="lead">{posts.length} posts, editable in the browser.</p>
+
+  <ul class="posts" data-testid="post-list">
+    {
+      posts.map((post) => (
+        <li>
+          <a href={`/demo/blog/${postSlug(post.path)}`} data-testid="post-link">
+            {post.title}
+          </a>
+          <div class="meta">
+            <time>{post.date}</time>
+            {post.tags.map((tag) => (
+              <span class="tag">{tag}</span>
+            ))}
+          </div>
+        </li>
+      ))
+    }
+  </ul>
+</Layout>
+
+<style>
+  .posts {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: 1rem;
+  }
+  .posts a {
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+  .meta {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    opacity: 0.7;
+    margin-top: 0.15rem;
+  }
+  .tag {
+    border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+    border-radius: 999px;
+    padding: 0 0.5rem;
+  }
+</style>

@@ -1,0 +1,39 @@
+---
+import { renderMarkdown } from "@quiescent/editor";
+import Layout from "../../../layouts/Layout.astro";
+import { getPost } from "../../../demo/posts.ts";
+
+export const prerender = false;
+
+const slug = Astro.params.slug!;
+const path = `content/blog/${slug}.md`;
+const post = getPost(path);
+if (!post) return new Response("Not found", { status: 404 });
+
+const html = renderMarkdown(post.body);
+---
+
+<Layout title={post.title}>
+  <p><a href="/demo/blog">← all posts</a></p>
+  <article>
+    <h1 data-testid="post-title">{post.title}</h1>
+    <p class="meta">
+      <time>{post.date}</time>
+      <a href={`/demo/blog/edit/${path}`} data-testid="edit-post">Edit</a>
+    </p>
+    <div class="prose" data-testid="post-body" set:html={html} />
+  </article>
+</Layout>
+
+<style>
+  .meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.85rem;
+    opacity: 0.75;
+  }
+  .prose {
+    max-width: 44rem;
+    line-height: 1.6;
+  }
+</style>
