@@ -134,3 +134,14 @@ describe("search", () => {
     expect(byPrefix.length).toBeGreaterThan(0);
   });
 });
+
+describe("mount prefix", () => {
+  test("base prefixes every note URL and wikilink resolution", () => {
+    const based = buildWikiIndex({ dir, base: "/demo/wiki" });
+    expect(resolveWikiTarget("Veggie", based)).toBe("/demo/wiki/concepts/veggie");
+    for (const note of based.notes) expect(note.url.startsWith("/demo/wiki/")).toBe(true);
+    // Slashes in the option are normalised.
+    const messy = buildWikiIndex({ dir, base: "docs/" });
+    expect(resolveWikiTarget("Veggie", messy)).toBe("/docs/concepts/veggie");
+  });
+});

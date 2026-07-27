@@ -3,6 +3,7 @@
 export {
   scanNotes,
   noteId,
+  noteUrl,
   normalizeName,
   WIKILINK,
   type WikiOptions,

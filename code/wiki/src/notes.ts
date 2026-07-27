@@ -9,6 +9,12 @@ import { parse as parseYaml } from "yaml";
 export interface WikiOptions {
   /** Absolute path to the wiki root directory. */
   dir: string;
+  /**
+   * Route prefix the wiki is mounted under, e.g. `/docs`. Applied to every
+   * note URL, so wikilink hrefs, the graph, tag pages, and search results all
+   * agree with the real routes. Defaults to the site root.
+   */
+  base?: string;
 }
 
 /** The Obsidian-style `[[...]]` link syntax; captures the inner target text. */
@@ -52,6 +58,12 @@ export function noteId(relPath: string): string {
       .map((segment) => githubSlug(segment))
       .join("/")
   );
+}
+
+/** Join the mount prefix to a note id, yielding the note's route. */
+export function noteUrl(id: string, base?: string): string {
+  const prefix = base ? `/${base.replace(/^\/+|\/+$/g, "")}` : "";
+  return `${prefix}/${id}`;
 }
 
 /**
@@ -165,7 +177,7 @@ export function scanNotes(options: WikiOptions): WikiNote[] {
     const text = stripMarkdown(fm.body);
     notes.push({
       relPath,
-      url: `/${noteId(relPath)}`,
+      url: noteUrl(noteId(relPath), options.base),
       title: fm.title,
       basename: path.basename(relPath, ".md"),
       type: fm.type,

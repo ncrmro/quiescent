@@ -17,7 +17,9 @@ export interface WikiIndex {
 const cache = new Map<string, WikiIndex>();
 
 export function buildWikiIndex(options: WikiOptions): WikiIndex {
-  const key = path.resolve(options.dir);
+  // Keyed on base too: the same directory mounted under a different prefix
+  // yields different note URLs.
+  const key = `${path.resolve(options.dir)}\n${options.base ?? ""}`;
   const cached = cache.get(key);
   if (cached) return cached;
 
