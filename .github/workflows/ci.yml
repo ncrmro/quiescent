@@ -12,8 +12,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: bun run test
+      # Before the tests: @quiescent/server imports @quiescent/git through its
+      # published `exports` (./dist), and in-workspace that only exists once
+      # built. A clean checkout has no dist/.
       - run: bun run build:packages
+      - run: bun run test
       - run: bun run typecheck
       - run: bun run --filter '@quiescent/web' build
 
