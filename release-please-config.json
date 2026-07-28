@@ -16,5 +16,8 @@
     "code/wiki": {
       "component": "quiescent-wiki"
     }
-  }
+  },
+  "plugins": [
+    "node-workspace"
+  ]
 }

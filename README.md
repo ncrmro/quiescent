@@ -71,9 +71,32 @@ Nix-managed bundle in `devenv.nix`, so don't run `playwright install`.
 ## Releases
 
 [release-please](https://github.com/googleapis/release-please) manages
-versioning from Conventional Commits: merging the release PR tags each
-changed package and the `publish` job publishes it to npm with
-`bun publish` (requires the `NPM_TOKEN` repo secret).
+versioning from Conventional Commits. Merging the release PR tags every
+changed package, and the `publish` job pushes each one to npm with
+`npm publish` over [trusted publishing][tp] — the workflow exchanges its
+GitHub OIDC token with the registry, so no `NPM_TOKEN` is stored anywhere
+and releases carry provenance.
+
+All four published packages (`git`, `server`, `editor`, `wiki`) are in
+`release-please-config.json`; `@quiescent/web` is the private example app and
+stays unpublished. The `node-workspace` plugin keeps the cross-package
+dependency ranges (`@quiescent/server` → `@quiescent/git`) in step with each
+release. Those ranges are real semver, not `workspace:*` — npm does not
+rewrite the workspace protocol at publish time, so a `workspace:*` range
+would ship a package nobody can install.
+
+**Bootstrapping a new package:** trusted publishing is configured on a
+package's npm settings page, which requires the package to already exist
+([npm/cli#8544](https://github.com/npm/cli/issues/8544)). Publish the first
+version by hand, then hand it over:
+
+```sh
+cd code/<pkg> && npm publish --access public
+# then add the trusted publisher (this repo + release-please.yml) at
+# https://www.npmjs.com/package/@quiescent/<pkg>/access
+```
+
+[tp]: https://docs.npmjs.com/trusted-publishers
 
 ## Development
 

@@ -63,6 +63,18 @@ jobs:
       - run: bun run build:packages
       # npm (not bun) — the npm CLI implements trusted publishing (OIDC
       # exchange + provenance); bun 1.3 does not and fails wanting a token.
+      #
+      # OIDC cannot create a package that does not exist yet: the trusted
+      # publisher is configured on the package's npm settings page, which
+      # requires the package to exist (npm/cli#8544). A brand-new package
+      # therefore needs one manual publish before this job can take over —
+      # fail with that instruction instead of a bare E404.
       - name: Publish ${{ matrix.path }}
         working-directory: ${{ matrix.path }}
-        run: npm publish --access public
+        run: |
+          name=$(node -p "require('./package.json').name")
+          if ! npm view "$name" version >/dev/null 2>&1; then
+            echo "::error::$name is not on npm yet, and OIDC trusted publishing cannot bootstrap a new package. Publish it once by hand (npm publish --access public), then add the trusted publisher at https://www.npmjs.com/package/$name/access and re-run this job."
+            exit 1
+          fi
+          npm publish --access public
