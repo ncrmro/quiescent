@@ -1,5 +1,9 @@
 # quiescent
 
+For the GitHub-backed formatted writing and publishing prototype, see
+[Writing with Quiescent](docs/writing-prototype.md). It runs locally as a Worker,
+uses workspace packages without npm releases, and publishes without PRs.
+
 npm packages for editing documents in a git repo from the browser, and for
 turning a directory of markdown into a wiki (search, tags, note graph). Edit
 markdown with CodeMirror and let quiescent quietly persist your work:

@@ -1,0 +1,6 @@
+# Copy entries into .dev.vars; do not commit credentials.
+SERVICE_TOKEN=
+# Leave R2 credentials unset to use local R2 emulation.
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=

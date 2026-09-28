@@ -6,7 +6,8 @@ import type {
   CommitResult,
   CreatePullRequestOptions,
   FileContent,
-  ForgeClient,
+  PublishingForge,
+  CommitComparison,
   ForgeConfig,
   ForgeUser,
   PullRequest,
@@ -23,7 +24,7 @@ interface GitHubContentsEntry {
   content?: string;
 }
 
-export class GitHubForge implements ForgeClient {
+export class GitHubForge implements PublishingForge {
   readonly kind = "github" as const;
   private readonly http: HttpClient;
   private readonly repoPath: string;
@@ -104,6 +105,65 @@ export class GitHubForge implements ForgeClient {
     return ref.object.sha;
   }
 
+  async listBranches(prefix: string): Promise<Array<{ name: string; sha: string }>> {
+    const branches: Array<{ name: string; sha: string }> = [];
+    for (let page = 1; ; page++) {
+      const entries = await this.http.json<Array<{ name: string; commit: { sha: string } }>>(
+        `${this.repoPath}/branches?per_page=100&page=${page}`,
+      );
+      for (const entry of entries) {
+        if (entry.name.startsWith(prefix)) branches.push({ name: entry.name, sha: entry.commit.sha });
+      }
+      if (entries.length < 100) return branches;
+    }
+  }
+
+  private async comparison(base: string, head: string): Promise<{
+    status: string;
+    ahead_by: number;
+    files?: Array<{ filename: string; previous_filename?: string }>;
+  }> {
+    // The first page contains all comparison files (up to GitHub's 300-file cap),
+    // regardless of how many commits are requested.
+    return this.http.json(`${this.repoPath}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}?per_page=1&page=1`);
+  }
+
+  async compareCommits(baseSha: string, headSha: string): Promise<CommitComparison> {
+    const result = await this.comparison(baseSha, headSha);
+    if (!result.files || result.files.length >= 300) {
+      throw new ForgeError("Cannot verify complete publication scope: GitHub comparison files are missing or may be truncated", 422, this.repoPath);
+    }
+    return {
+      status: result.status,
+      aheadBy: result.ahead_by,
+      files: result.files.map((file) => ({
+        filename: file.filename,
+        ...(file.previous_filename ? { previousFilename: file.previous_filename } : {}),
+      })),
+    };
+  }
+
+  async isAncestor(ancestor: string, head: string): Promise<boolean> {
+    const result = await this.comparison(ancestor, head);
+    return result.status === "ahead" || result.status === "identical";
+  }
+
+  async mergeBranch(base: string, headSha: string): Promise<CommitResult> {
+    if (!/^[a-f0-9]{40}$/i.test(headSha)) {
+      throw new ForgeError("Publication requires a full immutable commit SHA", 422, this.repoPath);
+    }
+    const response = await this.http.request(`${this.repoPath}/merges`, {
+      method: "POST",
+      body: JSON.stringify({ base, head: headSha }),
+    });
+    if (response.status === 204) return { sha: await this.getBranchSha(base) };
+    if (response.status === 404) {
+      throw new ForgeError("Publication base or commit was not found", 404, this.repoPath);
+    }
+    const commit = await response.json() as { sha: string; html_url?: string };
+    return { sha: commit.sha, url: commit.html_url };
+  }
+
   async commitFiles(options: CommitFilesOptions): Promise<CommitResult> {
     const headSha = await this.getBranchSha(options.branch);
     if (options.expectedHeadSha && options.expectedHeadSha !== headSha) {
@@ -138,10 +198,21 @@ export class GitHubForge implements ForgeClient {
         }),
       },
     );
-    await this.http.json(`${this.repoPath}/git/refs/heads/${encodePath(options.branch)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ sha: commit.sha }),
-    });
+    try {
+      await this.http.json(`${this.repoPath}/git/refs/heads/${encodePath(options.branch)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ sha: commit.sha, force: false }),
+      });
+    } catch (error) {
+      // Another writer may advance the branch after the initial revision check.
+      // Never force over their commit; translate a rejected fast-forward into the
+      // same recoverable stale-revision error used before building the commit.
+      if (error instanceof ForgeError && (error.status === 409 || error.status === 422)) {
+        const actualSha = await this.getBranchSha(options.branch);
+        if (actualSha !== headSha) throw new ConflictError(options.branch, headSha, actualSha);
+      }
+      throw error;
+    }
     return { sha: commit.sha, url: commit.html_url };
   }
 

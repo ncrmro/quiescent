@@ -6,6 +6,7 @@ import { defineConfig } from "astro/config";
 
 export default defineConfig({
   output: "server",
+  vite: { server: { strictPort: true } },
   adapter: cloudflare({
     platformProxy: { enabled: true },
     sessionKVBindingName: "SESSIONS",

@@ -96,3 +96,19 @@ export interface ForgeClient {
   /** Fork the repo for contributors without push access. Returns the fork's owner/repo. */
   ensureFork(): Promise<{ owner: string; repo: string }>;
 }
+
+/** Optional publishing capability; adapters must implement this explicitly. */
+export interface PublishingForge extends ForgeClient {
+  listBranches(prefix: string): Promise<Array<{ name: string; sha: string }>>;
+  /** Complete file scope, including rename sources. Rejects potentially truncated results. */
+  compareCommits(baseSha: string, headSha: string): Promise<CommitComparison>;
+  /** Merge an immutable full commit SHA, never a mutable branch name. */
+  mergeBranch(base: string, headSha: string): Promise<CommitResult>;
+  isAncestor(ancestor: string, head: string): Promise<boolean>;
+}
+
+export interface CommitComparison {
+  status: string;
+  aheadBy: number;
+  files: Array<{ filename: string; previousFilename?: string }>;
+}

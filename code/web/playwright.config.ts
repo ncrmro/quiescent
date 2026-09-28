@@ -12,6 +12,7 @@ const PORT = Number(process.env.DEMO_PORT ?? 4173);
 
 export default defineConfig({
   testDir: "./tests",
+  testIgnore: "writing-live.spec.ts",
   fullyParallel: false, // the demo forge and draft store are shared module state
   workers: 1,
   forbidOnly: Boolean(process.env.CI),

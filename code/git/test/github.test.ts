@@ -76,7 +76,7 @@ describe("GitHubForge", () => {
       tree: [{ path: "docs/note.md", mode: "100644", type: "blob", content: "hello" }],
     });
     expect(commit?.body).toEqual({ message: "feat: edit note", tree: "tree1", parents: ["head1"] });
-    expect(ref?.body).toEqual({ sha: "commit1" });
+    expect(ref?.body).toEqual({ sha: "commit1", force: false });
   });
 
   test("commitFiles passes author override to the commit call", async () => {

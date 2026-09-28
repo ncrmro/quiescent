@@ -8,3 +8,10 @@ dist/
 *.tsbuildinfo
 test-results/
 playwright-report/
+
+.env.local
+.dev.vars.*
+!.dev.vars.example
+!writing.dev.vars.example
+TASKS.md
+.writing-server.pid

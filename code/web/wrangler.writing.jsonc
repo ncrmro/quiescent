@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "quiescent-writing-local",
+  "main": "./dist/_worker.js/index.js",
+  "compatibility_date": "2026-07-08",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "SESSIONS",
+      "id": "local-writing-sessions"
+    },
+    {
+      "binding": "DRAFTS",
+      "id": "local-writing-drafts"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "WRITING_MEDIA",
+      "bucket_name": "quiescent-writing-demo-images"
+    }
+  ],
+  "vars": {
+    "WRITING_LOCAL": "true",
+    "WRITING_REPO_OWNER": "ncrmro",
+    "WRITING_REPO_NAME": "quiescent-writing-demo",
+    "WRITING_AUTHOR_NAME": "Nicholas Romero",
+    "WRITING_AUTHOR_EMAIL": "ncrmro@users.noreply.github.com",
+    "WRITING_R2_BUCKET": "quiescent-writing-demo-images"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

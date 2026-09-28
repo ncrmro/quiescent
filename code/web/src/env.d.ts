@@ -1,7 +1,7 @@
 /// <reference types="astro/client" />
 /// <reference types="@quiescent/wiki/virtual" />
 
-type Env = import("@quiescent/server").Env;
+type Env = import("@quiescent/server").Env & import("./writing/app").WritingEnv;
 type Runtime = import("@astrojs/cloudflare").Runtime<Env>;
 
 declare namespace App {

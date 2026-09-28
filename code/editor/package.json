@@ -13,6 +13,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./document": {
+      "types": "./dist/document.d.ts",
+      "default": "./dist/document.js"
+    },
+    "./writing": {
+      "types": "./dist/writing.d.ts",
+      "default": "./dist/writing.js"
     }
   },
   "types": "./dist/index.d.ts",
@@ -34,7 +42,10 @@
     "@codemirror/language": "^6.11.0",
     "@codemirror/state": "^6.5.0",
     "@codemirror/view": "^6.36.0",
-    "marked": "^15.0.0"
+    "marked": "^15.0.0",
+    "@tiptap/core": "^3.0.0",
+    "@tiptap/starter-kit": "^3.0.0",
+    "@tiptap/extension-image": "^3.0.0"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",

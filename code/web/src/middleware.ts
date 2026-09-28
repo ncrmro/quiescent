@@ -1,3 +1,4 @@
+import { localAuthor } from "./writing/app";
 import { defineMiddleware } from "astro:middleware";
 import {
   getSessionById,
@@ -13,6 +14,17 @@ import {
 // no forge account and are what the Playwright specs drive.
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
+  const writingEnv = context.locals.runtime.env;
+  const authorRoute = pathname === "/write" || pathname.startsWith("/api/writing/");
+  const readerRoute = pathname === "/read" || pathname.startsWith("/read/") || pathname.startsWith("/media/");
+  if (authorRoute) {
+    if (!localAuthor(context.request, writingEnv)) return new Response("Local author access required", {status:403});
+    return next();
+  }
+  if (readerRoute) return next();
+  if (writingEnv.WRITING_LOCAL === "true" && !pathname.startsWith("/_astro/")) {
+    return pathname === "/" ? context.redirect("/write") : new Response("Not found", {status:404});
+  }
   if (pathname.startsWith("/auth/")) return next();
   if (pathname === "/demo" || pathname.startsWith("/demo/") || pathname.startsWith("/api/demo/")) {
     return next();
