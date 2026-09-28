@@ -12,17 +12,19 @@ if [ -f .writing-server.pid ]; then
     exit 0
   fi
 fi
+export WRITING_HOST="${WRITING_HOST:-127.0.0.1}"
 port=$(node --input-type=module - <<'JS'
 import net from 'node:net';
 import fs from 'node:fs';
 let port = Number(process.env.DEV_PORT || (fs.existsSync('.env.local') ? fs.readFileSync('.env.local','utf8').match(/^DEV_PORT=(\d+)$/m)?.[1] : undefined) || 4180);
-const available = p => new Promise(resolve => { const s = net.createServer(); s.once('error',()=>resolve(false)); s.listen(p,'127.0.0.1',()=>s.close(()=>resolve(true))); });
+const available = p => new Promise(resolve => { const s = net.createServer(); s.once('error',()=>resolve(false)); s.listen(p,process.env.WRITING_HOST,()=>s.close(()=>resolve(true))); });
 while (!await available(port)) port++;
-fs.writeFileSync('.env.local',`DEV_PORT=${port}\nDEV_URL=http://127.0.0.1:${port}\n`);
+fs.writeFileSync('.env.local',`DEV_PORT=${port}\nDEV_URL=http://${process.env.WRITING_HOST}:${port}\n`);
 console.log(port);
 JS
 )
 args=()
 if [ -n "${WRITING_SECRETS_FILE:-}" ]; then args+=(--env-file "$WRITING_SECRETS_FILE"); fi
+if [ -n "${WRITING_ALLOWED_ORIGINS:-}" ]; then args+=(--var "WRITING_ALLOWED_ORIGINS:$WRITING_ALLOWED_ORIGINS"); fi
 echo "$$" > .writing-server.pid
-exec node node_modules/wrangler/bin/wrangler.js dev "${args[@]}" --config wrangler.writing.jsonc --ip 127.0.0.1 --port "$port" --inspector-port 0
+exec node node_modules/wrangler/bin/wrangler.js dev "${args[@]}" --config wrangler.writing.jsonc --ip "$WRITING_HOST" --port "$port" --inspector-port 0

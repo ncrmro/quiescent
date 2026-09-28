@@ -260,7 +260,9 @@ export function mountWritingApp(
       );
     return data;
   };
-  const recoverySession = crypto.randomUUID();
+  // getRandomValues also works on private HTTP tailnet origins.
+  const recoverySession = Array.from(crypto.getRandomValues(new Uint8Array(16)),
+    byte => byte.toString(16).padStart(2, "0")).join("");
   const recoveryPrefix = (id: string) => `quiescent-writing:${api}:${id}:`;
   const key = (id: string, branch: string) =>
     `${recoveryPrefix(id)}${branch}:${recoverySession}`;

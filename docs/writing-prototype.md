@@ -26,7 +26,7 @@ Use a fine-grained GitHub PAT restricted to that repo with Contents read/write.
 `SERVICE_TOKEN` stays in the Worker; no browser token or GitHub OAuth app is
 needed. Set the author name/email to the desired commit identity.
 
-The new routes deliberately require loopback plus `WRITING_LOCAL=true` for
+The new routes require loopback (or an explicitly allowed origin) plus `WRITING_LOCAL=true` for
 author access. The dedicated writing configuration disables the legacy editor
 routes and has no cron flush. **Do not deploy this local configuration.** A
 hosted application must supply real author authorization to the reusable handler.
@@ -152,3 +152,20 @@ scheduling, Git LFS, or media scaling.
 Still unverified: real R2 direct uploads/CORS (bucket credentials are required),
 user hands-on acceptance, and hosted authentication/deployment. Git LFS remains
 an explicitly deferred adapter. Nothing was published to npm.
+
+## Phone access over Tailscale
+
+Bind only to the workstation's Tailscale IP, with exact allowed origins:
+
+```sh
+WRITING_HOST=100.64.0.3 \
+WRITING_ALLOWED_ORIGINS=http://ncrmro-workstation:4180,http://ncrmro-workstation.mercury:4180,http://100.64.0.3:4180 \
+devenv shell -- bun run dev:writing
+```
+
+Stop this checkout's existing writing server before switching its bind address.
+Check the allocated port in `.env.local`; update allowed origins if it changes.
+Open `http://ncrmro-workstation:4180/write` with Tailscale connected on the phone.
+This grants author access to devices allowed to reach that tailnet port; use only
+with the private demo repository. HTTP traffic travels inside Tailscale's encrypted
+connection. The editor supports browsers without secure-context `randomUUID`.

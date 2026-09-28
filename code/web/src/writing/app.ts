@@ -4,13 +4,15 @@ import { imageReferences } from "@quiescent/editor/document";
 
 export type WritingEnv = Partial<WritingBindings> & {
   SERVICE_TOKEN?: string;
+  WRITING_ALLOWED_ORIGINS?: string;
   R2_ACCOUNT_ID?: string;
   R2_ACCESS_KEY_ID?: string;
   R2_SECRET_ACCESS_KEY?: string;
 };
 export function localAuthor(request:Request,env:WritingEnv) {
   const url=new URL(request.url);
-  return env.WRITING_LOCAL === "true" && ["localhost","127.0.0.1","[::1]"].includes(url.hostname)
+  const allowed = (env.WRITING_ALLOWED_ORIGINS ?? "").split(",").map(value => value.trim());
+  return env.WRITING_LOCAL === "true" && (["localhost","127.0.0.1","[::1]"].includes(url.hostname) || allowed.includes(url.origin))
     && !["cross-site"].includes(request.headers.get("Sec-Fetch-Site") ?? "");
 }
 export function writingApp(env:WritingEnv) {
