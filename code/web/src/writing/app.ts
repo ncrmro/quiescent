@@ -1,11 +1,9 @@
-import { timingSafeEqual } from "node:crypto";
 import { createForge, requirePublishingForge } from "@quiescent/git";
 import { createPublishingService, localR2Media, r2Media, WritingConfigurationError, PublishingError, type MediaStorage } from "@quiescent/server";
 import { imageReferences } from "@quiescent/editor/document";
 
 export type WritingEnv = Partial<WritingBindings> & Partial<HostedWritingBindings> & {
   SERVICE_TOKEN?: string;
-  WRITING_PASSWORD?: string;
   WRITING_ALLOWED_ORIGINS?: string;
   R2_ACCOUNT_ID?: string;
   R2_ACCESS_KEY_ID?: string;
@@ -17,13 +15,9 @@ export function localAuthor(request:Request,env:WritingEnv) {
   return env.WRITING_LOCAL === "true" && (["localhost","127.0.0.1","[::1]"].includes(url.hostname) || allowed.includes(url.origin))
     && !["cross-site"].includes(request.headers.get("Sec-Fetch-Site") ?? "");
 }
-/** Password protection for the isolated hosted test, using the browser login dialog. */
+/** The isolated hosted demo intentionally permits editing without a login. */
 export function writingAuthor(request:Request, env:WritingEnv) {
-  if (env.WRITING_TEST !== "true") return localAuthor(request, env);
-  if (!env.WRITING_PASSWORD || new URL(request.url).protocol !== "https:") return false;
-  const expected = new TextEncoder().encode(`Basic ${btoa(`writer:${env.WRITING_PASSWORD}`)}`);
-  const supplied = new TextEncoder().encode(request.headers.get("Authorization") ?? "");
-  return expected.length === supplied.length && timingSafeEqual(expected, supplied);
+  return env.WRITING_TEST === "true" || localAuthor(request, env);
 }
 export function writingApp(env:WritingEnv) {
   if(!env.SERVICE_TOKEN)throw new WritingConfigurationError("Set SERVICE_TOKEN in code/web/.dev.vars to connect the private writing repository.");

@@ -177,11 +177,10 @@ The isolated test is deployed at
 `code/web/wrangler.writing-test.jsonc`. It uses the same private GitHub repository
 and a private, real R2 bucket named `quiescent-writing-demo-images`.
 
-The entire test site requires HTTPS Basic authentication with username `writer`
-and the separate `WRITING_PASSWORD` Worker secret. `SERVICE_TOKEN` is the
-repository-scoped GitHub PAT; it is never the browser login password. Missing
-credentials deny access. Local-host exceptions do not apply to hosted test mode.
-The test site's published reader pages also require this login.
+The hosted test intentionally opens without a login: visitors can read, edit, and
+publish demo posts. This applies only to `WRITING_TEST=true`. `SERVICE_TOKEN` is
+the repository-scoped GitHub PAT stored as a Worker secret and never sent to the
+browser. Cross-origin mutations remain blocked.
 
 Deploy changes with:
 
@@ -199,6 +198,6 @@ persistence without separate S3 credentials or bucket CORS. Direct signed browse
 uploads remain an optional adapter requiring the R2 credentials described above.
 The original five referenced local demo images were copied to the test bucket.
 
-For the live browser suite, provide `BASE_URL`, `QUIESCENT_LIVE_TEST=1`, and
-`WRITING_TEST_PASSWORD` through the process environment. Tracing remains disabled
+For the live browser suite, provide `BASE_URL` and `QUIESCENT_LIVE_TEST=1`
+through the process environment. Tracing remains disabled
 to avoid recording credentials or signed upload URLs. No npm publication is needed.
