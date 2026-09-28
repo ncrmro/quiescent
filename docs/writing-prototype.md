@@ -169,3 +169,36 @@ Open `http://ncrmro-workstation:4180/write` with Tailscale connected on the phon
 This grants author access to devices allowed to reach that tailnet port; use only
 with the private demo repository. HTTP traffic travels inside Tailscale's encrypted
 connection. The editor supports browsers without secure-context `randomUUID`.
+
+## Hosted test
+
+The isolated test is deployed at
+`https://quiescent-writing-test.ncrmro.workers.dev/write` using
+`code/web/wrangler.writing-test.jsonc`. It uses the same private GitHub repository
+and a private, real R2 bucket named `quiescent-writing-demo-images`.
+
+The entire test site requires HTTPS Basic authentication with username `writer`
+and the separate `WRITING_PASSWORD` Worker secret. `SERVICE_TOKEN` is the
+repository-scoped GitHub PAT; it is never the browser login password. Missing
+credentials deny access. Local-host exceptions do not apply to hosted test mode.
+The test site's published reader pages also require this login.
+
+Deploy changes with:
+
+```sh
+devenv shell -- bun run build:writing
+devenv shell -- node code/web/node_modules/wrangler/bin/wrangler.js deploy --config code/web/wrangler.writing-test.jsonc
+```
+
+Set credentials through `wrangler secret put` or a protected temporary file with
+`wrangler secret bulk`; never add them to config or source. Assets exclude the
+server bundle, and requests run through the Worker authorization middleware.
+
+Photos upload through the Worker into its R2 binding. This validates real R2
+persistence without separate S3 credentials or bucket CORS. Direct signed browser
+uploads remain an optional adapter requiring the R2 credentials described above.
+The original five referenced local demo images were copied to the test bucket.
+
+For the live browser suite, provide `BASE_URL`, `QUIESCENT_LIVE_TEST=1`, and
+`WRITING_TEST_PASSWORD` through the process environment. Tracing remains disabled
+to avoid recording credentials or signed upload URLs. No npm publication is needed.

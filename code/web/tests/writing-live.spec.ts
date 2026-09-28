@@ -18,7 +18,7 @@ test.describe("GitHub writing acceptance with configured media", () => {
     const forbiddenAuth: boolean[] = [];
     page.on("request", request => {
       if (new URL(request.url()).pathname.startsWith(api)) {
-        forbiddenAuth.push(Boolean(request.headers().authorization));
+        forbiddenAuth.push(/^Bearer /i.test(request.headers().authorization ?? ""));
       }
     });
     page.on("dialog", async dialog => {

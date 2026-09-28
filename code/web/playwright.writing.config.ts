@@ -17,6 +17,7 @@ export default defineConfig({
   reporter: [["list"]],
   use: {
     baseURL: process.env.BASE_URL,
+    httpCredentials: process.env.WRITING_TEST_PASSWORD ? { username: "writer", password: process.env.WRITING_TEST_PASSWORD } : undefined,
     // Signed upload URLs are credentials; do not retain network traces or HARs.
     trace: "off",
     screenshot: "only-on-failure",

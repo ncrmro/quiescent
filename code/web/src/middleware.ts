@@ -1,4 +1,4 @@
-import { localAuthor } from "./writing/app";
+import { writingAuthor } from "./writing/app";
 import { defineMiddleware } from "astro:middleware";
 import {
   getSessionById,
@@ -17,12 +17,18 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const writingEnv = context.locals.runtime.env;
   const authorRoute = pathname === "/write" || pathname.startsWith("/api/writing/");
   const readerRoute = pathname === "/read" || pathname.startsWith("/read/") || pathname.startsWith("/media/");
+  if (writingEnv.WRITING_TEST === "true" && !writingAuthor(context.request, writingEnv)) {
+    return new Response("Sign in to the Quiescent test", { status:401, headers:{
+      "WWW-Authenticate": 'Basic realm="Quiescent test", charset="UTF-8"',
+      "Cache-Control": "no-store",
+    }});
+  }
   if (authorRoute) {
-    if (!localAuthor(context.request, writingEnv)) return new Response("Local author access required", {status:403});
+    if (!writingAuthor(context.request, writingEnv)) return new Response("Local author access required", {status:403});
     return next();
   }
   if (readerRoute) return next();
-  if (writingEnv.WRITING_LOCAL === "true" && !pathname.startsWith("/_astro/")) {
+  if ((writingEnv.WRITING_LOCAL === "true" || writingEnv.WRITING_TEST === "true") && !pathname.startsWith("/_astro/")) {
     return pathname === "/" ? context.redirect("/write") : new Response("Not found", {status:404});
   }
   if (pathname.startsWith("/auth/")) return next();
