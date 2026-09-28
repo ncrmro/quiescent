@@ -29,12 +29,21 @@
     "WRITING_AUTHOR_NAME": "Nicholas Romero",
     "WRITING_AUTHOR_EMAIL": "ncrmro@users.noreply.github.com",
     "WRITING_R2_BUCKET": "quiescent-writing-demo-images",
-    "WRITING_TEST": "true"
+    "WRITING_TEST": "true",
+    "BETTER_AUTH_URL": "https://quiescent-writing-test.ncrmro.workers.dev"
   },
   "observability": {
     "enabled": true
   },
   "account_id": "cd7618208c116e5b6947e6cc0d02b53f",
   "workers_dev": true,
-  "preview_urls": false
+  "preview_urls": false,
+  "d1_databases": [
+    {
+      "binding": "WRITING_AUTH_DB",
+      "database_name": "quiescent-writing-test-auth",
+      "database_id": "b3026889-cd06-4e36-b868-bc2b290bfda6",
+      "migrations_dir": "migrations"
+    }
+  ]
 }

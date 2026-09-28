@@ -177,15 +177,22 @@ The isolated test is deployed at
 `code/web/wrangler.writing-test.jsonc`. It uses the same private GitHub repository
 and a private, real R2 bucket named `quiescent-writing-demo-images`.
 
-The hosted test intentionally opens without a login: visitors can read, edit, and
-publish demo posts. This applies only to `WRITING_TEST=true`. `SERVICE_TOKEN` is
-the repository-scoped GitHub PAT stored as a Worker secret and never sent to the
-browser. Cross-origin mutations remain blocked.
+The hosted editor uses a password-only Better Auth sign-in page. The one test
+account is `writer@quiescent.test`, with the deliberately fixed demo password
+`quiescent-demo`. Public signup is disabled. Better Auth stores the account and
+sessions in the dedicated `quiescent-writing-test-auth` D1 database; cookies are
+secure and HTTP-only. Reader pages remain public, while drafts and editing APIs
+require the writer session. The editor includes a Sign out button.
+
+`BETTER_AUTH_SECRET` is a separate random Worker secret for sessions, and
+`SERVICE_TOKEN` is the repository-scoped GitHub PAT. Neither goes to the browser.
+Cross-origin mutations remain blocked. This fixed account is for the test site.
 
 Deploy changes with:
 
 ```sh
 devenv shell -- bun run build:writing
+devenv shell -- node code/web/node_modules/wrangler/bin/wrangler.js d1 migrations apply quiescent-writing-test-auth --remote --config code/web/wrangler.writing-test.jsonc
 devenv shell -- node code/web/node_modules/wrangler/bin/wrangler.js deploy --config code/web/wrangler.writing-test.jsonc
 ```
 
@@ -198,6 +205,11 @@ persistence without separate S3 credentials or bucket CORS. Direct signed browse
 uploads remain an optional adapter requiring the R2 credentials described above.
 The original five referenced local demo images were copied to the test bucket.
 
-For the live browser suite, provide `BASE_URL` and `QUIESCENT_LIVE_TEST=1`
-through the process environment. Tracing remains disabled
+For the live browser suite, provide `BASE_URL`, `QUIESCENT_LIVE_TEST=1`, and
+`WRITING_TEST_PASSWORD=quiescent-demo` through the process environment. Tracing remains disabled
 to avoid recording credentials or signed upload URLs. No npm publication is needed.
+
+The initial SQL migration was generated with Better Auth's migration API and
+seeded through its signup API (`code/web/scripts/writing-auth-schema.ts`). It
+stores a password hash, not a custom authentication implementation. Apply the
+committed migration for new installations; do not regenerate an applied migration.

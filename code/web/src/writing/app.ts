@@ -1,9 +1,11 @@
+import { writingAuth, TEST_WRITER_EMAIL } from "./auth";
 import { createForge, requirePublishingForge } from "@quiescent/git";
 import { createPublishingService, localR2Media, r2Media, WritingConfigurationError, PublishingError, type MediaStorage } from "@quiescent/server";
 import { imageReferences } from "@quiescent/editor/document";
 
 export type WritingEnv = Partial<WritingBindings> & Partial<HostedWritingBindings> & {
   SERVICE_TOKEN?: string;
+  BETTER_AUTH_SECRET?: string;
   WRITING_ALLOWED_ORIGINS?: string;
   R2_ACCOUNT_ID?: string;
   R2_ACCESS_KEY_ID?: string;
@@ -15,9 +17,11 @@ export function localAuthor(request:Request,env:WritingEnv) {
   return env.WRITING_LOCAL === "true" && (["localhost","127.0.0.1","[::1]"].includes(url.hostname) || allowed.includes(url.origin))
     && !["cross-site"].includes(request.headers.get("Sec-Fetch-Site") ?? "");
 }
-/** The isolated hosted demo intentionally permits editing without a login. */
-export function writingAuthor(request:Request, env:WritingEnv) {
-  return env.WRITING_TEST === "true" || localAuthor(request, env);
+/** Hosted author access is a Better Auth session for the seeded test account. */
+export async function writingAuthor(request:Request, env:WritingEnv) {
+  if (env.WRITING_TEST !== "true") return localAuthor(request, env);
+  const session=await writingAuth(env).api.getSession({headers:request.headers});
+  return session?.user.email === TEST_WRITER_EMAIL;
 }
 export function writingApp(env:WritingEnv) {
   if(!env.SERVICE_TOKEN)throw new WritingConfigurationError("Set SERVICE_TOKEN in code/web/.dev.vars to connect the private writing repository.");

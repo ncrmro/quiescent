@@ -17,8 +17,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const writingEnv = context.locals.runtime.env;
   const authorRoute = pathname === "/write" || pathname.startsWith("/api/writing/");
   const readerRoute = pathname === "/read" || pathname.startsWith("/read/") || pathname.startsWith("/media/");
+  if (writingEnv.WRITING_TEST === "true" && (pathname === "/login" || pathname.startsWith("/api/auth/"))) return next();
   if (authorRoute) {
-    if (!writingAuthor(context.request, writingEnv)) return new Response("Local author access required", {status:403});
+    if (!await writingAuthor(context.request, writingEnv)) {
+      return pathname === "/write" && writingEnv.WRITING_TEST === "true"
+        ? context.redirect("/login")
+        : new Response("Sign in to write", {status:401});
+    }
     return next();
   }
   if (readerRoute) return next();

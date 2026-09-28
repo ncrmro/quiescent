@@ -9,6 +9,14 @@ const api = "/api/writing";
 test.describe("GitHub writing acceptance with configured media", () => {
   test.skip(process.env.QUIESCENT_LIVE_TEST !== "1", "Explicit live opt-in and configured GitHub/media backend required");
 
+  test.beforeEach(async ({page}) => {
+    if (!process.env.WRITING_TEST_PASSWORD) return;
+    await page.goto("/login");
+    await page.getByLabel("Password",{exact:true}).fill(process.env.WRITING_TEST_PASSWORD);
+    await page.getByRole("button",{name:"Sign in",exact:true}).click();
+    await expect(page).toHaveURL(/\/write$/);
+  });
+
   test("writes, reopens, isolates images, publishes and privately revises", async ({ page, context }) => {
     const suffix = crypto.randomUUID().slice(0, 8);
     const firstTitle = `Sunday at the farmers market ${suffix}`;
@@ -208,4 +216,30 @@ test.describe("GitHub writing acceptance with configured media", () => {
     await other.close();
   });
 
+});
+
+
+test("hosted password sign-in, session persistence, and sign-out", async ({page,context}) => {
+  test.skip(process.env.QUIESCENT_LIVE_TEST !== "1" || !process.env.WRITING_TEST_PASSWORD,"Hosted auth test requires password");
+  expect((await page.request.get("/api/writing/posts")).status()).toBe(401);
+  await page.goto("/write");
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByLabel("Password",{exact:true}).fill("incorrect-password");
+  await page.getByRole("button",{name:"Sign in",exact:true}).click();
+  await expect(page.getByRole("status")).toContainText("did not work");
+  await page.getByLabel("Password",{exact:true}).fill(process.env.WRITING_TEST_PASSWORD!);
+  await page.getByRole("button",{name:"Sign in",exact:true}).click();
+  await expect(page).toHaveURL(/\/write$/);
+  await expect(page.getByRole("status")).toHaveText("Choose a post or start writing.");
+  await page.reload();
+  await expect(page.getByRole("button",{name:"New post",exact:true})).toBeVisible();
+  const cookie=(await context.cookies()).find(c=>c.name.endsWith("better-auth.session_token"));
+  expect(cookie?.httpOnly).toBe(true);
+  expect(cookie?.secure).toBe(true);
+  const signup=await page.request.post("/api/auth/sign-up/email",{headers:{Origin:process.env.BASE_URL!},data:{email:"other@example.com",name:"Other",password:"another-password"}});
+  expect(signup.ok()).toBe(false);
+  page.on("dialog",dialog=>dialog.accept());
+  await page.getByRole("button",{name:"Sign out",exact:true}).click();
+  await expect(page).toHaveURL(/\/login$/);
+  expect((await page.request.get("/api/writing/posts")).status()).toBe(401);
 });
