@@ -15,12 +15,13 @@ import {
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
   const writingEnv = context.locals.runtime.env;
-  const authorRoute = pathname === "/write" || pathname.startsWith("/api/writing/");
+  const editorRoute = pathname === "/write" || pathname.startsWith("/write/");
+  const authorRoute = editorRoute || pathname.startsWith("/api/writing/");
   const readerRoute = pathname === "/read" || pathname.startsWith("/read/") || pathname.startsWith("/media/");
   if (writingEnv.WRITING_TEST === "true" && (pathname === "/login" || pathname.startsWith("/api/auth/"))) return next();
   if (authorRoute) {
     if (!await writingAuthor(context.request, writingEnv)) {
-      return pathname === "/write" && writingEnv.WRITING_TEST === "true"
+      return editorRoute && writingEnv.WRITING_TEST === "true"
         ? context.redirect("/login")
         : new Response("Sign in to write", {status:401});
     }

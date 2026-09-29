@@ -198,6 +198,7 @@ type Draft = {
 };
 export interface WritingAppOptions {
   initialPostId?: string;
+  onPostOpen?: (id: string) => void;
   apiBase?: string;
   readerBase?: string;
 }
@@ -453,6 +454,7 @@ export function mountWritingApp(
       draft.state === "published" || draft.post.publishedAt
         ? "Publish changes"
         : "Publish";
+    options.onPostOpen?.(draft.post.id);
     status(
       recovery
         ? "Recovered unsaved writing. Review and choose Save now."
