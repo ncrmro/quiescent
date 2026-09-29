@@ -243,3 +243,26 @@ test("hosted password sign-in, session persistence, and sign-out", async ({page,
   await expect(page).toHaveURL(/\/login$/);
   expect((await page.request.get("/api/writing/posts")).status()).toBe(401);
 });
+
+test("signed-in readers can edit the story they are reading", async ({page}) => {
+  test.skip(process.env.QUIESCENT_LIVE_TEST !== "1" || !process.env.WRITING_TEST_PASSWORD,"Hosted author session required");
+  await page.goto("/read");
+  await expect(page.getByRole("link",{name:"Edit",exact:true})).toHaveCount(0);
+  await page.locator("article h2 a").first().click();
+  const storyURL=page.url();
+  const storyTitle=await page.locator("h1").innerText();
+  await expect(page.getByRole("link",{name:"Edit",exact:true})).toHaveCount(0);
+  await page.goto("/login");
+  await page.getByLabel("Password",{exact:true}).fill(process.env.WRITING_TEST_PASSWORD!);
+  await page.getByRole("button",{name:"Sign in",exact:true}).click();
+  await expect(page).toHaveURL(/\/write$/);
+  await page.goto("/read");
+  await expect(page.getByRole("link",{name:"Edit",exact:true}).first()).toBeVisible();
+  await page.goto(storyURL);
+  await page.getByRole("link",{name:"Edit",exact:true}).click();
+  await expect(page).toHaveURL(new RegExp(`/write\\?post=${new URL(storyURL).pathname.split("/")[2]}$`));
+  await expect(page.getByLabel("Title",{exact:true})).toHaveValue(storyTitle);
+  await expect(page.getByRole("textbox",{name:"Post body"})).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Title",{exact:true})).toHaveValue(storyTitle);
+});

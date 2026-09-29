@@ -197,6 +197,7 @@ type Draft = {
   state: "draft" | "published" | "unpublished-changes";
 };
 export interface WritingAppOptions {
+  initialPostId?: string;
   apiBase?: string;
   readerBase?: string;
 }
@@ -568,7 +569,9 @@ export function mountWritingApp(
   root.addEventListener("keydown", shortcut);
   window.addEventListener("beforeunload", beforeUnload);
   void list()
-    .then(() => status("Choose a post or start writing."))
+    .then(() => options.initialPostId
+      ? navigate(() => open(options.initialPostId!))
+      : status("Choose a post or start writing."))
     .catch((e) => status(e.message));
   return {
     destroy: () => {

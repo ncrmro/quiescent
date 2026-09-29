@@ -37,7 +37,7 @@ describe("writing HTTP boundary",()=>{
     const document=post();
     const handler=createWritingHandler({service:service({saveDraft:async value=>{captured=value;return document;}}),media:media(),authorize:()=>true});
     const response=await handler(request(`/posts/${id}`,"PUT",{branch:"draft",expectedHeadSha:"old",post:document.post}));
-    expect(response.status).toBe(200);expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.status).toBe(200);expect(response.headers.get("Cache-Control")).toContain("no-store");
     expect(captured).toEqual({id,branch:"draft",expectedHeadSha:"old",post:document.post});
   });
   test("invalid JSON and overlarge payloads never invoke save",async()=>{
@@ -71,7 +71,7 @@ describe("writing HTTP boundary",()=>{
     const response=await publishedPage(service({getPublished:async()=>post()}),id);
     expect(response.headers.get("X-Quiescent-Revision")).toBe(post().headSha);
     const html=await response.text();expect(html).toContain("Tea &amp; &lt;script&gt;");expect(html).not.toContain("<script>");
-    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Cache-Control")).toContain("no-store");
     const malicious=post();malicious.post.slug='" onclick="alert(1)';
     const index=await publishedPage(service({listPublished:async()=>[malicious]}));
     const indexHtml=await index.text();

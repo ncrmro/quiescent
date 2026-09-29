@@ -5,7 +5,9 @@ export const prerender=false;
 <body><header><a href="/write">Quiescent</a><span>A place for your stories</span><a href="/read" target="_blank">Read stories ↗</a>{Astro.locals.runtime.env.WRITING_TEST === "true" && <button id="sign-out">Sign out</button>}</header><div id="writing"></div>
 <script>
 import { mountWritingApp } from '@quiescent/editor/writing';
-mountWritingApp(document.getElementById('writing')!);
+mountWritingApp(document.getElementById('writing')!, {
+  initialPostId: new URL(window.location.href).searchParams.get('post') ?? undefined,
+});
 import { createAuthClient } from 'better-auth/client';
 document.getElementById('sign-out')?.addEventListener('click',async()=>{
   if (!window.confirm('Sign out? Wait for your writing to show Saved first.')) return;
