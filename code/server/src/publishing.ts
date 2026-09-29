@@ -209,5 +209,9 @@ export function createPublishingService(options: PublishingOptions) {
     const ids = new Set(drafts.map(d => d.post.id));
     return [...drafts, ...(await listPublished()).filter(p => !ids.has(p.post.id))];
   }
-  return { createPost, getDraft, saveDraft, publish, getPublished, listPublished, listPosts };
+  async function findPostForEditing(slug: string): Promise<PostDraft | null> {
+    // Unpublished posts use their stable ID until their first publication assigns a slug.
+    return (await listPosts()).find(({post}) => (post.slug ?? post.id) === slug) ?? null;
+  }
+  return { createPost, getDraft, saveDraft, publish, getPublished, listPublished, listPosts, findPostForEditing };
 }

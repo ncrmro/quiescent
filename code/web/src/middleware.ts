@@ -15,7 +15,7 @@ import {
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
   const writingEnv = context.locals.runtime.env;
-  const editorRoute = pathname === "/write" || pathname.startsWith("/write/");
+  const editorRoute = pathname === "/write" || /^\/posts\/[^/]+\/edit\/?$/.test(pathname);
   const authorRoute = editorRoute || pathname.startsWith("/api/writing/");
   const readerRoute = pathname === "/read" || pathname.startsWith("/read/") || pathname.startsWith("/media/");
   if (writingEnv.WRITING_TEST === "true" && (pathname === "/login" || pathname.startsWith("/api/auth/"))) return next();

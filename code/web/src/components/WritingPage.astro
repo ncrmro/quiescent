@@ -9,7 +9,7 @@ import { mountWritingApp } from '@quiescent/editor/writing';
 const root = document.getElementById('writing')!;
 mountWritingApp(root, {
   initialPostId: root.dataset.postId,
-  onPostOpen: id => window.history.replaceState(null, '', `/write/${encodeURIComponent(id)}`),
+  onPostOpen: (id, slug) => window.history.replaceState(null, '', `/posts/${encodeURIComponent(slug ?? id)}/edit`),
 });
 import { createAuthClient } from 'better-auth/client';
 document.getElementById('sign-out')?.addEventListener('click',async()=>{

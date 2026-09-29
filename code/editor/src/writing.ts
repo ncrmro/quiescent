@@ -198,7 +198,7 @@ type Draft = {
 };
 export interface WritingAppOptions {
   initialPostId?: string;
-  onPostOpen?: (id: string) => void;
+  onPostOpen?: (id: string, slug?: string | null) => void;
   apiBase?: string;
   readerBase?: string;
 }
@@ -454,7 +454,7 @@ export function mountWritingApp(
       draft.state === "published" || draft.post.publishedAt
         ? "Publish changes"
         : "Publish";
-    options.onPostOpen?.(draft.post.id);
+    options.onPostOpen?.(draft.post.id, draft.post.slug);
     status(
       recovery
         ? "Recovered unsaved writing. Review and choose Save now."
@@ -542,6 +542,7 @@ export function mountWritingApp(
         );
       };
       q("[data-link]").replaceChildren(link, edit);
+      options.onPostOpen?.(result.post.id, result.post.slug);
       status("Published");
     })()
       .catch((e) => status(`Could not publish: ${e.message}`))

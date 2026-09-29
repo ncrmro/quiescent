@@ -260,12 +260,13 @@ test("signed-in readers can edit the story they are reading", async ({page}) => 
   await expect(page.getByRole("link",{name:"Edit",exact:true}).first()).toBeVisible();
   await page.goto(storyURL);
   await page.getByRole("link",{name:"Edit",exact:true}).click();
-  await expect(page).toHaveURL(new RegExp(`/write/${new URL(storyURL).pathname.split("/")[2]}$`));
+  await expect(page).toHaveURL(new RegExp(`/posts/${new URL(storyURL).pathname.split("/")[3]}/edit$`));
   await expect(page.getByLabel("Title",{exact:true})).toHaveValue(storyTitle);
   await expect(page.getByRole("textbox",{name:"Post body"})).toBeVisible();
   await page.reload();
   await expect(page.getByLabel("Title",{exact:true})).toHaveValue(storyTitle);
   const editorURL=page.url();
+  expect((await page.request.get("/posts/does-not-exist/edit")).status()).toBe(404);
   await page.context().clearCookies();
   await page.goto(editorURL);
   await expect(page).toHaveURL(/\/login$/);
