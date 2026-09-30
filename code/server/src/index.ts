@@ -41,3 +41,5 @@ export {
 export * from "./publishing.ts";
 export * from "./media.ts";
 export * from "./writing-http.ts";
+
+export { cachedPublishingService, PUBLISHING_CACHE_TTL, type PublishingSnapshotStore, type PublishingSnapshot, type CacheScope } from "./publishing-cache";

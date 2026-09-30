@@ -1,9 +1,10 @@
+import { env } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { authorizeUrl } from "@quiescent/git";
 import { oauthConfig } from "@quiescent/server";
 
-export const GET: APIRoute = async ({ locals, url, cookies, redirect }) => {
-  const env = locals.runtime.env;
+export const GET: APIRoute = async ({ url, cookies, redirect }) => {
+
   const state = crypto.randomUUID();
   cookies.set("qs_state", state, {
     path: "/auth",

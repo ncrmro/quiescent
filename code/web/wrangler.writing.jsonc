@@ -1,14 +1,14 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "quiescent-writing-local",
-  "main": "./dist/_worker.js/index.js",
+  "main": "./src/worker.ts",
   "compatibility_date": "2026-07-08",
   "compatibility_flags": [
     "nodejs_compat"
   ],
   "assets": {
     "binding": "ASSETS",
-    "directory": "./dist"
+    "directory": "./dist/client"
   },
   "kv_namespaces": [
     {

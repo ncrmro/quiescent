@@ -24,7 +24,8 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `node node_modules/.bin/astro dev --host 127.0.0.1 --port ${PORT}`,
+    env: { WRITING_CONFIG: "wrangler.jsonc" },
+    command: `node node_modules/.bin/astro dev --ignore-lock --host 127.0.0.1 --port ${PORT}`,
     url: `http://127.0.0.1:${PORT}/demo`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

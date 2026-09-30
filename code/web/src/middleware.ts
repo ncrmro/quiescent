@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { writingAuthor } from "./writing/app";
 import { defineMiddleware } from "astro:middleware";
 import {
@@ -14,7 +15,7 @@ import {
 // no forge account and are what the Playwright specs drive.
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
-  const writingEnv = context.locals.runtime.env;
+  const writingEnv = env;
   const editorRoute = pathname === "/write" || /^\/posts\/[^/]+\/edit\/?$/.test(pathname);
   const authorRoute = editorRoute || pathname.startsWith("/api/writing/");
   const readerRoute = pathname === "/read" || pathname.startsWith("/read/") || pathname.startsWith("/media/");
@@ -27,16 +28,16 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
     return next();
   }
-  if (readerRoute) return next();
+  if (readerRoute || (pathname === "/" && (writingEnv.WRITING_LOCAL === "true" || writingEnv.WRITING_TEST === "true"))) return next();
   if ((writingEnv.WRITING_LOCAL === "true" || writingEnv.WRITING_TEST === "true") && !pathname.startsWith("/_astro/")) {
-    return pathname === "/" ? context.redirect("/write") : new Response("Not found", {status:404});
+    return new Response("Not found", {status:404});
   }
   if (pathname.startsWith("/auth/")) return next();
   if (pathname === "/demo" || pathname.startsWith("/demo/") || pathname.startsWith("/api/demo/")) {
     return next();
   }
 
-  const env = context.locals.runtime.env;
+
   const cookie = readCookie(context.request.headers.get("Cookie"), SESSION_COOKIE);
   const sessionId = cookie ? await verifySessionCookie(env, cookie) : null;
   const session = sessionId ? await getSessionById(env, sessionId) : null;

@@ -1,6 +1,7 @@
+import { publishingCache } from "./cache";
 import { writingAuth, TEST_WRITER_EMAIL } from "./auth";
 import { createForge, requirePublishingForge } from "@quiescent/git";
-import { createPublishingService, localR2Media, r2Media, WritingConfigurationError, PublishingError, type MediaStorage } from "@quiescent/server";
+import { createPublishingService, cachedPublishingService, localR2Media, r2Media, WritingConfigurationError, PublishingError, type MediaStorage } from "@quiescent/server";
 import { imageReferences } from "@quiescent/editor/document";
 
 export type WritingEnv = Partial<WritingBindings> & Partial<HostedWritingBindings> & {
@@ -42,5 +43,8 @@ export function writingApp(env:WritingEnv) {
       await media.verify(ref.postId,ref.assetId);
     }
   }});
-  return {service,media};
+  const cached = env.WRITING_TEST === "true" && env.WRITING_AUTH_DB
+    ? cachedPublishingService(service, publishingCache(env.WRITING_AUTH_DB, `${env.WRITING_REPO_OWNER}/${env.WRITING_REPO_NAME}`), (a,b)=>forge.isAncestor(a,b))
+    : { ...service, warmCache: async () => {} };
+  return {service: cached,media};
 }

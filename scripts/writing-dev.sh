@@ -26,5 +26,6 @@ JS
 args=()
 if [ -n "${WRITING_SECRETS_FILE:-}" ]; then args+=(--env-file "$WRITING_SECRETS_FILE"); fi
 if [ -n "${WRITING_ALLOWED_ORIGINS:-}" ]; then args+=(--var "WRITING_ALLOWED_ORIGINS:$WRITING_ALLOWED_ORIGINS"); fi
+WRITING_CONFIG=wrangler.writing.jsonc node node_modules/.bin/astro build
 echo "$$" > .writing-server.pid
-exec node node_modules/wrangler/bin/wrangler.js dev "${args[@]}" --config wrangler.writing.jsonc --ip "$WRITING_HOST" --port "$port" --inspector-port 0
+exec node node_modules/wrangler/bin/wrangler.js dev "${args[@]}" --config dist/server/wrangler.json --ip "$WRITING_HOST" --port "$port" --inspector-port 0

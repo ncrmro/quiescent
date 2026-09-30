@@ -1,9 +1,10 @@
+import { env } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { ConflictError } from "@quiescent/git";
 import { flushDrafts, listUserDrafts, MissingAuthorEmailError } from "@quiescent/server";
 
 export const POST: APIRoute = async ({ locals, url }) => {
-  const env = locals.runtime.env;
+
   const user = locals.user!;
   const drafts = await listUserDrafts(env, user.id);
 

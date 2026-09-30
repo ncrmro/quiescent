@@ -12,6 +12,7 @@
     "build:packages": "bun run --filter @quiescent/git build && bun run --filter @quiescent/editor build && bun run --filter @quiescent/server build && bun run --filter @quiescent/wiki build",
     "test:e2e": "bun run --filter '@quiescent/web' test:e2e",
     "dev:writing": "bash scripts/writing-dev.sh",
-    "build:writing": "bun run build:packages && bun run --filter @quiescent/web build"
+    "build:writing": "bun run build:packages && bun run --filter @quiescent/web build",
+    "deploy:writing": "bash scripts/writing-deploy.sh"
   }
 }

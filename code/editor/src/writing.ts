@@ -233,6 +233,7 @@ export function mountWritingApp(
   const navigate = async (action: () => Promise<void>) => {
     if (publishing || navigating || destroyed) return;
     navigating = true;
+    root.querySelectorAll<HTMLButtonElement>("nav button, [data-new]").forEach(button => { button.disabled = true; });
     title.disabled = true;
     description.disabled = true;
     editor?.setEditable(false);
@@ -240,6 +241,7 @@ export function mountWritingApp(
       await action();
     } finally {
       navigating = false;
+      root.querySelectorAll<HTMLButtonElement>("nav button, [data-new]").forEach(button => { button.disabled = false; });
       title.disabled = !active;
       description.disabled = !active;
       editor?.setEditable(Boolean(active));
@@ -362,6 +364,7 @@ export function mountWritingApp(
     for (const draft of drafts) {
       const button = document.createElement("button");
       button.type = "button";
+      button.disabled = navigating;
       button.textContent = `${draft.post.title || "Untitled"} — ${{ draft: "Draft", published: "Published", "unpublished-changes": "Unpublished changes" }[draft.state]}`;
       button.onclick = () => {
         void navigate(() =>
@@ -571,11 +574,12 @@ export function mountWritingApp(
   };
   root.addEventListener("keydown", shortcut);
   window.addEventListener("beforeunload", beforeUnload);
-  void list()
-    .then(() => options.initialPostId
-      ? navigate(() => open(options.initialPostId!))
-      : status("Choose a post or start writing."))
-    .catch((e) => status(e.message));
+  if (options.initialPostId) {
+    void navigate(() => open(options.initialPostId!)).catch(e => status(e.message));
+    void list().catch(e => status(`Could not load posts: ${e.message}`));
+  } else {
+    void list().then(() => status("Choose a post or start writing.")).catch(e => status(e.message));
+  }
   return {
     destroy: () => {
       destroyed = true;

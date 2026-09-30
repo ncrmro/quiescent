@@ -93,15 +93,21 @@ export function createPublishingService(options: PublishingOptions) {
     const mainSha = await forge.getBranchSha(main);
     const branches = await forge.listBranches(id ? `${prefix}${id}/` : prefix);
     const result: PostDraft[] = [];
-    for (const { name, sha } of branches) {
-      const postId = name.slice(prefix.length).split("/")[0]!;
-      try { checkBranch(postId, name); } catch { continue; }
-      if (await forge.isAncestor(sha, mainSha)) continue;
-      const post = await read(postId, sha);
-      if (post) result.push({ post: publicPost(post), branch: name, headSha: sha, state: post.publishedAt ? "unpublished-changes" : "draft" });
+    // Limit GitHub concurrency while avoiding one network waterfall per historical branch.
+    for (let offset = 0; offset < branches.length; offset += 6) {
+      const batch = await Promise.all(branches.slice(offset, offset + 6).map(async ({name, sha}) => {
+        const postId = name.slice(prefix.length).split("/")[0]!;
+        try { checkBranch(postId, name); } catch { return null; }
+        if (await forge.isAncestor(sha, mainSha)) return null;
+        const post = await read(postId, sha);
+        return post ? { post: publicPost(post), branch: name, headSha: sha,
+          state: post.publishedAt ? "unpublished-changes" as const : "draft" as const } : null;
+      }));
+      for (const post of batch) if (post) result.push(post);
     }
     return result;
   }
+
   async function start(post: PostDocument): Promise<PostDraft> {
     const sha = await forge.getBranchSha(main);
     const branch = `${prefix}${post.id}/${crypto.randomUUID()}`;
@@ -205,9 +211,9 @@ export function createPublishingService(options: PublishingOptions) {
     return { post: publicPost(visible), headSha: head, publishedSha: result.sha, state: "published" as const };
   }
   async function listPosts(): Promise<PostDraft[]> {
-    const drafts = await activeDrafts();
+    const [drafts, published] = await Promise.all([activeDrafts(), listPublished()]);
     const ids = new Set(drafts.map(d => d.post.id));
-    return [...drafts, ...(await listPublished()).filter(p => !ids.has(p.post.id))];
+    return [...drafts, ...published.filter(p => !ids.has(p.post.id))];
   }
   async function findPostForEditing(slug: string): Promise<PostDraft | null> {
     // Unpublished posts use their stable ID until their first publication assigns a slug.

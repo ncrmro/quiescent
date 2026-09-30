@@ -1,9 +1,10 @@
 ---
+import { env } from "cloudflare:workers";
 interface Props { postId?: string }
 const { postId } = Astro.props;
 ---
 <!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width"/><title>Write · Quiescent</title></head>
-<body><header><a href="/write">Quiescent</a><span>A place for your stories</span><a href="/read" target="_blank">Read stories ↗</a>{Astro.locals.runtime.env.WRITING_TEST === "true" && <button id="sign-out">Sign out</button>}</header><div id="writing" data-post-id={postId}></div>
+<body><header><a href="/write">Quiescent</a><span>A place for your stories</span><a href="/read" target="_blank">Read stories ↗</a>{env.WRITING_TEST === "true" && <button id="sign-out">Sign out</button>}</header><div id="writing" data-post-id={postId}></div>
 <script>
 import { mountWritingApp } from '@quiescent/editor/writing';
 const root = document.getElementById('writing')!;

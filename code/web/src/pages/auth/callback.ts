@@ -1,10 +1,11 @@
+import { env } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import { createForge, exchangeCode } from "@quiescent/git";
 import { forgeConfig, oauthConfig } from "@quiescent/server";
 import { createSession, SESSION_COOKIE, sessionCookieValue } from "@quiescent/server";
 
-export const GET: APIRoute = async ({ locals, url, cookies, redirect }) => {
-  const env = locals.runtime.env;
+export const GET: APIRoute = async ({ url, cookies, redirect }) => {
+
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const expectedState = cookies.get("qs_state")?.value;

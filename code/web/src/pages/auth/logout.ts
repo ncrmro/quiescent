@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import type { APIRoute } from "astro";
 import {
   deleteSession,
@@ -7,7 +8,7 @@ import {
 } from "@quiescent/server";
 
 export const POST: APIRoute = async ({ locals, request, cookies, redirect }) => {
-  const env = locals.runtime.env;
+
   const cookie = readCookie(request.headers.get("Cookie"), SESSION_COOKIE);
   const sessionId = cookie ? await verifySessionCookie(env, cookie) : null;
   if (sessionId) await deleteSession(env, sessionId);

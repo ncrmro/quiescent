@@ -92,6 +92,11 @@ test.describe("GitHub writing acceptance with configured media", () => {
     await expect(reader.getByRole("heading", { name: firstTitle, exact: true })).toBeVisible();
     await expect(reader.locator("strong")).toHaveText(firstBody);
     await expect(reader.getByRole("img")).toHaveAttribute("alt", "A tiny photograph from our weekend");
+    const home = await page.request.get("/");
+    expect(home.ok()).toBe(true);
+    const homeHtml = await home.text();
+    expect(homeHtml).toContain(firstTitle);
+    expect(homeHtml).not.toContain(secondTitle);
     const publicImage = await page.request.get(first.imagePath);
     expect(publicImage.ok()).toBe(true);
     expect(publicImage.headers()["content-type"]).toContain("image/png");

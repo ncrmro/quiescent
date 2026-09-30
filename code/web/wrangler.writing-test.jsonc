@@ -1,14 +1,14 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "quiescent-writing-test",
-  "main": "./dist/_worker.js/index.js",
+  "main": "./src/worker.ts",
   "compatibility_date": "2026-07-08",
   "compatibility_flags": [
     "nodejs_compat"
   ],
   "assets": {
     "binding": "ASSETS",
-    "directory": "./dist",
+    "directory": "./dist/client",
     "run_worker_first": true
   },
   "kv_namespaces": [
@@ -45,5 +45,10 @@
       "database_id": "b3026889-cd06-4e36-b868-bc2b290bfda6",
       "migrations_dir": "migrations"
     }
-  ]
+  ],
+  "triggers": {
+    "crons": [
+      "17 * * * *"
+    ]
+  }
 }

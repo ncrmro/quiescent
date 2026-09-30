@@ -1,10 +1,16 @@
 ---
+import { env } from "cloudflare:workers";
+import { publishedPage } from "@quiescent/server";
+import { writingApp, writingAuthor } from "../writing/app";
 import { createForge } from "@quiescent/git";
 import Layout from "../layouts/Layout.astro";
 import { forgeConfig } from "@quiescent/server";
 import { getValidAccessToken } from "@quiescent/server";
 
-const env = Astro.locals.runtime.env;
+
+if (env.WRITING_TEST === "true" || env.WRITING_LOCAL === "true") {
+  return await publishedPage(writingApp(env).service, undefined, {canEdit:await writingAuthor(Astro.request,env)});
+}
 const session = Astro.locals.session!;
 const dir = Astro.url.searchParams.get("dir") ?? "";
 

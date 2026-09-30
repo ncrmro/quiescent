@@ -53,7 +53,7 @@
   "devDependencies": {
     "@types/bun": "^1.2.0",
     "@types/d3-force": "^3.0.0",
-    "astro": "^5.0.0",
+    "astro": "^7.3.5",
     "typescript": "^5.8.0"
   }
 }

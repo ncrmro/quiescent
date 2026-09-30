@@ -1,11 +1,12 @@
 ---
+import { env } from "cloudflare:workers";
 import { createForge } from "@quiescent/git";
 import Layout from "../../layouts/Layout.astro";
 import { getDraft } from "@quiescent/server";
 import { forgeConfig } from "@quiescent/server";
 import { getValidAccessToken } from "@quiescent/server";
 
-const env = Astro.locals.runtime.env;
+
 const session = Astro.locals.session!;
 const path = Astro.params.path;
 if (!path) return Astro.redirect("/");

@@ -93,8 +93,9 @@ blobs are not the fallback.
 
 Each post has its own draft branch. Save persists only to that branch; idle and
 Ctrl/Cmd+S never publish. Publish waits for saves/uploads and merges a captured
-commit into `main` without a PR. Published pages read GitHub directly, with
-no-store responses, so content changes do not rebuild/deploy the application.
+commit into `main` without a PR. Hosted readers use a shared, prepopulated published index derived only from
+`main`. Saves update the private author index; publication updates both indexes
+before returning success. Content changes do not rebuild/deploy the application.
 Drafts and images must never become reader-accessible before this merge.
 
 A published article remains read-only in the editor until **Edit post**. Revisions
@@ -130,9 +131,9 @@ interaction after setup.
 ## Release boundary
 
 All packages are consumed through local workspace dependencies. This work does
-not bump versions, publish packages, modify release workflows, deploy a public
-Worker, or migrate existing website content. Validate the writing experience
-before deciding package releases, hosted authentication, content migration,
+not bump package versions, publish packages, modify release workflows, or migrate
+existing website content. The isolated hosted test described below is deployed.
+Validate the writing experience before deciding package releases, content migration,
 scheduling, Git LFS, or media scaling.
 
 ## Validation recorded 2026-09-27
@@ -191,9 +192,7 @@ Cross-origin mutations remain blocked. This fixed account is for the test site.
 Deploy changes with:
 
 ```sh
-devenv shell -- bun run build:writing
-devenv shell -- node code/web/node_modules/wrangler/bin/wrangler.js d1 migrations apply quiescent-writing-test-auth --remote --config code/web/wrangler.writing-test.jsonc
-devenv shell -- node code/web/node_modules/wrangler/bin/wrangler.js deploy --config code/web/wrangler.writing-test.jsonc
+devenv shell -- bun run deploy:writing
 ```
 
 Set credentials through `wrangler secret put` or a protected temporary file with
@@ -213,3 +212,57 @@ The initial SQL migration was generated with Better Auth's migration API and
 seeded through its signup API (`code/web/scripts/writing-auth-schema.ts`). It
 stores a password hash, not a custom authentication implementation. Apply the
 committed migration for new installations; do not regenerate an applied migration.
+
+## Prepared caches and Astro 7
+
+The app uses Astro 7.3.5 and the Cloudflare adapter 14.3.3. The adapter builds the
+Worker and emits `dist/server/wrangler.json`; deployment uses this generated
+configuration. The local launcher builds with `wrangler.writing.jsonc` before
+starting Wrangler. Browser tests use `--ignore-lock` so Astro's agent-aware
+background mode does not detach the server from Playwright.
+
+The hosted app keeps two prepared JSON indexes in the existing D1 database:
+
+- Published posts: only `main`, used by `/`, `/read`, and public article/media
+  lookups. Public requests never discover draft branches.
+- Author posts: published posts plus active drafts, available only after sign-in.
+  Branch discovery runs during explicit or scheduled author-index preparation.
+
+The cache targets 24-hour freshness. Each successful create/save updates the
+corresponding author entry; publication updates its published and author entries.
+Updates finish before the mutation response. Git ancestry checks and atomic D1
+generations prevent delayed saves or overlapping rebuilds from replacing newer
+cached content. GitHub remains authoritative for write conflict checks.
+
+An hourly Worker cron rebuilds both indexes in the background to reconcile edits
+made outside Quiescent. The last good snapshot stays readable if maintenance is
+late, even after its freshness deadline; reader requests never trigger rebuilding.
+The deployment script applies migrations, deploys, then explicitly warms both
+indexes. Existing D1 snapshots survive deployments. A completely new installation
+must finish warming before receiving visitors. The initial hosted migration seeded
+both indexes before switching the Worker, avoiding a cold first request.
+
+Run `devenv shell -- node scripts/writing-warm.mjs` for an explicit refresh. It
+signs in through Better Auth and calls the same-origin, author-only
+`POST /api/writing/cache/refresh`, then signs out. `BASE_URL` and
+`WRITING_TEST_PASSWORD` override the isolated test defaults.
+
+These are shared data caches rather than cached HTML: the same public article can
+show an Edit button only to its signed-in author. D1 also makes prewarming visible
+across Worker locations, unlike a cache populated separately at each edge location.
+The reusable cache lifecycle lives in `@quiescent/server`; the app supplies the
+small D1 adapter. No npm package publication is needed.
+
+### Cache validation recorded 2026-09-29
+
+- 88 package tests pass, including incremental cache updates, draft isolation,
+  delayed-write ordering, stale-snapshot availability, and generation fencing.
+- Workspace typecheck and Astro 7 Worker build pass. All 10 existing blog/wiki
+  browser tests pass with Playwright owning the development server.
+- Hosted response samples: author index 255–287 ms (previously 10.6–11.1 s),
+  slug edit route 136–161 ms (previously 10.8 s), public index 162–310 ms.
+  These measure HTTP responses, not the complete editor's interactive readiness.
+- All four hosted browser journeys pass against GitHub and real R2, including
+  immediate homepage publication, unpublished-draft exclusion, private revisions,
+  image handling, stale-tab recovery, authentication, and slug-based editing.
+- Deployed Worker version: `a64f7ca0-bf11-4a42-a13d-b75cb7673550`.
