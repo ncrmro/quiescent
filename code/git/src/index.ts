@@ -32,3 +32,4 @@ export function requirePublishingForge(forge: ForgeClient): PublishingForge {
   }
   return forge as PublishingForge;
 }
+export * from "./lfs.ts";

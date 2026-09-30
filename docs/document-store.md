@@ -47,6 +47,8 @@ This writes `recipes/<id>/index.md`:
 
 ```md
 ---
+id: 11111111-1111-4111-8111-111111111111
+createdAt: 2026-09-30T09:00:00.000Z
 servings: 4
 ingredients:
   - Peaches
@@ -62,11 +64,22 @@ Metadata is validated on create, save, read, and publish using JSON Schema
 and leaves the saved revision unchanged. The codec preserves Markdown body text
 verbatim. YAML is data; neither YAML nor the body executes code.
 
-A `.quiescent.json` sidecar holds internal publication/retry/deletion state. It
-contains no user metadata or body. Quiescent writes the Markdown file and sidecar
-in **one Git commit**, guarded by the expected branch revision. The user sees one
-Save action. Stable UUID directories allow slugs to change without moving content.
-Collections use a single directory name (letters, digits, underscores, hyphens).
+The store owns `id` and `createdAt` in the stored front matter. They are returned
+as document fields, outside your schema's `frontmatter`; do not supply them as
+metadata fields. Both remain stable when a slug changes. The default folder is
+`<collection>/<uuid>/index.md`. Configure `directoryTemplate` with `{id}`, `{slug}`,
+and `{createdAt:YYYY-MM-DD}` to choose a readable folder. Templates produce one
+safe directory segment, not arbitrary paths. The posts preset uses
+`posts/YYYY-MM-DD-slug/index.md`, with a UUID slug fallback.
+
+A stable `<collection>/.quiescent/<uuid>.json` record locates the current folder
+and holds publication/retry/deletion state. Saving a changed slug moves the
+Markdown and referenced image pointers in the same commit. Colliding folders are
+rejected. UUIDs also identify branches: `quiescent/<collection>/<uuid>/<cycle-uuid>`.
+
+Markdown, workflow state, and image pointers are written in **one Git commit**,
+guarded by the expected branch revision. Collections use a single directory name
+(letters, digits, underscores, hyphens).
 
 `getDraft`, `saveDraft`, `publish`, `deleteDocument`, `getPublished`,
 `listPublished`, and `listDocuments` all share the same lifecycle. Publication
@@ -150,3 +163,44 @@ New posts are Markdown immediately; no bulk migration is required.
 
 The packages remain publishable. Development uses workspace dependencies, with
 no new npm releases required for validation.
+
+## Document-relative images
+
+Store filenames in both Markdown and metadata:
+
+```md
+---
+id: 11111111-1111-4111-8111-111111111111
+createdAt: 2026-09-30T09:00:00.000Z
+title: A slow morning in the garden
+slug: a-slow-morning-in-the-garden
+tags: [garden]
+headerImage: garden-morning-0123456789ab.png
+---
+![Tomatoes in the morning sun](garden-morning-0123456789ab.png)
+```
+
+Uploads retain a readable basename with a short content hash to avoid accidental
+replacement. The image's Git LFS pointer and `.gitattributes` live beside `index.md`.
+A normal Git LFS checkout materializes the actual image beside the Markdown, so
+relative links work in local Markdown previews. GitHub stores the durable bytes;
+R2 or a filesystem adapter stores reconstructible delivery copies scoped by UUID.
+The save awaits LFS upload before committing. A failed upload leaves the previous
+Git revision intact. Delivery is warmed during save; missing delivery bytes are
+verified and restored from LFS when requested.
+
+The posts service accepts `media` and `lfs` adapters. General collections can use
+`createDocumentMedia({forge, delivery, lfs, references})` as their store's `assets`
+option; `references(document)` returns the image filenames from their schema/body.
+Hosts use `documentMediaUrl(document.id, filename)` for rendered URLs. The example
+resolves header and body images through its media route, enforcing publication
+visibility; private preview URLs include the selected draft branch. Backend URLs
+and credentials never enter source Markdown.
+
+Humans can edit an existing `index.md` or replace its adjacent LFS image using
+normal Git tooling. Keep the UUID and creation date intact, push LFS objects, and
+run the authenticated cache refresh afterward. Moving folders by hand also
+requires updating the locator; creating arbitrary files does not automatically
+register or publish documents. Old UUID/JSON layouts remain readable and migrate
+on save. Previously stored `/media/...` references remain compatible but are not
+bulk converted into LFS images.

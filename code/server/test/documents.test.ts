@@ -49,7 +49,14 @@ test("arbitrary schemas save front matter and Markdown in one commit and publish
   const source = commits.get(saved.headSha)!.files[`recipes/${saved.document.id}/index.md`]!;
   expect(source).toContain("servings: 4");
   expect(source).toContain("- peaches");
-  expect(documentCodec(schema).parse(source)).toEqual(input);
+  expect(documentCodec(true).parse(source)).toEqual({
+    ...input,
+    frontmatter: {
+      ...input.frontmatter,
+      id: saved.document.id,
+      createdAt: saved.document.createdAt,
+    },
+  });
   const published = await store.publish(selection(saved));
   expect((await store.getPublished(saved.document.id))?.document).toEqual(published.document);
   const edit = await store.getDraft(saved.document.id);
@@ -147,7 +154,7 @@ test("existing JSON posts migrate only on mutation with metadata and body in the
   });
   expect(commits.size - count).toBe(1);
   expect(commits.get(saved.headSha)!.files[oldPath]).toBeUndefined();
-  const md = commits.get(saved.headSha)!.files[`posts/${id}/index.md`]!;
+  const md = commits.get(saved.headSha)!.files[`posts/2026-09-01-new-lunch/index.md`]!;
   expect(md).toContain("title: A new lunch");
   expect(md).toContain("slug: new-lunch");
   expect(md).toContain("- weekends");
@@ -206,4 +213,39 @@ test("generic HTTP saves one document and returns validation fields without muta
     (await api(request(`/${draft.document.id}/publish`, "POST", selection(saved)))).status,
   ).toBe(200);
   expect((await store.getPublished(draft.document.id))?.document.body).toBe("New instructions");
+});
+
+test("readable folder collisions and reserved metadata cannot overwrite another document", async () => {
+  const f = fixture();
+  const store = createDocumentStore({
+    forge: f.forge,
+    author,
+    collection: "pages",
+    schema: true,
+    directoryTemplate: "{slug}",
+  });
+  const first = await store.createDocument({ frontmatter: { slug: "garden" }, body: "First" });
+  const second = await store.createDocument({ frontmatter: { slug: "garden" }, body: "Second" });
+  await store.publish(selection(first));
+  const main = f.branches.get("main");
+  await expect(store.publish(selection(second))).rejects.toMatchObject({ code: "conflict" });
+  expect(f.branches.get("main")).toBe(main);
+  expect((await store.getPublished(first.document.id))?.document.body).toBe("First");
+  const count = f.commits.size;
+  await expect(
+    store.createDocument({
+      frontmatter: { slug: "other", id: first.document.id },
+      body: "Impersonation",
+    }),
+  ).rejects.toMatchObject({ code: "invalid" });
+  expect(f.commits.size).toBe(count);
+  expect(() =>
+    createDocumentStore({
+      forge: f.forge,
+      author,
+      collection: "pages",
+      schema: true,
+      directoryTemplate: "../{slug}",
+    }),
+  ).toThrow(DocumentError);
 });

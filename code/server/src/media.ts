@@ -1,9 +1,10 @@
 import { AwsClient } from "aws4fetch";
+import { uploadedFilename } from "./content/assets.ts";
 import type { ConfirmedUpload, UploadTicket } from "./contracts.ts";
 
 export const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const ID = /^[a-zA-Z0-9-]{1,80}$/;
+const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,159}$/;
 export interface MediaObject {
   body: ReadableStream<Uint8Array>;
   size: number;
@@ -24,7 +25,8 @@ export interface MediaBucket {
 }
 export interface MediaStorage {
   prepare(postId: string, contentType: string, size: number): Promise<UploadTicket>;
-  confirm(postId: string, assetId: string): Promise<ConfirmedUpload>;
+  confirm(postId: string, assetId: string, filename?: string): Promise<ConfirmedUpload>;
+  restore(postId: string, assetId: string, bytes: ArrayBuffer, contentType: string): Promise<void>;
   read(postId: string, assetId: string): Promise<MediaObject | null>;
   verify(postId: string, assetId: string): Promise<void>;
   uploadLocal?(postId: string, assetId: string, request: Request): Promise<void>;
@@ -100,7 +102,7 @@ function createMedia(
   return {
     prepare,
     ...(uploadLocal ? { uploadLocal } : {}),
-    async confirm(postId, assetId) {
+    async confirm(postId, assetId, filename) {
       const object = await store.get(key(postId, assetId, true));
       if (!object) throw new MediaError("Upload not found. Please upload the image again.", 404);
       metadata(object.contentType, object.size);
@@ -109,7 +111,16 @@ function createMedia(
       // Public references are content addressed. A replayed upload URL cannot alter them.
       const permanentId = await digest(bytes);
       await store.put(key(postId, permanentId), bytes, object.contentType);
+      if (filename) {
+        const name = uploadedFilename(filename, object.contentType, permanentId);
+        await store.put(key(postId, name), bytes, object.contentType);
+        return { src: name };
+      }
       return { src: `/media/${postId}/${permanentId}` };
+    },
+    async restore(postId, assetId, bytes, type) {
+      validateBytes(bytes, type);
+      await store.put(key(postId, assetId), bytes, type);
     },
     read(postId, assetId) {
       return store.get(key(postId, assetId));

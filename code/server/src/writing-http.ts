@@ -32,8 +32,12 @@ async function upload(request: Request, parts: string[], service: Service, media
     return json(await media.prepare(id, data.contentType, data.size));
   }
   if (!asset) return json({ error: "Not found" }, 404);
-  if (operation === "confirm" && request.method === "POST")
-    return json(await media.confirm(id, asset));
+  if (operation === "confirm" && request.method === "POST") {
+    const data = await payload(request);
+    return json(
+      await media.confirm(id, asset, typeof data.filename === "string" ? data.filename : undefined),
+    );
+  }
   if (!operation && request.method === "PUT" && media.uploadLocal) {
     await media.uploadLocal(id, asset, request);
     return json({ ok: true });
@@ -95,7 +99,7 @@ function mediaResponse(object: Awaited<ReturnType<MediaStorage["read"]>>) {
 }
 export async function publishedMedia(
   service: Service,
-  media: MediaStorage,
+  _media: MediaStorage,
   id: string,
   assetId: string,
 ) {
@@ -105,7 +109,7 @@ export async function publishedMedia(
     !postImageReferences(post.post).some((r) => r.postId === id && r.assetId === assetId)
   )
     return json({ error: "Image not found" }, 404);
-  return mediaResponse(await media.read(id, assetId));
+  return mediaResponse(await service.readMedia(id, assetId));
 }
 
 async function readRoute(
@@ -119,7 +123,12 @@ async function readRoute(
     const post = await service.getPublished(id);
     return post ? json(post) : json({ error: "Post not found" }, 404);
   }
-  if (resource === "media" && id && action && !rest.length && request.method === "GET")
-    return mediaResponse(await media.read(id, action));
+  if (resource === "media" && id && action && !rest.length && request.method === "GET") {
+    const branch = new URL(request.url).searchParams.get("branch") ?? undefined;
+    // Draft reads use their captured branch; staged uploads can preview before the atomic save.
+    return mediaResponse(
+      (await service.readMedia(id, action, branch)) ?? (await media.read(id, action)),
+    );
+  }
   return json({ error: "Not found" }, 404);
 }

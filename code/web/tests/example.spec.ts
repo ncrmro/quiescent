@@ -47,7 +47,8 @@ test("the example signs in and atomically saves metadata and Markdown", async ({
   await expect(page.getByRole("status")).toHaveText("Saved");
   const saved = (await service.listPosts())[0]!;
   const head = saved.headSha;
-  const markdown = backend.commits.get(head)!.files[`posts/${saved.post.id}/index.md`];
+  const { directory } = await service.documents.location(saved.post.id, head);
+  const markdown = backend.commits.get(head)!.files[`${directory}/index.md`];
   expect(markdown).toContain("title: A quiet afternoon");
   expect(markdown).toContain("slug: quiet-afternoon");
   expect(markdown).toContain("- family");

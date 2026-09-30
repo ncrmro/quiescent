@@ -1,3 +1,4 @@
+import { isAssetFilename } from "./assets.ts";
 import {
   type ImageReference,
   mediaPattern,
@@ -17,6 +18,8 @@ export function imageReferences(body: WritingDocument): ImageReference[] {
     if (node.type === "image") {
       const match = mediaPattern.exec(String(node.attrs?.src));
       if (match) result.push({ postId: match[1]!, assetId: match[2]! });
+      else if (isAssetFilename(node.attrs?.src))
+        result.push({ postId: "", assetId: node.attrs.src });
     }
     node.content?.forEach(walk);
   }
@@ -32,9 +35,13 @@ function marked(html: string, mark: WritingMark) {
 }
 function image(node: WritingDocument, mediaUrl: (reference: ImageReference) => string) {
   const attrs = node.attrs!;
-  const match = mediaPattern.exec(String(attrs.src))!;
-  const url = mediaUrl({ postId: match[1]!, assetId: match[2]! });
-  if (!(url.startsWith("/") && !url.startsWith("//")) && !/^https?:\/\//i.test(url))
+  const match = mediaPattern.exec(String(attrs.src));
+  const url = mediaUrl({ postId: match?.[1] ?? "", assetId: match?.[2] ?? String(attrs.src) });
+  if (
+    !(url.startsWith("/") && !url.startsWith("//")) &&
+    !/^https?:\/\//i.test(url) &&
+    !isAssetFilename(url)
+  )
     throw new Error("Unsafe image URL");
   const title = attrs.title ? ` title="${escapeHtml(String(attrs.title))}"` : "";
   return `<img src="${escapeHtml(url)}" alt="${escapeHtml(String(attrs.alt))}"${title} loading="lazy">`;
@@ -42,7 +49,8 @@ function image(node: WritingDocument, mediaUrl: (reference: ImageReference) => s
 /** Browser-safe and Worker-safe rendering from the validated document model. */
 export function renderDocument(
   body: WritingDocument,
-  mediaUrl: (reference: ImageReference) => string = (ref) => `/media/${ref.postId}/${ref.assetId}`,
+  mediaUrl: (reference: ImageReference) => string = (ref) =>
+    ref.postId ? `/media/${ref.postId}/${ref.assetId}` : ref.assetId,
 ): string {
   const tags: Record<string, string> = {
     paragraph: "p",

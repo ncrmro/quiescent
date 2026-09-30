@@ -497,9 +497,9 @@ test("schema-driven posts save metadata and body together, publish header images
     title: "A slow Sunday",
     slug,
     tags: ["weekends", "food"],
-    headerImage: expect.stringContaining(`/media/${id}/`),
+    headerImage: expect.stringMatching(/^sunday-[a-f0-9]{12}\.png$/),
   });
-  expect((await request.get(saved.post.headerImage)).status()).toBe(404);
+  expect((await request.get(`/media/${id}/${saved.post.headerImage}`)).status()).toBe(404);
   console.log(`[document-proof] id=${id} head=${saved.headSha}`);
   // An invalid slug must preserve both the previous metadata and body revision.
   const invalid = page.waitForResponse(
@@ -541,7 +541,7 @@ test("schema-driven posts save metadata and body together, publish header images
       .locator(".header-image")
       .evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0),
   ).toBe(true);
-  expect((await request.get(saved.post.headerImage)).status()).toBe(200);
+  expect((await request.get(`/media/${id}/${saved.post.headerImage}`)).status()).toBe(200);
   await reader.close();
   await page.getByRole("button", { name: "Edit post", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Saved");

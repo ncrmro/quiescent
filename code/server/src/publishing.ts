@@ -1,6 +1,8 @@
-import type { CommitSignature, PublishingForge } from "@quiescent/git";
+import type { CommitSignature, LfsStorage, PublishingForge } from "@quiescent/git";
+import { isAssetFilename } from "./content/assets.ts";
 import { imageReferences, validateDocument } from "./content/document.ts";
 import { fromMarkdown, toMarkdown } from "./content/markdown.ts";
+import { createDocumentMedia } from "./document-assets.ts";
 import { DocumentError } from "./document-error.ts";
 import {
   createDocumentStore,
@@ -51,12 +53,14 @@ export const postSchema: JSONSchema = {
     headerImage: {
       type: ["string", "null"],
       title: "Header image",
-      pattern: "^/media/[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$",
+      pattern:
+        "^(?:[a-zA-Z0-9][a-zA-Z0-9_.-]*\\.(?:png|jpe?g|webp)|/media/[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+)$",
     },
   },
 };
 export interface PublishingOptions {
   media?: MediaStorage;
+  lfs?: LfsStorage;
   forge: PublishingForge;
   author: CommitSignature;
   defaultBranch?: string;
@@ -67,6 +71,7 @@ const toPost = (document: DocumentRecord<PostMetadata>): PostDocument => ({
   id: document.id,
   ...document.frontmatter,
   body: fromMarkdown(document.body),
+  ...(document.createdAt ? { createdAt: document.createdAt } : {}),
   ...(document.publishedAt ? { publishedAt: document.publishedAt } : {}),
 });
 const toDraft = (draft: DocumentDraft<PostMetadata>): PostDraft => ({
@@ -94,11 +99,44 @@ const generatedSlug = (title: string, id: string) =>
       .replace(/^-|-$/g, "")
       .slice(0, 80) || "post"
   }-${id.slice(0, 8)}`;
+async function verifyPostImages(post: PostDocument, media?: MediaStorage) {
+  for (const ref of postImageReferences(post)) {
+    if (ref.postId !== post.id)
+      throw new DocumentError("Images must belong to this post.", "invalid");
+    if (media && !isAssetFilename(ref.assetId)) await media.verify(ref.postId, ref.assetId);
+  }
+}
 /** Posts are one schema and a rich-text adapter over the general Markdown document store. */
 export function createPublishingService(options: PublishingOptions) {
+  const assets =
+    options.media && options.lfs
+      ? createDocumentMedia<PostMetadata>({
+          forge: options.forge,
+          delivery: options.media,
+          lfs: options.lfs,
+          references: (document) =>
+            postImageReferences(toPost(document))
+              .filter((r) => isAssetFilename(r.assetId))
+              .map((r) => r.assetId),
+        })
+      : {
+          async prepare(document: DocumentRecord<PostMetadata>) {
+            if (postImageReferences(toPost(document)).some((r) => isAssetFilename(r.assetId)))
+              throw new DocumentError(
+                "Configure media delivery and Git LFS before saving images.",
+                "invalid",
+              );
+            return {};
+          },
+          async read() {
+            return null;
+          },
+        };
   const store = createDocumentStore<PostMetadata>({
     ...options,
     collection: "posts",
+    directoryTemplate: "{createdAt:YYYY-MM-DD}-{slug}",
+    ...(assets ? { assets } : {}),
     schema: postSchema,
     legacy: {
       filename: "post.json",
@@ -141,18 +179,20 @@ export function createPublishingService(options: PublishingOptions) {
           slug: "This slug is already published.",
         });
       await options.validateDocument?.(post.body);
-      if (options.media)
-        for (const ref of postImageReferences(post)) {
-          if (ref.postId !== post.id)
-            throw new DocumentError("Images must belong to this post.", "invalid");
-          await options.media.verify(ref.postId, ref.assetId);
-        }
+      await verifyPostImages(post, options.media);
       await options.verifyMedia?.(post);
     },
   });
   return {
     schema: postSchema,
     documents: store,
+    async readMedia(id: string, name: string, branch?: string) {
+      if (!isAssetFilename(name)) return options.media?.read(id, name) ?? null;
+      const draft = branch ? await store.getDraft(id, branch) : await store.getPublished(id);
+      if (!draft || !assets) return null;
+      const context = await store.location(id, draft.headSha);
+      return assets.read(id, name, { ...context, ref: draft.headSha });
+    },
     async createPost() {
       return toDraft(
         await store.createDocument({
@@ -169,8 +209,13 @@ export function createPublishingService(options: PublishingOptions) {
         throw new DocumentError("Document identifier mismatch", "invalid");
       await options.validateDocument?.(input.post.body);
       const fields = metadata(input.post);
-      if (fields.slug === null && typeof fields.title === "string" && fields.title.trim())
+      if (
+        (fields.slug === null || fields.slug === input.id) &&
+        typeof fields.title === "string" &&
+        fields.title.trim()
+      )
         fields.slug = generatedSlug(fields.title, input.id);
+      fields.slug ??= input.id;
       return toDraft(
         await store.saveDraft({
           ...input,
@@ -218,11 +263,11 @@ export function postImageReferences(post: PostDocument) {
   const references = imageReferences(post.body);
   if (post.headerImage) {
     const match = /^\/media\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)$/.exec(post.headerImage);
-    if (!match)
+    if (!match && !isAssetFilename(post.headerImage))
       throw new DocumentError("Invalid header image", "invalid", {
         headerImage: "Choose a valid image.",
       });
-    references.push({ postId: match[1]!, assetId: match[2]! });
+    references.push({ postId: match?.[1] ?? post.id, assetId: match?.[2] ?? post.headerImage });
   }
-  return references;
+  return references.map((ref) => ({ ...ref, postId: ref.postId || post.id }));
 }

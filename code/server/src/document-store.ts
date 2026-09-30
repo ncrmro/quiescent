@@ -1,4 +1,4 @@
-import type { CommitFileChange, CommitSignature, PublishingForge } from "@quiescent/git";
+import type { CommitSignature, PublishingForge } from "@quiescent/git";
 import {
   type DocumentInput,
   documentCodec,
@@ -6,6 +6,7 @@ import {
   type JSONSchema,
 } from "./document-codec.ts";
 import { DocumentError } from "./document-error.ts";
+import { type DocumentAssets, documentLayout } from "./document-layout.ts";
 
 export type { DocumentInput, Frontmatter, JSONSchema } from "./document-codec.ts";
 export { DocumentError } from "./document-error.ts";
@@ -29,6 +30,8 @@ export interface DocumentStoreOptions<T extends Frontmatter> {
   collection: string;
   schema: JSONSchema;
   defaultBranch?: string;
+  directoryTemplate?: string;
+  assets?: DocumentAssets<T>;
   beforePublish?: (document: DocumentRecord<T>) => void | Promise<void>;
   /** Explicit import adapter for an earlier on-disk format; writes replace it atomically. */
   legacy?: { filename: string; decode: (source: string, id: string) => StoredDocument<T> };
@@ -37,6 +40,9 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 function publicDocument<T extends Frontmatter>(document: StoredDocument<T>): DocumentRecord<T> {
   const { publicationSource: _, deletedAt: __, ...value } = document;
   return value;
+}
+function creationDate(document: { createdAt?: string; publishedAt?: string }) {
+  return document.createdAt ?? document.publishedAt ?? new Date().toISOString();
 }
 /** Schema-validated Markdown documents; Git is the authority for every lifecycle operation. */
 export function createDocumentStore<T extends Frontmatter = Frontmatter>(
@@ -51,45 +57,19 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     throw new DocumentError("Invalid legacy filename", "invalid");
   const codec = documentCodec<T>(options.schema);
   const prefix = `quiescent/${collection}/`;
-  function directory(id: string) {
-    if (!uuid.test(id)) throw new DocumentError("Invalid document identifier", "invalid");
-    return `${collection}/${id}`;
-  }
-  const path = (id: string) => `${directory(id)}/index.md`;
-  const statePath = (id: string) => `${directory(id)}/.quiescent.json`;
-  const legacyPath = (id: string) => `${directory(id)}/${options.legacy!.filename}`;
+  const layout = documentLayout(options);
+  const path = layout.checkId;
+  const read = layout.read;
   function checkBranch(id: string, branch: string) {
-    directory(id);
+    path(id);
     if (!branch.startsWith(`${prefix}${id}/`) || !uuid.test(branch.slice(`${prefix}${id}/`.length)))
       throw new DocumentError("Invalid draft", "invalid");
   }
-  async function read(id: string, ref: string): Promise<StoredDocument<T> | null> {
-    const file = await forge.getFile(path(id), ref);
-    if (!file) {
-      if (!options.legacy) return null;
-      const old = await forge.getFile(legacyPath(id), ref);
-      if (!old) return null;
-      const imported = options.legacy.decode(old.content, id);
-      codec.validate(imported);
-      return imported;
-    }
-    const content = codec.parse(file.content);
-    const stateFile = await forge.getFile(statePath(id), ref);
-    const state = stateFile ? JSON.parse(stateFile.content) : {};
-    if (
-      !state ||
-      typeof state !== "object" ||
-      Array.isArray(state) ||
-      Object.keys(state).some(
-        (k) => !["publishedAt", "publicationSource", "deletedAt"].includes(k),
-      ) ||
-      Object.values(state).some((v) => typeof v !== "string")
-    )
-      throw new DocumentError("Invalid document state", "invalid");
-    return { ...content, id, ...state };
-  }
   function checked(input: DocumentInput<T>): DocumentInput<T> {
-    return codec.validate(input);
+    const value = codec.validate(input);
+    if ("id" in value.frontmatter || "createdAt" in value.frontmatter)
+      throw new DocumentError("id and createdAt are managed document fields", "invalid");
+    return value;
   }
   async function commit(
     branch: string,
@@ -97,16 +77,13 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     document: StoredDocument<T>,
     message: string,
   ) {
-    const { publishedAt, publicationSource, deletedAt } = document;
-    const files: CommitFileChange[] = [
-      { path: path(document.id), content: codec.stringify(document) },
+    const files = await layout.changes(
       {
-        path: statePath(document.id),
-        content: `${JSON.stringify({ publishedAt, publicationSource, deletedAt }, null, 2)}\n`,
+        ...document,
+        createdAt: document.createdAt ?? document.publishedAt ?? new Date().toISOString(),
       },
-    ];
-    if (options.legacy && (await forge.getFile(legacyPath(document.id), expectedHeadSha)))
-      files.push({ path: legacyPath(document.id), content: null });
+      expectedHeadSha,
+    );
     return forge.commitFiles({ branch, expectedHeadSha, author, message, files });
   }
   async function getPublished(id: string): Promise<DocumentDraft<T> | null> {
@@ -118,25 +95,19 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
   }
   async function listPublished(): Promise<DocumentDraft<T>[]> {
     const headSha = await forge.getBranchSha(main);
-    const entries = await forge.listDir(collection, headSha).catch((error: unknown) => {
-      if (typeof error === "object" && error !== null && "status" in error && error.status === 404)
-        return [];
-      throw error;
-    });
+    const ids = await layout.ids(headSha);
     const documents = await Promise.all(
-      entries
-        .filter((e) => e.type === "dir" && uuid.test(e.name))
-        .map(async (e) => {
-          const document = await read(e.name, headSha);
-          return document?.publishedAt && !document.deletedAt
-            ? {
-                document: publicDocument(document),
-                branch: null,
-                headSha,
-                state: "published" as const,
-              }
-            : null;
-        }),
+      ids.map(async (id) => {
+        const document = await read(id, headSha);
+        return document?.publishedAt && !document.deletedAt
+          ? {
+              document: publicDocument(document),
+              branch: null,
+              headSha,
+              state: "published" as const,
+            }
+          : null;
+      }),
     );
     return documents.filter(
       (p): p is DocumentDraft<T> & { state: "published"; branch: null } => p !== null,
@@ -236,7 +207,10 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
   }
   async function createDocument(input: DocumentInput<T>): Promise<DocumentDraft<T>> {
     const value = checked(input);
-    return start({ ...value, id: crypto.randomUUID() });
+    const id = crypto.randomUUID();
+    if ("slug" in value.frontmatter && !value.frontmatter.slug)
+      value.frontmatter = { ...value.frontmatter, slug: id };
+    return start({ ...checked(value), id, createdAt: new Date().toISOString() });
   }
   async function assertNotDeleted(id: string, mainSha?: string) {
     if ((await read(id, mainSha ?? (await forge.getBranchSha(main))))?.deletedAt)
@@ -291,6 +265,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     const document = {
       ...checked(input.document),
       id: input.id,
+      createdAt: creationDate(previous),
       ...(previous.publishedAt ? { publishedAt: previous.publishedAt } : {}),
     };
     const result = await commit(input.branch, head, document, "Save document draft");
@@ -313,20 +288,6 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
       (await read(input.id, input.expectedHeadSha))?.publicationSource ===
       published.publicationSource
     );
-  }
-  async function assertPublicationScope(id: string, mainSha: string, head: string) {
-    const comparison = await forge.compareCommits(mainSha, head);
-    const allowed = [path(id), statePath(id), ...(options.legacy ? [legacyPath(id)] : [])];
-    const unexpected = comparison.files.some(
-      (file) =>
-        !allowed.includes(file.filename) ||
-        (file.previousFilename && !allowed.includes(file.previousFilename)),
-    );
-    if (!comparison.files.length || unexpected)
-      throw new DocumentError(
-        "The draft contains unexpected changes and cannot be published.",
-        "invalid",
-      );
   }
   async function publish(input: DocumentSelection) {
     checkBranch(input.id, input.branch);
@@ -351,7 +312,8 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
         "conflict",
       );
     }
-    await assertPublicationScope(input.id, mainSha, head);
+    await layout.assertScope(input.id, mainSha, head);
+    await layout.assertDestination(document, mainSha);
     await checked(document);
     await options.beforePublish?.(publicDocument(document));
     if (!document.publicationSource) {
@@ -435,6 +397,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
   }
   return {
     collection,
+    location: layout.location,
     schema: options.schema,
     createDocument,
     getDraft,

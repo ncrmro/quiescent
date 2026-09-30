@@ -1,5 +1,5 @@
 import { hostedMedia } from "quiescent:runtime";
-import { createForge, requirePublishingForge } from "@quiescent/git";
+import { createForge, createLfsClient, requirePublishingForge } from "@quiescent/git";
 import {
   createPublishingService,
   localR2Media,
@@ -55,6 +55,10 @@ export function writingApp(env: WritingEnv) {
     service: createPublishingService({
       forge,
       media,
+      lfs: createLfsClient({
+        endpoint: `https://github.com/${env.WRITING_REPO_OWNER}/${env.WRITING_REPO_NAME}.git/info/lfs`,
+        authorization: `Basic ${btoa(`${env.WRITING_REPO_OWNER}:${env.SERVICE_TOKEN}`)}`,
+      }),
       author: {
         name: env.WRITING_AUTHOR_NAME ?? "Example writer",
         email: env.WRITING_AUTHOR_EMAIL ?? "writer@example.invalid",

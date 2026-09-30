@@ -1,7 +1,7 @@
 ---
 import { readerPath } from "@quiescent/astro";
 import type { PostDraft } from "@quiescent/server";
-import { renderDocument } from "@quiescent/server/content";
+import { documentMediaUrl, renderDocument } from "@quiescent/server/content";
 import EditLink from "./EditLink.astro";
 
 interface Props {
@@ -23,11 +23,17 @@ const { post, posts } = Astro.props;
       {post ? (
   <>
     <nav>
-      <a href="/read">All stories</a>
+      <a href="/">All stories</a>
       <EditLink server:defer slug={post.post.slug ?? post.post.id} />
     </nav>
     <h1>{post.post.title}</h1>
-    {post.post.headerImage && <img src={post.post.headerImage} alt="" class="header-image" />}
+    {post.post.headerImage && (
+      <img
+        src={documentMediaUrl(post.post.id, post.post.headerImage, { revision: post.headSha })}
+        alt=""
+        class="header-image"
+      />
+    )}
     {post.post.tags?.length ? (
       <ul class="tags" aria-label="Tags">
         {post.post.tags.map((tag) => (
@@ -36,18 +42,32 @@ const { post, posts } = Astro.props;
       </ul>
     ) : null}
     <p>{post.post.description}</p>
-    <Fragment set:html={renderDocument(post.post.body)} />
+    <Fragment
+      set:html={renderDocument(post.post.body, (ref) =>
+        documentMediaUrl(
+          post.post.id,
+          ref.postId ? `/media/${ref.postId}/${ref.assetId}` : ref.assetId,
+          { revision: post.headSha },
+        ),
+      )}
+    />
   </>
 ) : (
   <>
     <h1>Stories</h1>
-    {posts.map(({ post }) => (
+    {posts.map(({ post, headSha }) => (
       <article>
         <h2>
           <a href={readerPath(post)}>{post.title}</a>
         </h2>
         <p>{post.description}</p>
-        {post.headerImage && <img src={post.headerImage} alt="" class="header-image" />}
+        {post.headerImage && (
+          <img
+            src={documentMediaUrl(post.id, post.headerImage, { revision: headSha })}
+            alt=""
+            class="header-image"
+          />
+        )}
         {post.tags?.length ? <p class="tags">{post.tags.join(" · ")}</p> : null}
         <EditLink server:defer slug={post.slug ?? post.id} />
       </article>

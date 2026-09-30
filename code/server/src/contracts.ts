@@ -2,6 +2,7 @@ import type { WritingDocument } from "./content/document.ts";
 import type { DocumentInput, Frontmatter } from "./document-codec.ts";
 export interface DocumentRecord<T extends Frontmatter = Frontmatter> extends DocumentInput<T> {
   id: string;
+  createdAt?: string;
   publishedAt?: string;
 }
 export interface StoredDocument<T extends Frontmatter = Frontmatter> extends DocumentRecord<T> {
@@ -26,6 +27,7 @@ export interface PostDocument extends Omit<PostMetadata, "tags" | "headerImage">
   tags?: PostMetadata["tags"];
   headerImage?: PostMetadata["headerImage"];
   body: PostBody;
+  createdAt?: string;
   publishedAt?: string;
 }
 export interface PostDraft {

@@ -1,4 +1,4 @@
-import { renderDocument } from "@quiescent/server/content";
+import { documentMediaUrl, renderDocument } from "@quiescent/server/content";
 import type {
   ConfirmedUpload,
   MutationResponse,
@@ -24,6 +24,8 @@ export interface WritingAppOptions {
 export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = {}) {
   const api = options.apiBase ?? "/api/writing";
   const reader = options.readerBase ?? "/read";
+  const mediaUrl = (src: string) =>
+    active ? documentMediaUrl(active.post.id, src, { apiBase: api, branch: active.branch }) : src;
   let active: Draft | undefined;
   let publishedPost: { post: Post; headSha: string } | undefined;
   const summaries = new Map<string, PostDraft>();
@@ -224,7 +226,7 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
     return (
       await request<ConfirmedUpload>(`/posts/${target}/uploads/${upload.assetId}/confirm`, {
         method: "POST",
-        body: "{}",
+        body: JSON.stringify({ filename: file.name }),
       })
     ).src;
   };
@@ -232,7 +234,7 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
     const image = q<HTMLImageElement>("[data-header-preview]");
     const src = active?.post.headerImage;
     image.hidden = !src;
-    if (src) image.src = `${api}${src}`;
+    if (src) image.src = mediaUrl(src);
     else image.removeAttribute("src");
   };
   q("[data-header-upload]").onclick = () => {
@@ -328,7 +330,7 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
       document: draft.post.body,
       onChange: changed,
       onStatus: status,
-      mediaUrl: (src) => `${api}${src}`,
+      mediaUrl,
       uploadImage: (file) => uploadImage(draft.post.id, file),
     });
     q("[data-publish]").textContent =
@@ -356,9 +358,8 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
   q("[data-preview]").onclick = () => {
     if (!editor) return;
     const preview = q("[data-preview-area]");
-    preview.innerHTML = renderDocument(
-      editor.getDocument(),
-      (ref) => `${api}/media/${ref.postId}/${ref.assetId}`,
+    preview.innerHTML = renderDocument(editor.getDocument(), (ref) =>
+      mediaUrl(ref.postId ? `/media/${ref.postId}/${ref.assetId}` : ref.assetId),
     );
     preview.hidden = !preview.hidden;
   };

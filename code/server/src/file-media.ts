@@ -5,7 +5,7 @@ import { localR2Media, type MediaBucket } from "./media.ts";
 export function fileMedia(directory: string) {
   const root = resolve(directory);
   const path = (key: string) => {
-    if (!/^(uploads|images)\/[a-zA-Z0-9-]+\/[a-zA-Z0-9-]+$/.test(key))
+    if (!/^(uploads|images)\/[a-zA-Z0-9-]+\/[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(key))
       throw new Error("Invalid media key");
     return resolve(root, key);
   };

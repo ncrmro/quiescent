@@ -176,7 +176,7 @@ describe("writing HTTP boundary", () => {
       ).toBe(404);
     }
     expect(reads).toBe(0);
-    const published = service({ getPublished: async () => post(true) });
+    const published = service({ getPublished: async () => post(true), readMedia: storage.read });
     expect((await publishedMedia(published, storage, id, "other-asset")).status).toBe(404);
     const response = await publishedMedia(published, storage, id, asset);
     expect(response.status).toBe(200);
@@ -185,8 +185,14 @@ describe("writing HTTP boundary", () => {
     const headerOnly = post(false);
     headerOnly.post.headerImage = `/media/${id}/${asset}`;
     expect(
-      (await publishedMedia(service({ getPublished: async () => headerOnly }), storage, id, asset))
-        .status,
+      (
+        await publishedMedia(
+          service({ getPublished: async () => headerOnly, readMedia: storage.read }),
+          storage,
+          id,
+          asset,
+        )
+      ).status,
     ).toBe(200);
   });
 });

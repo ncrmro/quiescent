@@ -35,10 +35,11 @@ rotating that token also invalidates cookies. There are no accounts, registratio
 auth database, or Better Auth dependency. This deliberately public demo password
 is example access control, not a production authentication policy.
 
-Photos persist under `code/web/.writing-media` by default. Set
+Git LFS stores durable photo bytes. Delivery copies live under
+`code/web/.writing-media` by default. Set
 `WRITING_MEDIA_DIRECTORY` to a persistent mounted directory for containers.
 The file adapter uses the same upload validation and content-addressed finalization
-as the R2 adapter. Preserve that directory across restarts. Supplying the complete
+as the R2 adapter. Persist it to avoid refetching LFS objects after restarts. Supplying the complete
 R2 credential set and bucket selects R2 instead, including on Node.
 
 For phone access over Tailscale on ncrmro-workstation:
@@ -78,7 +79,9 @@ The Cloudflare cache provider is currently experimental in Astro.
 Photos upload through the Worker into its private R2 binding. Optional direct
 browser-to-R2 uploads use `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and
 `R2_SECRET_ACCESS_KEY`, with exact-origin bucket CORS. Keep the bucket private.
-Git LFS is a deferred media adapter, not implemented by this example.
+Git LFS uploads complete before a document save commits its adjacent pointers.
+The same repository PAT authorizes LFS; there is no second media token. R2 serves
+copies that Quiescent can recover from LFS. See [document-relative images](document-store.md#document-relative-images).
 
 For a local Worker, set the PAT in `code/web/.dev.vars` and run
 `devenv shell -- bun run dev:writing`. The launcher builds the local configuration,
@@ -90,7 +93,7 @@ Astro development mode intentionally does not cache pages.
 
 The main pieces are existing workspace packages:
 
-- `@quiescent/git`: refs, commit conflict checks, comparisons, and merges.
+- `@quiescent/git`: refs, commit conflict checks, comparisons, merges, and the standard Git LFS transfer protocol.
 - `@quiescent/server`: framework-independent publishing service, HTTP handler, and media adapters.
 - `@quiescent/astro`: Astro route helpers, cache policies, invalidation, and warming.
   This is a publishable workspace package; its first npm release is deferred
@@ -207,3 +210,48 @@ Deployed Worker version: `bda740bb-155d-4f7d-b984-df8d689cb9b7`.
 No npm packages were published. The JSON-post import adapter is deliberately
 retained to preserve existing stories while converting them on save; the retired
 notes/OAuth/KV/cron editing path and its demos are removed.
+
+### Portable image validation — 2026-09-30
+
+The garden example uses both a header image and a body image:
+
+- [Cloudflare/R2 story](https://quiescent-writing-test.ncrmro.workers.dev/read/3a3a7494-410c-45fb-96c7-d4f7dad3d12f/a-slow-morning-in-the-garden)
+- [Workstation/filesystem story over Tailscale](http://100.64.0.3:4280/read/ae4f52b7-485f-46f7-96d6-627ae7101960/a-slow-morning-in-the-garden)
+
+Both content repositories now contain
+`posts/2026-09-30-a-slow-morning-in-the-garden/index.md`, an adjacent
+`garden-morning-807b4d673c02.png` LFS pointer, and `.gitattributes`.
+The Markdown contains the stable UUID, creation date, and filename-only image
+references. The watercolor is generated example artwork, not a photograph of an
+actual author's garden.
+
+The real browser workflow passed on both Node and Cloudflare: upload, atomic
+save, draft image privacy, publish, index visibility, and header/body rendering at
+390px without horizontal overflow. Images served by each app matched the upload;
+independent GitHub LFS downloads also matched all 3,305,091 bytes. The Cloudflare
+retest fixed an LFS transfer 403 by adding the explicit User-Agent that GitHub
+requires; the limited repository PAT needed no replacement.
+
+83 unit tests cover the existing lifecycle plus LFS integrity, credential
+isolation, atomic failure, readable-folder collisions, slug renaming, and delivery
+recovery from LFS. Strict types, Biome, cognitive complexity, file-size checks,
+the isolated editor test, and both production builds pass. Old images retain their
+legacy references until a separate migration; this change does not bulk rewrite
+existing stories or publish npm packages.
+
+To repeat the visible-image scenario against a fresh test repository:
+
+```sh
+BASE_URL=http://100.64.0.3:4280 QUIESCENT_LIVE_TEST=1 \
+EXAMPLE_IMAGE=/absolute/path/to/garden-morning.png devenv shell -- \
+  node code/web/node_modules/@playwright/test/cli.js test \
+  --config code/web/playwright.writing.config.ts media-live.spec.ts
+```
+
+Use a 1536px-wide PNG for this illustrated fixture. The test intentionally leaves
+its published story visible. Set `EXAMPLE_POST_ID` to resume an unpublished draft
+after an interrupted run; do not run it repeatedly against an already-published
+copy of the same slug.
+
+Final LFS example deployment: `1117e90a-5c9c-4414-85ec-0f1c6e02b2db`.
+Public page warming completed for 21 Cloudflare pages and 9 workstation pages.

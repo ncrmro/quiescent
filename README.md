@@ -3,7 +3,8 @@
 Quiescent is a GitHub-backed document store. Supply a JSON Schema, edit metadata
 and body together, and save Markdown with validated YAML front matter. Drafts
 stay private on branches; Publish merges the document into `main` without a pull
-request. Posts demonstrate the workflow with title, slug, tags, header image,
+request. Image filenames resolve within each document; Git LFS keeps the durable
+bytes while R2 or local files serve them. Posts demonstrate the workflow with title, slug, tags, header image,
 and a formatted body editor.
 
 Start with [the writing example](docs/writing-prototype.md) or the
@@ -15,7 +16,7 @@ it has no auth database, D1, KV draft store, or background flush service.
 
 | Package | Responsibility |
 | --- | --- |
-| `@quiescent/git` | Forge HTTP APIs, commits, refs, conflict checks, comparisons, merges |
+| `@quiescent/git` | Forge HTTP APIs, commits, refs, conflict checks, comparisons, merges, Git LFS |
 | `@quiescent/server` | Document validation, Markdown codecs, shared contracts, publication, HTTP handlers, media |
 | `@quiescent/astro` | Full-page caching, targeted invalidation, eager warming, thin route helpers |
 | `@quiescent/editor` | Schema metadata controls, formatted body editor, atomic saves, recovery, publishing |

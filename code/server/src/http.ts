@@ -1,4 +1,4 @@
-import { ConflictError, ForgeError } from "@quiescent/git";
+import { ConflictError, ForgeError, LfsError } from "@quiescent/git";
 import { DocumentError } from "./document-error.ts";
 import { MediaError } from "./media.ts";
 export class WritingConfigurationError extends Error {}
@@ -41,6 +41,7 @@ export function documentErrorResponse(error: unknown): Response {
       { error: error.message, ...(error.fields ? { fields: error.fields } : {}) },
       { conflict: 409, not_found: 404, invalid: 400 }[error.code],
     );
+  if (error instanceof LfsError) return json({ error: error.message }, 502);
   if (error instanceof MediaError) return json({ error: error.message }, error.status);
   if (error instanceof ConflictError)
     return json(
