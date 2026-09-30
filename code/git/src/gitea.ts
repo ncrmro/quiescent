@@ -74,7 +74,7 @@ export class GiteaForge implements ForgeClient {
     const response = await this.http.request(
       `${this.repoPath}/contents/${encodePath(path)}${query}`,
     );
-    if (response.status === 404) return null;
+    if (response.status === 404) { await response.body?.cancel(); return null; }
     const entry = (await response.json()) as GiteaContentsEntry;
     if (entry.type !== "file" || entry.content == null) {
       throw new ForgeError(`${path} is not a file`, 422, path);
@@ -117,9 +117,9 @@ export class GiteaForge implements ForgeClient {
       options.files.map(async (file) => {
         const existing = await this.getFile(file.path, options.branch);
         return {
-          operation: existing ? "update" : "create",
+          operation: file.content === null ? "delete" : existing ? "update" : "create",
           path: file.path,
-          content: encodeBase64(file.content),
+          ...(file.content === null ? {} : {content: encodeBase64(file.content)}),
           ...(existing ? { sha: existing.sha } : {}),
         };
       }),

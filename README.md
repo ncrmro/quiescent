@@ -1,8 +1,19 @@
 # quiescent
 
-For the GitHub-backed formatted writing and publishing prototype, see
-[Writing with Quiescent](docs/writing-prototype.md). It runs on self-hosted Node or Cloudflare Workers,
-uses workspace packages without npm releases, and publishes without PRs.
+Quiescent provides a GitHub-backed document store: supply a JSON Schema, edit
+metadata and body together, and save Markdown with validated YAML front matter.
+Posts are the reference example, with title, slug, tags, header image, and a
+formatted body editor. Save privately, then publish without thinking about Git.
+
+Start with [Writing with Quiescent](docs/writing-prototype.md) or the
+[schema-driven document API](docs/document-store.md). The example runs on
+self-hosted Node and Cloudflare Workers. Astro-specific full-page caching lives
+in `@quiescent/astro`; the store is framework-independent. Validation uses
+workspace packages without new npm releases.
+
+## Earlier notes and wiki APIs
+
+The published packages also retain their original interfaces:
 
 npm packages for editing documents in a git repo from the browser, and for
 turning a directory of markdown into a wiki (search, tags, note graph). Edit
@@ -31,8 +42,7 @@ implemented but not yet tested against a live instance.
 The packages are deployment-agnostic: storage is a small `KeyValueStore`
 interface (Cloudflare KV satisfies it structurally; self-hosted deployments
 bring Redis, SQLite, or the in-memory store). Cloudflare Workers is the
-first supported target — the example app below — with self-hosted Node as a
-planned second.
+first supported target — the example app below — the current writing example also runs on self-hosted Node.
 
 ## Layout
 
@@ -41,9 +51,9 @@ Bun workspace with packages under `code/`:
 | Package | Published | Purpose |
 | --- | --- | --- |
 | `@quiescent/git` | npm | Forge API abstraction: contents, multi-file commits, branches, pull requests, forks, OAuth |
-| `@quiescent/server` | npm | Framework-independent publishing, media, sessions, drafts, and commit logic |
+| `@quiescent/server` | npm | Schema-driven Markdown documents, publishing, media, and legacy session/draft APIs |
 | `@quiescent/astro` | npm (release pending) | Astro route helpers, page-cache policies, invalidation, and warming |
-| `@quiescent/editor` | npm | CodeMirror 6 markdown editor with idle detection (the flush-on-stop signal) |
+| `@quiescent/editor` | npm | Formatted post editor, schema metadata fields, Markdown conversion, and CodeMirror |
 | `@quiescent/wiki` | npm | Astro wiki toolkit: wikilinks remark plugin, tag index, MiniSearch index, d3-force note graph, all baked at build time (`virtual:quiescent-wiki`) |
 | `@quiescent/web` | no (example) | Reference Astro app on Cloudflare Workers wiring the packages together: auth routes, draft API, cron flush, and the `/demo` blog + wiki apps |
 

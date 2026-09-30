@@ -1,256 +1,87 @@
-import type { CommitSignature, PublishingForge } from "@quiescent/git";
-
-import { validateDocument, type WritingDocument } from "@quiescent/editor/document";
-
-export type PostBody = WritingDocument;
+import type {CommitSignature,PublishingForge} from '@quiescent/git';
+import {validateDocument,imageReferences,type WritingDocument} from '@quiescent/editor/document';
+import {fromMarkdown,toMarkdown} from '@quiescent/editor/markdown';
+import {createDocumentStore,type DocumentRecord,type DocumentDraft,type DocumentSelection,type JSONSchema} from './document-store.ts';
+import {DocumentError} from './document-error.ts';
+export {DocumentError as PublishingError} from './document-error.ts';
+export type PostBody=WritingDocument;
 export interface PostDocument {
-  id: string;
-  title: string;
-  description: string;
-  slug: string | null;
-  body: PostBody;
-  publishedAt?: string;
+  id:string;title:string;description:string;slug:string|null;
+  tags?:string[];headerImage?:string|null;body:PostBody;publishedAt?:string;
 }
-interface StoredPost extends PostDocument { publicationSource?: string; deletedAt?: string }
-export interface PostDraft {
-  post: PostDocument;
-  branch: string | null;
-  headSha: string;
-  state: "draft" | "published" | "unpublished-changes";
-}
-export interface DraftSelection { id: string; branch: string; expectedHeadSha: string }
-export class PublishingError extends Error {
-  constructor(message: string, public readonly code: "invalid" | "conflict" | "not_found") {
-    super(message);
-    this.name = "PublishingError";
-  }
-}
+export interface PostDraft {post:PostDocument;branch:string|null;headSha:string;state:'draft'|'published'|'unpublished-changes'}
+export type DraftSelection=DocumentSelection;
+type PostMetadata={title:string;description:string;slug:string|null;tags:string[];headerImage:string|null};
+export const postSchema:JSONSchema={
+  type:'object',additionalProperties:false,required:['title','description','slug','tags','headerImage'],
+  properties:{
+    title:{type:'string',title:'Title',maxLength:300},
+    description:{type:'string',title:'Description',maxLength:2000},
+    slug:{type:['string','null'],title:'Slug',description:'Use lowercase words separated by hyphens.',maxLength:160,pattern:'^[a-z0-9]+(?:-[a-z0-9]+)*$'},
+    tags:{type:'array',title:'Tags',maxItems:30,uniqueItems:true,items:{type:'string',minLength:1,maxLength:80}},
+    headerImage:{type:['string','null'],title:'Header image',pattern:'^/media/[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$'},
+  },
+};
 export interface PublishingOptions {
-  forge: PublishingForge;
-  author: CommitSignature;
-  defaultBranch?: string;
-  validateDocument?: (body: PostBody) => void | Promise<void>;
-  verifyMedia?: (post: PostDocument) => void | Promise<void>;
+  forge:PublishingForge;author:CommitSignature;defaultBranch?:string;
+  validateDocument?:(body:PostBody)=>void|Promise<void>;
+  verifyMedia?:(post:PostDocument)=>void|Promise<void>;
 }
-const prefix = "quiescent/posts/";
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-function path(id: string) {
-  if (!uuid.test(id)) throw new PublishingError("Invalid post identifier", "invalid");
-  return `posts/${id}/post.json`;
+const toPost=(document:DocumentRecord<PostMetadata>):PostDocument=>({id:document.id,...document.frontmatter,body:fromMarkdown(document.body),...(document.publishedAt?{publishedAt:document.publishedAt}:{})});
+const toDraft=(draft:DocumentDraft<PostMetadata>):PostDraft=>({post:toPost(draft.document),branch:draft.branch,headSha:draft.headSha,state:draft.state});
+function metadata(post:PostDocument):PostMetadata {
+  return {title:post.title,description:post.description,slug:post.slug,tags:post.tags ?? [],headerImage:post.headerImage ?? null};
 }
-function checkBranch(id: string, branch: string) {
-  path(id);
-  if (!branch.startsWith(`${prefix}${id}/`) || !uuid.test(branch.slice(`${prefix}${id}/`.length))) {
-    throw new PublishingError("Invalid draft", "invalid");
-  }
-}
-function publicPost(post: StoredPost): PostDocument {
-  const { publicationSource: _, deletedAt: __, ...document } = post;
-  return document;
+const generatedSlug=(title:string,id:string)=>`${title.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80) || 'post'}-${id.slice(0,8)}`;
+/** Posts are one schema and a rich-text adapter over the general Markdown document store. */
+export function createPublishingService(options:PublishingOptions) {
+  const store=createDocumentStore<PostMetadata>({
+    ...options,collection:'posts',schema:postSchema,
+    legacy:{filename:'post.json',decode(source,id){
+      const post=JSON.parse(source) as PostDocument & {publicationSource?:string;deletedAt?:string};
+      if(post.id!==id)throw new DocumentError('Document identifier mismatch','invalid');
+      return {id,frontmatter:{...metadata(post),slug:post.slug ?? (post.title.trim()?generatedSlug(post.title,id):null)},body:toMarkdown(post.body),...(post.publishedAt?{publishedAt:post.publishedAt}:{}),...(post.publicationSource?{publicationSource:post.publicationSource}:{}),...(post.deletedAt?{deletedAt:post.deletedAt}:{})};
+    }},
+    async beforePublish(document){
+      const post=toPost(document);
+      if(!post.title.trim())throw new DocumentError('Add a title before publishing.','invalid',{title:'Add a title before publishing.'});
+      if(!post.slug)throw new DocumentError('Add a slug before publishing.','invalid',{slug:'Add a slug before publishing.'});
+      if((await store.listPublished()).some(other=>other.document.id!==document.id && other.document.frontmatter.slug===post.slug))
+        throw new DocumentError('This slug is already published. Choose another.','conflict',{slug:'This slug is already published.'});
+      await options.validateDocument?.(post.body);await options.verifyMedia?.(post);
+    },
+  });
+  return {
+    schema:postSchema,documents:store,
+    async createPost(){return toDraft(await store.createDocument({frontmatter:{title:'',description:'',slug:null,tags:[],headerImage:null},body:''}));},
+    async getDraft(id:string,branch?:string){return toDraft(await store.getDraft(id,branch));},
+    async saveDraft(input:DraftSelection & {post:PostDocument}){
+      if(input.id!==input.post.id)throw new DocumentError('Document identifier mismatch','invalid');
+      await options.validateDocument?.(input.post.body);
+      const fields=metadata(input.post);
+      if(fields.slug===null && fields.title.trim())fields.slug=generatedSlug(fields.title,input.id);
+      return toDraft(await store.saveDraft({...input,document:{frontmatter:fields,body:toMarkdown(validateDocument(input.post.body))}}));
+    },
+    async publish(input:DraftSelection){const {document,...result}=await store.publish(input);return {...result,post:toPost(document)};},
+    async deletePost(input:{id:string;branch?:string|null;expectedHeadSha:string}){const {document,...result}=await store.deleteDocument(input);return {...result,post:toPost(document)};},
+    async getPublished(id:string){const value=await store.getPublished(id);return value?toDraft(value):null;},
+    async listPublished(){return (await store.listPublished()).map(toDraft);},
+    async listPosts(){return (await store.listDocuments()).map(toDraft);},
+    async findPostForEditing(slug:string):Promise<PostDraft|null>{
+      if(/^[0-9a-f-]{36}$/.test(slug)) {try{return toDraft(await store.getDraft(slug));}catch(error){if(error instanceof DocumentError && error.code==='not_found')return null;throw error;}}
+      const published=(await store.listPublished()).find(p=>p.document.frontmatter.slug===slug);
+      if(published)return toDraft(published);
+      return (await store.listDocuments()).map(toDraft).find(p=>p.post.slug===slug) ?? null;
+    },
+  };
 }
 
-/** Stateless post lifecycle: GitHub is the only authority for saved drafts and publications. */
-export function createPublishingService(options: PublishingOptions) {
-  const { forge, author } = options;
-  const main = options.defaultBranch ?? "main";
-  async function read(id: string, ref: string): Promise<StoredPost | null> {
-    const file = await forge.getFile(path(id), ref);
-    if (!file) return null;
-    const post = JSON.parse(file.content) as StoredPost;
-    if (post.id !== id) throw new PublishingError("Post identifier mismatch", "invalid");
-    return post;
+export function postImageReferences(post:PostDocument) {
+  const references=imageReferences(post.body);
+  if(post.headerImage) {
+    const match=/^\/media\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)$/.exec(post.headerImage);
+    if(!match)throw new DocumentError('Invalid header image','invalid',{headerImage:'Choose a valid image.'});
+    references.push({postId:match[1]!,assetId:match[2]!});
   }
-  async function checked(post: PostDocument): Promise<PostDocument> {
-    path(post.id);
-    if (typeof post.title !== "string" || post.title.length > 300 || typeof post.description !== "string" || post.description.length > 2000 || post.body?.type !== "doc") {
-      throw new PublishingError("Invalid post document", "invalid");
-    }
-    await options.validateDocument?.(post.body);
-    // Only server-maintained fields may control publication and routing.
-    return { id: post.id, title: post.title, description: post.description, slug: null, body: validateDocument(post.body) };
-  }
-  async function commit(branch: string, expectedHeadSha: string, post: StoredPost, message: string) {
-    return forge.commitFiles({ branch, expectedHeadSha, author, message, files: [{ path: path(post.id), content: JSON.stringify(post, null, 2) + "\n" }] });
-  }
-  async function getPublished(id: string): Promise<PostDraft | null> {
-    const headSha = await forge.getBranchSha(main);
-    const post = await read(id, headSha);
-    return post?.publishedAt && !post.deletedAt ? { post: publicPost(post), branch: null, headSha, state: "published" } : null;
-  }
-  async function listPublished(): Promise<PostDraft[]> {
-    const headSha = await forge.getBranchSha(main);
-    const entries = await forge.listDir("posts", headSha).catch((error: unknown) => {
-      if (typeof error === "object" && error !== null && "status" in error && error.status === 404) return [];
-      throw error;
-    });
-    const posts = await Promise.all(entries.filter(e => e.type === "dir" && uuid.test(e.name)).map(async e => {
-      const post = await read(e.name, headSha);
-      return post?.publishedAt && !post.deletedAt ? { post: publicPost(post), branch: null, headSha, state: "published" as const } : null;
-    }));
-    return posts.filter((p): p is PostDraft & {state:"published";branch:null} => p !== null);
-  }
-  async function activeDrafts(id?: string): Promise<PostDraft[]> {
-    const mainSha = await forge.getBranchSha(main);
-    const branches = await forge.listBranches(id ? `${prefix}${id}/` : prefix);
-    const result: PostDraft[] = [];
-    // Limit GitHub concurrency while avoiding one network waterfall per historical branch.
-    for (let offset = 0; offset < branches.length; offset += 6) {
-      const batch = await Promise.all(branches.slice(offset, offset + 6).map(async ({name, sha}) => {
-        const postId = name.slice(prefix.length).split("/")[0]!;
-        try { checkBranch(postId, name); } catch { return null; }
-        if (await forge.isAncestor(sha, mainSha)) return null;
-        if ((await read(postId, mainSha))?.deletedAt) return null;
-        const post = await read(postId, sha);
-        return post ? { post: publicPost(post), branch: name, headSha: sha,
-          state: post.publishedAt ? "unpublished-changes" as const : "draft" as const } : null;
-      }));
-      for (const post of batch) if (post) result.push(post);
-    }
-    return result;
-  }
-
-  async function start(post: PostDocument): Promise<PostDraft> {
-    const sha = await forge.getBranchSha(main);
-    const branch = `${prefix}${post.id}/${crypto.randomUUID()}`;
-    await forge.createBranch(branch, sha);
-    const result = await commit(branch, sha, post, "Save writing draft");
-    return { post, branch, headSha: result.sha, state: post.publishedAt ? "unpublished-changes" : "draft" };
-  }
-  async function startPublished(published: PostDraft): Promise<PostDraft> {
-    // One deterministic branch per published document revision, independent of unrelated
-    // main-branch commits. GitHub's create-ref and commit CAS arbitrate concurrent tabs.
-    const file = await forge.getFile(path(published.post.id), published.headSha);
-    if (!file) throw new PublishingError("Post not found", "not_found");
-    const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(file.content)))].map(b => b.toString(16).padStart(2, "0")).join("");
-    const cycle = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
-    const branch = `${prefix}${published.post.id}/${cycle}`;
-    try {
-      await forge.createBranch(branch, published.headSha);
-    } catch (error) {
-      // Also covers a successful create whose response was lost. Never reset a ref.
-      try { await forge.getBranchSha(branch); } catch { throw error; }
-    }
-    const head = await forge.getBranchSha(branch);
-    const current = await forge.getFile(path(published.post.id), head);
-    if (current?.content === file.content) {
-      try {
-        await commit(branch, head, published.post, "Save writing draft");
-      } catch (error) {
-        // A racing initializer or writer won. Load its version instead of overwriting it.
-        if (await forge.getBranchSha(branch) === head) throw error;
-      }
-    } else if (await forge.isAncestor(head, await forge.getBranchSha(main))) {
-      // This exact cycle finished while the caller was opening it; resolve the new cycle.
-      return getDraft(published.post.id);
-    }
-    return getDraft(published.post.id, branch);
-  }
-  async function createPost(): Promise<PostDraft> {
-    return start({ id: crypto.randomUUID(), title: "", description: "", slug: null, body: { type: "doc", content: [{ type: "paragraph" }] } });
-  }
-  async function assertNotDeleted(id: string, mainSha?: string) {
-    if ((await read(id, mainSha ?? await forge.getBranchSha(main)))?.deletedAt)
-      throw new PublishingError("This post was deleted. Your local writing has been preserved.", "not_found");
-  }
-  async function getDraft(id: string, branch?: string): Promise<PostDraft> {
-    path(id);
-    await assertNotDeleted(id);
-    if (branch) {
-      checkBranch(id, branch);
-      const headSha = await forge.getBranchSha(branch);
-      const post = await read(id, headSha);
-      if (!post) throw new PublishingError("Draft not found", "not_found");
-      return { post: publicPost(post), branch, headSha, state: post.publishedAt ? "unpublished-changes" : "draft" };
-    }
-    const drafts = await activeDrafts(id);
-    if (drafts[0]) return drafts[0];
-    const published = await getPublished(id);
-    if (!published) throw new PublishingError("Post not found", "not_found");
-    return startPublished(published);
-  }
-  async function saveDraft(input: DraftSelection & { post: PostDocument }): Promise<PostDraft> {
-    checkBranch(input.id, input.branch);
-    await assertNotDeleted(input.id);
-    if (input.id !== input.post.id) throw new PublishingError("Post identifier mismatch", "invalid");
-    const head = await forge.getBranchSha(input.branch);
-    if (head !== input.expectedHeadSha) throw new PublishingError("This draft has newer changes. Your writing has been preserved.", "conflict");
-    const previous = await read(input.id, head);
-    if (!previous) throw new PublishingError("Draft not found", "not_found");
-    if (await forge.isAncestor(head, await forge.getBranchSha(main))) {
-      throw new PublishingError("This draft was published. Reopen the post to continue editing.", "conflict");
-    }
-    const post = { ...await checked(input.post), slug: previous.slug, ...(previous.publishedAt ? { publishedAt: previous.publishedAt } : {}) };
-    const result = await commit(input.branch, head, post, "Save writing draft");
-    return { post, branch: input.branch, headSha: result.sha, state: post.publishedAt ? "unpublished-changes" : "draft" };
-  }
-  async function publish(input: DraftSelection) {
-    checkBranch(input.id, input.branch);
-    await assertNotDeleted(input.id);
-    let head = await forge.getBranchSha(input.branch);
-    let post = await read(input.id, head);
-    if (!post) throw new PublishingError("Draft not found", "not_found");
-    const mainSha = await forge.getBranchSha(main);
-    // A repeated request after a lost response must not re-publish or modify newer edits.
-    const published = await read(input.id, mainSha);
-    const requestedWasPrepared = published?.publicationSource && await forge.isAncestor(input.expectedHeadSha, mainSha)
-      && (await read(input.id, input.expectedHeadSha))?.publicationSource === published.publicationSource;
-    if (published && (published.publicationSource === input.expectedHeadSha || requestedWasPrepared)) {
-      return { post: publicPost(published), headSha: head, publishedSha: mainSha, state: "published" as const };
-    }
-    if (head !== input.expectedHeadSha && post.publicationSource !== input.expectedHeadSha) {
-      throw new PublishingError("This draft has newer changes. Review them before publishing.", "conflict");
-    }
-    const comparison = await forge.compareCommits(mainSha, head);
-    if (!comparison.files.length || comparison.files.some(f => f.filename !== path(input.id) || (f.previousFilename && f.previousFilename !== path(input.id)))) {
-      throw new PublishingError("The draft contains unexpected changes and cannot be published.", "invalid");
-    }
-    await checked(post);
-    if (!post.title.trim()) throw new PublishingError("Add a title before publishing.", "invalid");
-    await options.verifyMedia?.(publicPost(post));
-    if (!post.publicationSource) {
-      const slugBase = post.title.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || "post";
-      post = { ...post, slug: post.slug ?? `${slugBase}-${input.id.slice(0, 8)}`, publishedAt: post.publishedAt ?? new Date().toISOString(), publicationSource: input.expectedHeadSha };
-      head = (await commit(input.branch, head, post, "Prepare post publication")).sha;
-    }
-    const publicationSource = post.publicationSource;
-    const result = await forge.mergeBranch(main, head);
-    const visible = await read(input.id, result.sha);
-    if (!visible || visible.publicationSource !== publicationSource) throw new PublishingError("Publication could not be confirmed. Retry safely.", "conflict");
-    return { post: publicPost(visible), headSha: head, publishedSha: result.sha, state: "published" as const };
-  }
-  async function deletePost(input: {id:string; branch?:string|null; expectedHeadSha:string}) {
-    path(input.id);
-    const mainSha=await forge.getBranchSha(main);
-    const current=await read(input.id,mainSha);
-    if (current?.deletedAt) return {id:input.id,post:publicPost(current),headSha:mainSha,deleted:true as const};
-    const previous=await read(input.id,input.expectedHeadSha);
-    if (!previous) throw new PublishingError("Post not found","not_found");
-    if (input.branch) {
-      checkBranch(input.id,input.branch);
-      if (await forge.getBranchSha(input.branch)!==input.expectedHeadSha)
-        throw new PublishingError("This draft has newer changes. Reopen it before deleting.","conflict");
-      // A concurrently published revision must not be removed by a stale draft tab.
-      if (current?.publicationSource && !await forge.isAncestor(current.publicationSource,input.expectedHeadSha)
-        && current.publicationSource!==input.expectedHeadSha)
-        throw new PublishingError("This post was published since you opened it. Reopen it before deleting.","conflict");
-    } else if (JSON.stringify(current)!==JSON.stringify(previous)) {
-      throw new PublishingError("This post has newer changes. Reopen it before deleting.","conflict");
-    }
-    // The tombstone is authoritative across all retained branches and survives restarts.
-    const result=await commit(main,mainSha,{...previous,body:{type:"doc",content:[]},deletedAt:new Date().toISOString()},"Delete post");
-    return {id:input.id,post:publicPost(previous),headSha:result.sha,deleted:true as const};
-  }
-  async function listPosts(): Promise<PostDraft[]> {
-    const [drafts, published] = await Promise.all([activeDrafts(), listPublished()]);
-    const ids = new Set(drafts.map(d => d.post.id));
-    return [...drafts, ...published.filter(p => !ids.has(p.post.id))];
-  }
-  async function findPostForEditing(slug: string): Promise<PostDraft | null> {
-    // Unpublished posts use their stable ID until their first publication assigns a slug.
-    if(uuid.test(slug)) {
-      try {return await getDraft(slug);} catch(error){if(error instanceof PublishingError && error.code==="not_found")return null;throw error;}
-    }
-    return (await listPublished()).find(({post}) => post.slug === slug) ?? null;
-  }
-  return { createPost, getDraft, saveDraft, publish, deletePost, getPublished, listPublished, listPosts, findPostForEditing };
+  return references;
 }

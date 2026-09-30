@@ -40,7 +40,8 @@ export interface FileContent {
 
 export interface CommitFileChange {
   path: string;
-  content: string;
+  /** null deletes an existing file in the same commit. */
+  content: string | null;
 }
 
 export interface CommitSignature {

@@ -1,3 +1,4 @@
+import {createMetadataForm,type MetadataSchema} from './metadata.ts';
 import {
   findRecoveryRecords,
   removeRecoveredRecord,
@@ -188,6 +189,8 @@ type Post = {
   description: string;
   slug: string | null;
   body: WritingDocument;
+  tags?:string[];
+  headerImage?:string|null;
   publishedAt?: string;
 };
 type Draft = {
@@ -223,30 +226,30 @@ export function mountWritingApp(
   let recoveryNeedsReview = false;
   let destroyed = false;
   root.innerHTML =
-    '<div class="writing-app"><aside><button type="button" data-new>New post</button><nav aria-label="Posts"></nav></aside><main><p role="status" aria-live="polite"></p><div data-fields hidden><label>Title<input data-title></label><label>Description<input data-description></label><div data-editor></div><div class="writing-actions"><button type="button" data-save>Save now</button><button type="button" data-preview>Preview</button><button type="button" data-delete>Delete post</button><button type="button" data-publish>Publish</button></div><section data-preview-area hidden></section><p data-link></p></div></main></div>';
+    '<div class="writing-app"><aside><button type="button" data-new>New post</button><nav aria-label="Posts"></nav></aside><main><p role="status" aria-live="polite"></p><div data-fields hidden><div data-metadata></div><div data-header-tools><button type="button" data-header-upload>Add header image</button><button type="button" data-header-remove>Remove header image</button><input type="file" data-header-file accept="image/jpeg,image/png,image/webp" hidden><img data-header-preview alt="Header image preview" hidden></div><div data-editor></div><div class="writing-actions"><button type="button" data-save>Save now</button><button type="button" data-preview>Preview</button><button type="button" data-delete>Delete post</button><button type="button" data-publish>Publish</button></div><section data-preview-area hidden></section><p data-link></p></div></main></div>';
   const q = <T extends HTMLElement>(selector: string) =>
     root.querySelector<T>(selector)!;
   const status = (message: string) => {
     q("[role=status]").textContent = message;
   };
-  const title = q<HTMLInputElement>("[data-title]");
-  const description = q<HTMLInputElement>("[data-description]");
+  let metadata:ReturnType<typeof createMetadataForm>;
+  let headerUpload:Promise<void>|undefined;
   // Freeze the outgoing editor until its saves and the incoming load complete.
   // Ignoring additional clicks prevents a slow earlier response replacing newer work.
   const navigate = async (action: () => Promise<void>) => {
     if (publishing || navigating || destroyed) return;
+    await headerUpload;
+    if(publishing || navigating || destroyed)return;
     navigating = true;
     root.querySelectorAll<HTMLButtonElement>("nav button, [data-new]").forEach(button => { button.disabled = true; });
-    title.disabled = true;
-    description.disabled = true;
+    metadata?.disable(true);
     editor?.setEditable(false);
     try {
       await action();
     } finally {
       navigating = false;
       root.querySelectorAll<HTMLButtonElement>("nav button, [data-new]").forEach(button => { button.disabled = !listLoaded; });
-      title.disabled = !active;
-      description.disabled = !active;
+      metadata?.disable(!active);
       editor?.setEditable(Boolean(active));
     }
   };
@@ -259,12 +262,14 @@ export function mountWritingApp(
       headers: { "Content-Type": "application/json", ...init.headers },
     });
     const data = await response.json();
-    if (!response.ok)
+    if (!response.ok) {
+      metadata?.errors(data.fields);
       throw new Error(
         typeof data.error === "string"
           ? data.error
           : "The request failed. Your writing is retained.",
       );
+    }
     return data;
   };
   // getRandomValues also works on private HTTP tailnet origins.
@@ -294,6 +299,7 @@ export function mountWritingApp(
   };
   const flush = async (): Promise<void> => {
     clearTimeout(timer);
+    await headerUpload;
     if (recoveryNeedsReview)
       throw new Error(
         "Review recovered writing and choose Save now before continuing.",
@@ -331,6 +337,7 @@ export function mountWritingApp(
         } catch {
           /* Saved on GitHub; retain browser recovery if cleanup fails. */
         }
+        draft.post=updated.post;metadata.load(updated.post);showHeader();metadata.errors();
         status("Saved");
       } else remember();
     })();
@@ -343,8 +350,7 @@ export function mountWritingApp(
   };
   const changed = () => {
     if (!active) return;
-    active.post.title = title.value;
-    active.post.description = description.value;
+    Object.assign(active.post,metadata.read());
     active.post.body = editor!.getDocument();
     generation++;
     remember();
@@ -359,8 +365,6 @@ export function mountWritingApp(
       void flush().catch((e) => status(`Could not save: ${e.message}`));
     }, 800);
   };
-  title.addEventListener("input", changed);
-  description.addEventListener("input", changed);
   const renderList = () => {
     const drafts = [...summaries.values()];
     const nav = q("nav");
@@ -388,6 +392,28 @@ export function mountWritingApp(
     listLoaded=true;renderList();q<HTMLButtonElement>("[data-new]").disabled=navigating;
   };
   q<HTMLButtonElement>("[data-new]").disabled=true;
+  const uploadImage=async(target:string,file:File)=>{
+    const upload=await request<{assetId:string;url:string;headers:Record<string,string>}>(`/posts/${target}/uploads`,{method:'POST',body:JSON.stringify({contentType:file.type,size:file.size})});
+    const response=await fetch(upload.url,{method:'PUT',headers:upload.headers,body:file});
+    if(!response.ok)throw new Error('Upload failed');
+    return (await request<{src:string}>(`/posts/${target}/uploads/${upload.assetId}/confirm`,{method:'POST',body:'{}'})).src;
+  };
+  const showHeader=()=>{
+    const image=q<HTMLImageElement>('[data-header-preview]');const src=active?.post.headerImage;
+    image.hidden=!src;if(src)image.src=`${api}${src}`;else image.removeAttribute('src');
+  };
+  q('[data-header-upload]').onclick=()=>{if(active && !publishing && !navigating && !headerUpload)q<HTMLInputElement>('[data-header-file]').click();};
+  q('[data-header-remove]').onclick=()=>{if(active && !publishing && !navigating && !headerUpload){metadata.field('headerImage')!.value='';changed();showHeader();}};
+  q<HTMLInputElement>('[data-header-file]').onchange=()=>{
+    const input=q<HTMLInputElement>('[data-header-file]');const file=input.files?.[0];
+    if(!file || !active || publishing || navigating || headerUpload)return;
+    if(!['image/jpeg','image/png','image/webp'].includes(file.type) || file.size>10*1024*1024){status('Choose a JPEG, PNG, or WebP image up to 10 MB.');input.value='';return;}
+    const id=active.post.id;status('Uploading header image…');
+    headerUpload=uploadImage(id,file).then(src=>{metadata.field('headerImage')!.value=src;changed();showHeader();})
+      .catch(error=>{status(`Header image upload failed: ${error.message}`);throw error;})
+      .finally(()=>{headerUpload=undefined;input.value='';});
+    void headerUpload.catch(()=>{});
+  };
   const open = async (id: string, branch?: string) => {
     await editor?.waitForUploads();
     await flush();
@@ -403,8 +429,7 @@ export function mountWritingApp(
     savedGeneration = 0;
     let recovery = false;
     recoveryNeedsReview = false;
-    title.disabled = false;
-    description.disabled = false;
+    metadata.disable(false);
     selectedRecovery = undefined;
     remembered = undefined;
     try {
@@ -417,7 +442,7 @@ export function mountWritingApp(
           : "an earlier session";
         if (
           !window.confirm(
-            `Restore unsaved title and body “${candidate.post.title || "Untitled"}” from ${when} for review? Nothing will be saved until you choose Save now. Cancel keeps this copy and checks the next one.`,
+            `Restore unsaved metadata and body “${candidate.post.title || "Untitled"}” from ${when} for review? Nothing will be saved until you choose Save now. Cancel keeps this copy and checks the next one.`,
           )
         )
           continue;
@@ -431,8 +456,8 @@ export function mountWritingApp(
     } catch {
       /* Browser recovery is optional; saved GitHub content remains accessible. */
     }
-    title.value = draft.post.title;
-    description.value = draft.post.description;
+    metadata.load(draft.post);
+    showHeader();
     q("[data-fields]").hidden = false;
     q("[data-preview-area]").hidden = true;
     q("[data-link]").replaceChildren();
@@ -442,29 +467,7 @@ export function mountWritingApp(
       onChange: changed,
       onStatus: status,
       mediaUrl: (src) => `${api}${src}`,
-      uploadImage: async (file) => {
-        const target = draft.post.id;
-        const upload = await request<{
-          assetId: string;
-          url: string;
-          headers: Record<string, string>;
-        }>(`/posts/${target}/uploads`, {
-          method: "POST",
-          body: JSON.stringify({ contentType: file.type, size: file.size }),
-        });
-        const response = await fetch(upload.url, {
-          method: "PUT",
-          headers: upload.headers,
-          body: file,
-        });
-        if (!response.ok) throw new Error("Upload failed");
-        return (
-          await request<{ src: string }>(
-            `/posts/${target}/uploads/${upload.assetId}/confirm`,
-            { method: "POST", body: "{}" },
-          )
-        ).src;
-      },
+      uploadImage: file=>uploadImage(draft.post.id,file),
     });
     q("[data-publish]").textContent =
       draft.state === "published" || draft.post.publishedAt
@@ -507,8 +510,7 @@ export function mountWritingApp(
   q("[data-publish]").onclick = () => {
     if (!active || publishing || navigating) return;
     publishing = true;
-    title.disabled = true;
-    description.disabled = true;
+    metadata?.disable(true);
     editor?.setEditable(false);
     void (async () => {
       await editor?.waitForUploads();
@@ -566,8 +568,7 @@ export function mountWritingApp(
       .catch((e) => status(`Could not publish: ${e.message}`))
       .finally(() => {
         publishing = false;
-        title.disabled = !active;
-        description.disabled = !active;
+        metadata?.disable(!active);
         editor?.setEditable(Boolean(active));
       });
   };
@@ -586,7 +587,7 @@ export function mountWritingApp(
     }).catch(e=>status(`Could not delete: ${e.message}`));
   };
   const beforeUnload = (event: BeforeUnloadEvent) => {
-    if (generation !== savedGeneration || publishing) {
+    if (generation !== savedGeneration || publishing || headerUpload) {
       event.preventDefault();
       event.returnValue = "";
     }
@@ -602,12 +603,12 @@ export function mountWritingApp(
   };
   root.addEventListener("keydown", shortcut);
   window.addEventListener("beforeunload", beforeUnload);
-  if (options.initialPostId) {
-    void navigate(() => open(options.initialPostId!)).catch(e => status(e.message));
-    void list().catch(e => status(`Could not load posts: ${e.message}`));
-  } else {
-    void list().then(() => status("Choose a post or start writing.")).catch(e => status(e.message));
-  }
+  void request<MetadataSchema>('/schema').then(async schema=>{
+    if(destroyed)return;
+    metadata=createMetadataForm(q('[data-metadata]'),schema,()=>{changed();showHeader();},['headerImage']);
+    if(options.initialPostId)await Promise.all([navigate(()=>open(options.initialPostId!)),list()]);
+    else {await list();status('Choose a post or start writing.');}
+  }).catch(error=>status(`Could not load editor: ${error.message}`));
   return {
     destroy: () => {
       destroyed = true;

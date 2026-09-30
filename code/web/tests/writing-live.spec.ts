@@ -58,7 +58,7 @@ test.describe("GitHub writing acceptance with configured media", () => {
       await expect(page.getByRole("textbox", { name: "Post body" }).locator("strong")).toContainText(body);
       await page.getByRole("textbox", { name: "Post body" }).press("ControlOrMeta+End");
       await page.getByRole("textbox", { name: "Post body" }).press("Enter");
-      await page.locator('input[type="file"]').setInputFiles({ name: "weekend.png", mimeType: "image/png", buffer: png });
+      await page.locator('[data-editor] input[type="file"]').setInputFiles({ name: "weekend.png", mimeType: "image/png", buffer: png });
       const editorImage = page.getByRole("textbox", { name: "Post body" }).getByRole("img");
       await expect(editorImage).toHaveAttribute("alt", "A tiny photograph from our weekend");
       const imageSrc = await editorImage.getAttribute("src");
@@ -165,7 +165,7 @@ test.describe("GitHub writing acceptance with configured media", () => {
       await route.continue();
     });
     const file = { name: "garden.png", mimeType: "image/png", buffer: png };
-    const uploadInput = page.locator('input[type="file"]');
+    const uploadInput = page.locator('[data-editor] input[type="file"]');
     await uploadInput.setInputFiles(file);
     await expect(page.getByRole("status")).toContainText("Image upload failed.");
     await expect(page.getByRole("button", { name: "Add image", exact: true })).toBeEnabled();
@@ -310,4 +310,59 @@ test('native page cache is warmed by publication and deletion, with no private c
   expect(await (await hit('/')).text()).not.toContain(title);
   const stale=await page.request.put(`/api/writing/posts/${id}`,{headers,data:{branch:draft.branch,expectedHeadSha:draft.headSha,post:draft.post}});
   expect(stale.status()).toBe(404);
+});
+
+test('schema-driven posts save metadata and body together, publish header images, and warm pages',async({page,request,context})=>{
+ test.skip(process.env.QUIESCENT_LIVE_TEST!=='1','Explicit live opt-in required');
+ if(process.env.WRITING_TEST_PASSWORD){
+  await page.goto('/login');await page.getByLabel('Password',{exact:true}).fill(process.env.WRITING_TEST_PASSWORD);
+  await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page).toHaveURL(/\/write$/);
+ }
+ await page.goto('/write');await expect(page.getByRole('status')).toHaveText('Choose a post or start writing.');
+ const created=page.waitForResponse(r=>r.url().endsWith('/api/writing/posts') && r.request().method()==='POST');
+ await page.getByRole('button',{name:'New post',exact:true}).click();
+ const {post:{id}}=await (await created).json();
+ await expect(page.getByRole('status')).toHaveText('Saved');
+ const slug=`a-slow-sunday-${id.slice(0,8)}`;
+ await page.getByLabel('Title',{exact:true}).fill('A slow Sunday');
+ await page.getByLabel('Slug',{exact:true}).fill(slug);
+ await page.getByLabel('Tags',{exact:true}).fill('weekends, food');
+ await page.getByLabel('Description',{exact:true}).fill('Peaches, coffee, and no plans.');
+ await page.getByRole('textbox',{name:'Post body'}).fill('We shared breakfast outside and let the morning take its time.');
+ await page.locator('[data-header-file]').setInputFiles({name:'sunday.png',mimeType:'image/png',buffer:png});
+ await expect(page.locator('[data-header-preview]')).toBeVisible();
+ await page.getByRole('button',{name:'Save now',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Saved');
+ const saved=await (await page.request.get(`${api}/posts/${id}`)).json();
+ expect(saved.post).toMatchObject({title:'A slow Sunday',slug,tags:['weekends','food'],headerImage:expect.stringContaining(`/media/${id}/`)});
+ expect((await request.get(saved.post.headerImage)).status()).toBe(404);
+ console.log(`[document-proof] id=${id} head=${saved.headSha}`);
+ // An invalid slug must preserve both the previous metadata and body revision.
+ const invalid=page.waitForResponse(r=>r.url().endsWith(`${api}/posts/${id}`) && r.request().method()==='PUT' && r.status()===400);
+ await page.getByLabel('Slug',{exact:true}).fill('Not a valid slug!');await page.getByRole('button',{name:'Save now',exact:true}).click();await invalid;
+ await expect(page.getByLabel('Slug',{exact:true})).toHaveAttribute('aria-invalid','true');
+ expect((await (await page.request.get(`${api}/posts/${id}`)).json()).headSha).toBe(saved.headSha);
+ await page.getByLabel('Slug',{exact:true}).fill(slug);await page.getByRole('button',{name:'Save now',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Saved');
+ await page.reload();await expect(page.getByRole('status')).toHaveText('Saved');
+ await expect(page.getByLabel('Tags',{exact:true})).toHaveValue('weekends, food');
+ await expect(page.getByLabel('Slug',{exact:true})).toHaveValue(slug);
+ await expect(page.locator('[data-header-preview]')).toBeVisible();
+ await page.getByRole('button',{name:'Publish',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Published');
+ const path=(await page.getByRole('link',{name:'Read your post'}).getAttribute('href'))!;
+ for(const route of ['/', '/read',path]){
+  const first=await request.get(route);expect(first.status()).toBe(200);
+  expect(first.headers()['x-astro-cache'] ?? first.headers()['cf-cache-status']).toBe('HIT');
+  expect((await request.get(route)).headers()['x-quiescent-rendered']).toBe(first.headers()['x-quiescent-rendered']);
+ }
+ const reader=await context.newPage();await reader.goto(path);
+ await expect(reader.locator('.tags')).toHaveText('weekendsfood');
+ await expect(reader.locator('.header-image')).toBeVisible();
+ expect(await reader.locator('.header-image').evaluate((image:HTMLImageElement)=>image.complete && image.naturalWidth>0)).toBe(true);
+ expect((await request.get(saved.post.headerImage)).status()).toBe(200);
+ await reader.close();
+ await page.getByRole('button',{name:'Edit post',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Saved');
+ await page.getByLabel('Tags',{exact:true}).fill('weekends, memories');
+ await page.getByRole('button',{name:'Save now',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Saved');
+ expect(await (await request.get(path)).text()).not.toContain('<li>memories</li>');
+ await page.getByRole('button',{name:'Publish changes',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Published');
+ const revised=await request.get(path);expect(revised.headers()['x-astro-cache'] ?? revised.headers()['cf-cache-status']).toBe('HIT');expect(await revised.text()).toContain('<li>memories</li>');
 });

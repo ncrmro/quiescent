@@ -66,6 +66,8 @@ describe("writing HTTP boundary",()=>{
     const response=await publishedMedia(published,storage,id,asset);
     expect(response.status).toBe(200);expect(reads).toBe(1);
     expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    const headerOnly=post(false);headerOnly.post.headerImage=`/media/${id}/${asset}`;
+    expect((await publishedMedia(service({getPublished:async()=>headerOnly}),storage,id,asset)).status).toBe(200);
   });
   test("reader output identifies the actual revision and escapes untrusted titles",async()=>{
     const response=await publishedPage(service({getPublished:async()=>post()}),id);

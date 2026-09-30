@@ -5,7 +5,7 @@ import { findRecoveryRecords, removeRecoveredRecord } from "../src/recovery.ts";
 test("offers prior editing cycles newest first without deleting unselected records", () => {
   const record = (title: string, updatedAt: number) =>
     JSON.stringify({
-      post: { title, description: "", body: emptyDocument() },
+      post: { title, description: "", slug:"unfinished",tags:["food"],headerImage:"/media/post/header",body: emptyDocument() },
       updatedAt,
     });
   const values = new Map([
@@ -28,6 +28,7 @@ test("offers prior editing cycles newest first without deleting unselected recor
     "Unfinished old title",
     "Other writing",
   ]);
+  expect(candidates[0]!.post).toMatchObject({slug:"unfinished",tags:["food"],headerImage:"/media/post/header"});
   expect(values.size).toBe(3);
   removeRecoveredRecord(storage, candidates[0]!);
   expect(values.has("post:new-cycle:tab-b")).toBe(true);

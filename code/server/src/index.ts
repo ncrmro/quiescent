@@ -41,3 +41,7 @@ export {
 export * from "./publishing.ts";
 export * from "./media.ts";
 export * from "./writing-http.ts";
+
+export * from "./document-store.ts";
+export {documentCodec} from "./document-codec.ts";
+export * from './document-http.ts';

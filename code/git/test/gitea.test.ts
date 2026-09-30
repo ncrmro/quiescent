@@ -32,7 +32,7 @@ describe("GiteaForge", () => {
     expect(requests[0]?.url).toBe("https://codeberg.org/api/v1/user");
   });
 
-  test("commitFiles batches create and update operations with blob shas", async () => {
+  test("commitFiles batches create, update and delete operations with blob shas", async () => {
     const { client, requests } = forge([
       { method: "GET", url: "/branches/main", response: { commit: { id: "head1" } } },
       {
@@ -40,6 +40,7 @@ describe("GiteaForge", () => {
         url: "/contents/existing.md",
         response: { path: "existing.md", name: "existing.md", type: "file", sha: "blob1", size: 1, content: encodeBase64("old") },
       },
+      {method:"GET",url:"/contents/removed.json",response:{path:"removed.json",name:"removed.json",type:"file",sha:"old-blob",content:encodeBase64("{}")}},
       {
         method: "POST",
         url: "/contents",
@@ -52,6 +53,7 @@ describe("GiteaForge", () => {
       files: [
         { path: "existing.md", content: "new" },
         { path: "brand-new.md", content: "fresh" },
+        { path: "removed.json", content: null },
       ],
     });
     expect(result).toEqual({ sha: "commit1", url: "http://c" });
@@ -62,6 +64,7 @@ describe("GiteaForge", () => {
     expect(body.files).toEqual([
       { operation: "update", path: "existing.md", content: encodeBase64("new"), sha: "blob1" },
       { operation: "create", path: "brand-new.md", content: encodeBase64("fresh") },
+      { operation: "delete", path: "removed.json", sha:"old-blob" },
     ]);
   });
 

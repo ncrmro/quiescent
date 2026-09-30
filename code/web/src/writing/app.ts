@@ -1,8 +1,7 @@
 import { hostedMedia } from "quiescent:runtime";
 export { writingAuthor } from "./auth";
 import { createForge, requirePublishingForge } from "@quiescent/git";
-import { createPublishingService, localR2Media, r2Media, WritingConfigurationError, PublishingError, type MediaStorage } from "@quiescent/server";
-import { imageReferences } from "@quiescent/editor/document";
+import { createPublishingService, localR2Media, r2Media, WritingConfigurationError, PublishingError, postImageReferences, type MediaStorage } from "@quiescent/server";
 
 export type WritingEnv = Partial<WritingBindings> & Partial<HostedWritingBindings> & {
   SERVICE_TOKEN?: string;
@@ -26,7 +25,7 @@ export function writingApp(env:WritingEnv) {
     media=localR2Media(env.WRITING_MEDIA);
   }
   const service=createPublishingService({forge,author:{name:env.WRITING_AUTHOR_NAME ?? "Local writer",email:env.WRITING_AUTHOR_EMAIL ?? "writer@quiescent.invalid"},verifyMedia:async post=>{
-    for(const ref of imageReferences(post.body)){
+    for(const ref of postImageReferences(post)){
       if(ref.postId!==post.id)throw new PublishingError("Images must belong to this post.","invalid");
       await media.verify(ref.postId,ref.assetId);
     }

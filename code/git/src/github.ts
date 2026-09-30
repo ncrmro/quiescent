@@ -74,7 +74,7 @@ export class GitHubForge implements PublishingForge {
     const response = await this.http.request(
       `${this.repoPath}/contents/${encodePath(path)}${query}`,
     );
-    if (response.status === 404) return null;
+    if (response.status === 404) { await response.body?.cancel(); return null; }
     const entry = (await response.json()) as GitHubContentsEntry;
     if (entry.type !== "file" || entry.content === undefined) {
       throw new ForgeError(`${path} is not a file`, 422, path);
@@ -158,6 +158,7 @@ export class GitHubForge implements PublishingForge {
     });
     if (response.status === 204) return { sha: await this.getBranchSha(base) };
     if (response.status === 404) {
+      await response.body?.cancel();
       throw new ForgeError("Publication base or commit was not found", 404, this.repoPath);
     }
     const commit = await response.json() as { sha: string; html_url?: string };
@@ -181,7 +182,7 @@ export class GitHubForge implements PublishingForge {
           path: file.path,
           mode: "100644",
           type: "blob",
-          content: file.content,
+          ...(file.content === null ? { sha: null } : { content: file.content }),
         })),
       }),
     });

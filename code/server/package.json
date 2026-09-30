@@ -2,7 +2,7 @@
   "name": "@quiescent/server",
   "version": "0.2.0",
   "type": "module",
-  "description": "Server-side sessions, drafts, and flush-to-commit logic for quiescent; storage-agnostic (Cloudflare KV, or any KeyValueStore)",
+  "description": "Schema-validated Markdown document store, Git publishing, media, and legacy draft APIs for Quiescent",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -17,6 +17,10 @@
     "./file-media": {
       "types": "./dist/file-media.d.ts",
       "default": "./dist/file-media.js"
+    },
+    "./documents": {
+      "types": "./dist/documents.d.ts",
+      "default": "./dist/documents.js"
     }
   },
   "types": "./dist/index.d.ts",
@@ -33,9 +37,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@cfworker/json-schema": "^4.1.1",
+    "@quiescent/editor": "^0.2.0",
     "@quiescent/git": "^0.2.0",
     "aws4fetch": "^1.0.20",
-    "@quiescent/editor": "^0.2.0"
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",

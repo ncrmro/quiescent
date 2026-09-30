@@ -2,7 +2,7 @@
   "name": "@quiescent/editor",
   "version": "0.2.0",
   "type": "module",
-  "description": "CodeMirror 6 markdown editor with idle detection for quiescent's flush-on-stop workflow",
+  "description": "Formatted writing, schema metadata fields, Markdown conversion, and CodeMirror editing for Quiescent",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -21,6 +21,14 @@
     "./writing": {
       "types": "./dist/writing.d.ts",
       "default": "./dist/writing.js"
+    },
+    "./markdown": {
+      "types": "./dist/markdown.d.ts",
+      "default": "./dist/markdown.js"
+    },
+    "./metadata": {
+      "types": "./dist/metadata.d.ts",
+      "default": "./dist/metadata.js"
     }
   },
   "types": "./dist/index.d.ts",
@@ -42,10 +50,11 @@
     "@codemirror/language": "^6.11.0",
     "@codemirror/state": "^6.5.0",
     "@codemirror/view": "^6.36.0",
-    "marked": "^15.0.0",
     "@tiptap/core": "^3.0.0",
+    "@tiptap/extension-image": "^3.0.0",
+    "@tiptap/markdown": "^3.31.3",
     "@tiptap/starter-kit": "^3.0.0",
-    "@tiptap/extension-image": "^3.0.0"
+    "marked": "^15.0.0"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",

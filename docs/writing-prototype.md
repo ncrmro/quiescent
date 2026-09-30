@@ -5,6 +5,11 @@ delete. GitHub is the content backend. Quiescent owns the Git operations, editor
 media validation, and publication/cache lifecycle. The example supplies its
 password gate, page presentation, and runtime adapters. No npm releases are needed.
 
+Posts demonstrate the [general document store](document-store.md): title,
+description, editable slug, tags, header image, and body are one editor and one
+atomic save. GitHub stores Markdown with schema-validated YAML front matter.
+Existing JSON posts convert when edited; no bulk migration or npm release is needed.
+
 ## Run the self-hosted example
 
 Use Node on a single server, with a private GitHub repository initialized on `main`:
@@ -170,20 +175,21 @@ hits after publishing, stable cached HTML, deletion, and draft privacy. The Node
 acceptance repository is the separate private `ncrmro/quiescent-writing-node-demo`
 so filesystem-backed images are not mixed with the Cloudflare demo's R2 objects.
 
-Validation on 2026-09-29: 87 package tests pass, workspace type checks pass,
-both production builds pass, and all 10 existing blog/wiki browser tests pass.
-Live Node acceptance covered all five scenarios (the reader-edit assertion was
-corrected to compare the current private draft, then passed separately). Hosted
-acceptance passed writing, images, private revisions, upload retry, stale-tab
-protection, password login/logout, and reader Edit links. The strict cache test
-exposed intermittent homepage misses; the final change adds cache-hit confirmation.
-Its unit coverage passes, but final live acceptance of that change is pending:
-GitHub repository calls returned 403 with remaining=0 and reset timestamp
-2026-09-30T03:05:57Z (September 29, 10:05:57 PM Central). The generic rate-limit
-endpoint incorrectly reported unused capacity; actual repository response headers
-identified the limit. Node startup prewarming also stopped on this dependency.
+Validation on 2026-09-30: 96 package tests pass, workspace type checks pass,
+and Node and Cloudflare production builds pass. Frozen dependency installation
+succeeds without changes. Coverage includes arbitrary non-blog schemas, atomic
+metadata/body saves, invalid metadata leaving Git unchanged, legacy JSON migration,
+Markdown rich-text round trips, and collection-specific Astro cache warming.
 
-After the reset, restart Node, rerun `writing-warm.mjs` for the hosted Worker, and
-rerun the focused `native page cache` browser test on each runtime. Do not treat
-cache-fill confirmation as live-proven until those checks pass. No npm packages
-were published.
+The live metadata journey passed on both Node and the deployed Cloudflare Worker: title/slug/tags/header image/body save and
+reopen, invalid-slug rejection, private images, publication, private revisions,
+and first-request HTML cache hits after publish and revision. Cloudflare used the existing private R2 bucket for the header-image upload.
+The stored Markdown was read directly from its GitHub commit. The phone-width editor has no horizontal
+overflow. Node and the deployed Cloudflare Worker both passed the focused
+publication/deletion cache test, including cached 404s and stale-draft protection.
+This resolves the previously pending cache-fill confirmation check.
+
+Cloudflare deployment: `af815298-146d-4fad-b330-f498c80812a0`.
+The Node app runs on ncrmro-workstation at the URL recorded in
+`code/web/.env.node.local`; the hosted app uses its existing R2 bucket. No npm
+packages were published. MDX remains deferred.

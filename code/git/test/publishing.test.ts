@@ -96,3 +96,17 @@ describe("GitHub publishing", () => {
     expect(() => requirePublishingForge(gitea)).toThrow("Publishing is not supported");
   });
 });
+
+test('Markdown replaces a legacy file in one GitHub tree and one guarded commit',async()=>{
+ const {client,requests}=forge([
+  {method:'GET',url:'/git/ref/heads/',response:{object:{sha:base}}},
+  {method:'GET',url:'/git/commits/',response:{tree:{sha:'tree'}}},
+  {method:'POST',url:'/git/trees',response:{sha:'new-tree'}},
+  {method:'POST',url:'/git/commits',response:{sha:head}},
+  {method:'PATCH',url:'/git/refs/',response:{object:{sha:head}}},
+ ]);
+ await client.commitFiles({branch:'draft',expectedHeadSha:base,message:'Save',files:[{path:'index.md',content:'---\ntitle: Lunch\n---\nBody'},{path:'post.json',content:null}]});
+ const tree=requests.find(r=>r.method==='POST' && r.url.endsWith('/git/trees'))!.body as any;
+ expect(tree.tree).toEqual([{path:'index.md',mode:'100644',type:'blob',content:'---\ntitle: Lunch\n---\nBody'},{path:'post.json',mode:'100644',type:'blob',sha:null}]);
+ expect(requests.filter(r=>r.method==='POST' && r.url.endsWith('/git/commits'))).toHaveLength(1);
+});

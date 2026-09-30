@@ -1,22 +1,10 @@
-import { imageReferences, renderDocument } from "@quiescent/editor/document";
-import { ConflictError, ForgeError } from "@quiescent/git";
-import { PublishingError, type createPublishingService, type DraftSelection, type PostDocument } from "./publishing.ts";
+import { renderDocument } from "@quiescent/editor/document";
+import { PublishingError, type createPublishingService, type DraftSelection, type PostDocument, postImageReferences } from "./publishing.ts";
 import { MediaError, type MediaStorage } from "./media.ts";
 
-export class WritingConfigurationError extends Error {}
 type Service = ReturnType<typeof createPublishingService>;
-const json=(body:unknown,status=200)=>Response.json(body,{status,headers:{"Cache-Control":"no-store"}});
-async function payload(request:Request):Promise<Record<string,unknown>> {
-  if(!request.body)throw new PublishingError("Request body missing","invalid");
-  const reader=request.body.getReader(); const chunks:Uint8Array[]=[];let size=0;
-  try { while(true){const chunk=await reader.read();if(chunk.done)break;size+=chunk.value.length;
-    if(size>1024*1024){await reader.cancel();throw new PublishingError("This post is too large","invalid");}chunks.push(chunk.value);}
-  } finally {reader.releaseLock();}
-  const bytes=new Uint8Array(size);let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length;}
-  const result:unknown=JSON.parse(new TextDecoder().decode(bytes));
-  if(!result || typeof result!=="object" || Array.isArray(result))throw new PublishingError("Invalid request","invalid");
-  return result as Record<string,unknown>;
-}
+import {json,payload,documentErrorResponse as writingErrorResponse} from "./http.ts";
+export {payload,WritingConfigurationError,documentErrorResponse as writingErrorResponse} from "./http.ts";
 function selection(id:string,value:Record<string,unknown>):DraftSelection {
   if(typeof value.branch!=="string" || typeof value.expectedHeadSha!=="string") throw new PublishingError("Draft revision missing","invalid");
   return {id,branch:value.branch,expectedHeadSha:value.expectedHeadSha};
@@ -32,6 +20,7 @@ export function createWritingHandler(options:{service:Service;media:MediaStorage
       if (!url.pathname.startsWith(`${base}/`)) return json({error:"Not found"},404);
       const parts=url.pathname.slice(base.length).split("/").filter(Boolean);
       const [resource,id,action,asset,operation]=parts;
+      if(resource==="schema" && !id && request.method==="GET")return json(service.schema);
       if(parts.length>5 || (resource!=="posts" && parts.length>3) || (resource==="posts" && action!=="uploads" && parts.length>3))return json({error:"Not found"},404);
       if(resource==="posts" && !id){
         if(request.method==="GET")return json(await service.listPosts());
@@ -82,24 +71,12 @@ export function createWritingHandler(options:{service:Service;media:MediaStorage
     } catch(error) {return writingErrorResponse(error);}
   };
 }
-export function writingErrorResponse(error:unknown):Response {
-  if(error instanceof WritingConfigurationError)return json({error:error.message},503);
-  if(error instanceof PublishingError)return json({error:error.message},error.code==="conflict"?409:error.code==="not_found"?404:400);
-  if(error instanceof MediaError)return json({error:error.message},error.status);
-  if(error instanceof ConflictError)return json({error:"This draft has newer changes. Your writing is still in this browser; reopen it before saving."},409);
-  if(error instanceof ForgeError){
-    const status=error.status;
-    return json({error:status===409 || status===422?"This post could not be merged. Your draft is safe. Reopen it and try again.":status===401 || status===403?"GitHub access was denied. Check the server credential or try again after its rate limit resets.":"GitHub is unavailable. Your draft has not been discarded; please retry."},status===409 || status===422?409:502);
-  }
-  if(error instanceof SyntaxError)return json({error:"Invalid document"},400);
-  return json({error:"The operation could not finish. Your writing has not been discarded."},500);
-}
 function mediaResponse(object:Awaited<ReturnType<MediaStorage["read"]>>):Response {
   return object ? new Response(object.body,{headers:{"Content-Type":object.contentType,"Content-Length":String(object.size),"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}}):json({error:"Image not found"},404);
 }
 export async function publishedMedia(service:Service,media:MediaStorage,id:string,assetId:string):Promise<Response>{
   const post=await service.getPublished(id);
-  if(!post || !imageReferences(post.post.body).some(r=>r.postId===id && r.assetId===assetId))return json({error:"Image not found"},404);
+  if(!post || !postImageReferences(post.post).some(r=>r.postId===id && r.assetId===assetId))return json({error:"Image not found"},404);
   return mediaResponse(await media.read(id,assetId));
 }
 const escape=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));

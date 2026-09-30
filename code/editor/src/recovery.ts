@@ -4,7 +4,7 @@ export interface RecoveryRecord {
   key: string;
   raw: string;
   updatedAt: number;
-  post: { title: string; description: string; body: WritingDocument };
+  post: { title: string; description: string; slug?:string|null; tags?:string[]; headerImage?:string|null; body: WritingDocument };
 }
 export type RecoveryStorage = Pick<
   Storage,
@@ -35,6 +35,9 @@ export function findRecoveryRecords(
         post: {
           title: value.post.title,
           description: value.post.description,
+          ...(typeof value.post.slug==='string' || value.post.slug===null ? {slug:value.post.slug}:{}),
+          ...(Array.isArray(value.post.tags) && value.post.tags.every((v:unknown)=>typeof v==='string') ? {tags:value.post.tags}:{}),
+          ...(typeof value.post.headerImage==='string' || value.post.headerImage===null ? {headerImage:value.post.headerImage}:{}),
           body: validateDocument(value.post.body),
         },
       });
