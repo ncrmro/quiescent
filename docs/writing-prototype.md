@@ -87,7 +87,8 @@ The main pieces are existing workspace packages:
 - `@quiescent/git`: refs, commit conflict checks, comparisons, and merges.
 - `@quiescent/server`: framework-independent publishing service, HTTP handler, and media adapters.
 - `@quiescent/astro`: Astro route helpers, cache policies, invalidation, and warming.
-  This is a private workspace package and is not published to npm.
+  This is a publishable workspace package; its first npm release is deferred
+  until the writing workflow is validated.
 - `@quiescent/editor`: formatted editor, serialized saves, recovery, photos,
   publication and deletion controls, and incremental author-list updates.
 

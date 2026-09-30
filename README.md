@@ -42,7 +42,7 @@ Bun workspace with packages under `code/`:
 | --- | --- | --- |
 | `@quiescent/git` | npm | Forge API abstraction: contents, multi-file commits, branches, pull requests, forks, OAuth |
 | `@quiescent/server` | npm | Framework-independent publishing, media, sessions, drafts, and commit logic |
-| `@quiescent/astro` | no (private workspace) | Astro route helpers, page-cache policies, invalidation, and warming |
+| `@quiescent/astro` | npm (release pending) | Astro route helpers, page-cache policies, invalidation, and warming |
 | `@quiescent/editor` | npm | CodeMirror 6 markdown editor with idle detection (the flush-on-stop signal) |
 | `@quiescent/wiki` | npm | Astro wiki toolkit: wikilinks remark plugin, tag index, MiniSearch index, d3-force note graph, all baked at build time (`virtual:quiescent-wiki`) |
 | `@quiescent/web` | no (example) | Reference Astro app on Cloudflare Workers wiring the packages together: auth routes, draft API, cron flush, and the `/demo` blog + wiki apps |
@@ -82,7 +82,8 @@ changed package, and the `publish` job pushes each one to npm with
 GitHub OIDC token with the registry, so no `NPM_TOKEN` is stored anywhere
 and releases carry provenance.
 
-All four published packages (`git`, `server`, `editor`, `wiki`) are in
+The four published packages (`git`, `server`, `editor`, `wiki`) and the pending
+`astro` package are in
 `release-please-config.json`; `@quiescent/web` is the private example app and
 stays unpublished. The `node-workspace` plugin keeps the cross-package
 dependency ranges (`@quiescent/server` → `@quiescent/git`) in step with each

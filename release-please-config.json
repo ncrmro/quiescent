@@ -15,6 +15,9 @@
     },
     "code/wiki": {
       "component": "quiescent-wiki"
+    },
+    "code/astro": {
+      "component": "quiescent-astro"
     }
   },
   "plugins": [
