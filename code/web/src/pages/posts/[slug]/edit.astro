@@ -6,4 +6,5 @@ export const prerender = false;
 const post = await writingApp(env).service.findPostForEditing(Astro.params.slug ?? "");
 if (!post) return new Response("Not found", { status: 404 });
 ---
+
 <WritingPage postId={post.post.id} />

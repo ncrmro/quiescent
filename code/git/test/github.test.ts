@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { encodeBase64 } from "../src/base64.ts";
 import { ConflictError } from "../src/errors.ts";
 import { GitHubForge } from "../src/github.ts";
-import { encodeBase64 } from "../src/base64.ts";
 import { createMockFetch, type Route } from "./mock-fetch.ts";
 
 function forge(routes: Route[]) {
@@ -26,12 +26,21 @@ describe("GitHubForge", () => {
       },
     ]);
     const user = await client.getUser();
-    expect(user).toEqual({ id: 1, login: "ncrmro", name: "Nic", email: undefined, avatarUrl: "http://a" });
+    expect(user).toEqual({
+      id: 1,
+      login: "ncrmro",
+      name: "Nic",
+      avatarUrl: "http://a",
+    });
   });
 
   test("getRepoPermissions maps push/admin and defaults to false", async () => {
     const { client } = forge([
-      { method: "GET", url: "/repos/ncrmro/notes", response: { permissions: { push: true, admin: false } } },
+      {
+        method: "GET",
+        url: "/repos/ncrmro/notes",
+        response: { permissions: { push: true, admin: false } },
+      },
     ]);
     expect(await client.getRepoPermissions()).toEqual({ push: true, admin: false });
 
@@ -46,12 +55,57 @@ describe("GitHubForge", () => {
       {
         method: "GET",
         url: "/contents/docs/note.md",
-        response: { path: "docs/note.md", name: "note.md", type: "file", sha: "abc", size: 5, content: encodeBase64("héllo") },
+        response: {
+          path: "docs/note.md",
+          name: "note.md",
+          type: "file",
+          sha: "abc",
+          size: 5,
+          content: encodeBase64("héllo"),
+        },
       },
     ]);
     const file = await client.getFile("docs/note.md");
     expect(file).toEqual({ path: "docs/note.md", sha: "abc", content: "héllo" });
     expect(await client.getFile("missing.md")).toBeNull();
+  });
+
+  test("reads the exact Git blob when Contents cannot yet resolve a committed SHA", async () => {
+    const ref = "a".repeat(40);
+    const routes: Route[] = [
+      {
+        method: "GET",
+        url: `/contents/post.md?ref=${ref}`,
+        status: 404,
+        response: { message: `No commit found for the ref ${ref}` },
+      },
+      {
+        method: "GET",
+        url: `/git/trees/${ref}?recursive=1`,
+        response: { truncated: false, tree: [{ path: "post.md", type: "blob", sha: "blob" }] },
+      },
+      {
+        method: "GET",
+        url: "/git/blobs/blob",
+        response: { encoding: "base64", content: encodeBase64("Saved Markdown") },
+      },
+    ];
+    const { client, requests } = forge(routes);
+    expect(await client.getFile("post.md", ref)).toEqual({
+      path: "post.md",
+      sha: "blob",
+      content: "Saved Markdown",
+    });
+    expect(requests).toHaveLength(3);
+    const truncated = forge([
+      routes[0]!,
+      {
+        method: "GET",
+        url: `/git/trees/${ref}?recursive=1`,
+        response: { truncated: true, tree: [] },
+      },
+    ]);
+    await expect(truncated.client.getFile("post.md", ref)).rejects.toThrow("truncated Git tree");
   });
 
   test("commitFiles runs blob-less tree -> commit -> ref update sequence", async () => {

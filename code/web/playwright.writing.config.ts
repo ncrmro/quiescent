@@ -16,7 +16,7 @@ export default defineConfig({
   expect: { timeout: 40_000 },
   reporter: [["list"]],
   use: {
-    baseURL: process.env.BASE_URL,
+    ...(process.env.BASE_URL ? { baseURL: process.env.BASE_URL } : {}),
     // Signed upload URLs are credentials; do not retain network traces or HARs.
     trace: "off",
     screenshot: "only-on-failure",

@@ -1,24 +1,114 @@
 ---
-export const prerender=false;
+export const prerender = false;
 ---
+
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width"/><title>Sign in · Quiescent</title></head>
-<body><main><a href="/read">Quiescent</a><h1>A place for your stories</h1>
-<form><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required autofocus/><button>Sign in</button><p role="status" aria-live="polite"></p></form></main>
-<script>
-const form = document.querySelector("form")!;
-form.addEventListener("submit", async event => {
-  event.preventDefault();
-  const button=form.querySelector("button")!;
-  const status=form.querySelector('[role="status"]')!;
-  button.disabled=true; status.textContent="Signing in…";
-  try {
-    const response=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:(form.elements.namedItem("password") as HTMLInputElement).value})});
-    if(!response.ok){status.textContent="That password did not work. Please try again.";return;}
-    window.location.assign("/write");
-  } catch {status.textContent="Unable to sign in. Please try again.";}
-  finally {button.disabled=false;}
-});
-</script>
-<style>body{background:#faf9f6;color:#293530;font:17px/1.6 system-ui,sans-serif;margin:0}main{max-width:420px;margin:12vh auto;padding:1.5rem}a{color:#315c4c;font:700 1.6rem Georgia,serif;text-decoration:none}h1{font:2rem/1.2 Georgia,serif;margin:2rem 0}label,input,button{display:block;width:100%;box-sizing:border-box}input{font:inherit;padding:.65rem;border:1px solid #bac7be;border-radius:6px;margin:.4rem 0 1rem}button{font:inherit;padding:.6rem;background:#315c4c;color:white;border:0;border-radius:6px;cursor:pointer}button:disabled{opacity:.6}[role=status]{min-height:1.6em}</style>
-</body></html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Sign in · Quiescent</title>
+  </head>
+  <body>
+    <main>
+      <a href="/read">Quiescent</a>
+      <h1>A place for your stories</h1>
+      <form>
+        <label for="password">Password</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+        ><button type="submit">Sign in</button>
+        <p role="status" aria-live="polite"></p>
+      </form>
+    </main>
+    <script>
+    const form = document.querySelector("form")!;
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = form.querySelector("button")!;
+      const status = form.querySelector('[role="status"]')!;
+      button.disabled = true;
+      status.textContent = "Signing in…";
+      try {
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            password: (form.elements.namedItem("password") as HTMLInputElement).value,
+          }),
+        });
+        if (!response.ok) {
+          status.textContent = "That password did not work. Please try again.";
+          return;
+        }
+        window.location.assign("/write");
+      } catch {
+        status.textContent = "Unable to sign in. Please try again.";
+      } finally {
+        button.disabled = false;
+      }
+    });
+    </script>
+    <style>
+    body {
+      background: #faf9f6;
+      color: #293530;
+      font:
+        17px / 1.6 system-ui,
+        sans-serif;
+      margin: 0;
+    }
+    main {
+      max-width: 420px;
+      margin: 12vh auto;
+      padding: 1.5rem;
+    }
+    a {
+      color: #315c4c;
+      font:
+        700 1.6rem Georgia,
+        serif;
+      text-decoration: none;
+    }
+    h1 {
+      font:
+        2rem / 1.2 Georgia,
+        serif;
+      margin: 2rem 0;
+    }
+    label,
+    input,
+    button {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    input {
+      font: inherit;
+      padding: 0.65rem;
+      border: 1px solid #bac7be;
+      border-radius: 6px;
+      margin: 0.4rem 0 1rem;
+    }
+    button {
+      font: inherit;
+      padding: 0.6rem;
+      background: #315c4c;
+      color: white;
+      border: 0;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.6;
+    }
+    [role="status"] {
+      min-height: 1.6em;
+    }
+    </style>
+  </body>
+</html>

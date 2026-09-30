@@ -1,4 +1,7 @@
-# Copy to .dev.vars for local development (never commit .dev.vars).
-OAUTH_CLIENT_ID=your-oauth-app-client-id
-OAUTH_CLIENT_SECRET=your-oauth-app-client-secret
-SESSION_SECRET=generate-with-openssl-rand-hex-32
+# Copy to .dev.vars beside this file; never commit the real token.
+SERVICE_TOKEN=replace-with-content-repository-pat
+# Optional direct browser-to-R2 uploads require all four settings and bucket CORS:
+# R2_ACCOUNT_ID=
+# R2_ACCESS_KEY_ID=
+# R2_SECRET_ACCESS_KEY=
+# WRITING_R2_BUCKET=

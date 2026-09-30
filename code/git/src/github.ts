@@ -2,14 +2,14 @@ import { decodeBase64 } from "./base64.ts";
 import { ConflictError, ForgeError } from "./errors.ts";
 import { createHttpClient, type HttpClient } from "./http.ts";
 import type {
+  CommitComparison,
   CommitFilesOptions,
   CommitResult,
   CreatePullRequestOptions,
   FileContent,
-  PublishingForge,
-  CommitComparison,
   ForgeConfig,
   ForgeUser,
+  PublishingForge,
   PullRequest,
   RepoEntry,
   RepoPermissions,
@@ -29,7 +29,7 @@ export class GitHubForge implements PublishingForge {
   private readonly http: HttpClient;
   private readonly repoPath: string;
 
-  constructor(private readonly config: ForgeConfig) {
+  constructor(config: ForgeConfig) {
     this.http = createHttpClient({
       apiBase: "https://api.github.com",
       token: config.token,
@@ -37,7 +37,7 @@ export class GitHubForge implements PublishingForge {
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
       },
-      fetch: config.fetch,
+      ...(config.fetch ? { fetch: config.fetch } : {}),
     });
     this.repoPath = `/repos/${config.owner}/${config.repo}`;
   }
@@ -53,9 +53,9 @@ export class GitHubForge implements PublishingForge {
     return {
       id: user.id,
       login: user.login,
-      name: user.name ?? undefined,
-      email: user.email ?? undefined,
-      avatarUrl: user.avatar_url,
+      ...(user.name ? { name: user.name } : {}),
+      ...(user.email ? { email: user.email } : {}),
+      ...(user.avatar_url ? { avatarUrl: user.avatar_url } : {}),
     };
   }
 
@@ -74,12 +74,42 @@ export class GitHubForge implements PublishingForge {
     const response = await this.http.request(
       `${this.repoPath}/contents/${encodePath(path)}${query}`,
     );
-    if (response.status === 404) { await response.body?.cancel(); return null; }
+    if (response.status === 404) {
+      const error = (await response.json()) as { message?: unknown };
+      if (
+        ref &&
+        /^[a-f0-9]{40}$/i.test(ref) &&
+        typeof error.message === "string" &&
+        error.message.startsWith("No commit found for the ref")
+      ) {
+        return this.committedFile(path, ref);
+      }
+      return null;
+    }
     const entry = (await response.json()) as GitHubContentsEntry;
     if (entry.type !== "file" || entry.content === undefined) {
       throw new ForgeError(`${path} is not a file`, 422, path);
     }
     return { path: entry.path, sha: entry.sha, content: decodeBase64(entry.content) };
+  }
+
+  /** Contents can lag a newly written commit. Keep reads pinned to that exact Git object. */
+  private async committedFile(path: string, ref: string): Promise<FileContent | null> {
+    const tree = await this.http.json<{
+      truncated: boolean;
+      tree: Array<{ path: string; type: string; sha: string }>;
+    }>(`${this.repoPath}/git/trees/${ref}?recursive=1`);
+    if (tree.truncated)
+      throw new ForgeError("Cannot resolve a file from a truncated Git tree", 422, path);
+    const entry = tree.tree.find((item) => item.path === path);
+    if (!entry) return null;
+    if (entry.type !== "blob") throw new ForgeError(`${path} is not a file`, 422, path);
+    const blob = await this.http.json<{ content: string; encoding: string }>(
+      `${this.repoPath}/git/blobs/${entry.sha}`,
+    );
+    if (blob.encoding !== "base64")
+      throw new ForgeError("Unsupported Git blob encoding", 422, path);
+    return { path, sha: entry.sha, content: decodeBase64(blob.content) };
   }
 
   async listDir(path = "", ref?: string): Promise<RepoEntry[]> {
@@ -112,26 +142,36 @@ export class GitHubForge implements PublishingForge {
         `${this.repoPath}/branches?per_page=100&page=${page}`,
       );
       for (const entry of entries) {
-        if (entry.name.startsWith(prefix)) branches.push({ name: entry.name, sha: entry.commit.sha });
+        if (entry.name.startsWith(prefix))
+          branches.push({ name: entry.name, sha: entry.commit.sha });
       }
       if (entries.length < 100) return branches;
     }
   }
 
-  private async comparison(base: string, head: string): Promise<{
+  private async comparison(
+    base: string,
+    head: string,
+  ): Promise<{
     status: string;
     ahead_by: number;
     files?: Array<{ filename: string; previous_filename?: string }>;
   }> {
     // The first page contains all comparison files (up to GitHub's 300-file cap),
     // regardless of how many commits are requested.
-    return this.http.json(`${this.repoPath}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}?per_page=1&page=1`);
+    return this.http.json(
+      `${this.repoPath}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}?per_page=1&page=1`,
+    );
   }
 
   async compareCommits(baseSha: string, headSha: string): Promise<CommitComparison> {
     const result = await this.comparison(baseSha, headSha);
     if (!result.files || result.files.length >= 300) {
-      throw new ForgeError("Cannot verify complete publication scope: GitHub comparison files are missing or may be truncated", 422, this.repoPath);
+      throw new ForgeError(
+        "Cannot verify complete publication scope: GitHub comparison files are missing or may be truncated",
+        422,
+        this.repoPath,
+      );
     }
     return {
       status: result.status,
@@ -161,8 +201,8 @@ export class GitHubForge implements PublishingForge {
       await response.body?.cancel();
       throw new ForgeError("Publication base or commit was not found", 404, this.repoPath);
     }
-    const commit = await response.json() as { sha: string; html_url?: string };
-    return { sha: commit.sha, url: commit.html_url };
+    const commit = (await response.json()) as { sha: string; html_url?: string };
+    return { sha: commit.sha, ...(commit.html_url ? { url: commit.html_url } : {}) };
   }
 
   async commitFiles(options: CommitFilesOptions): Promise<CommitResult> {
@@ -214,7 +254,7 @@ export class GitHubForge implements PublishingForge {
       }
       throw error;
     }
-    return { sha: commit.sha, url: commit.html_url };
+    return { sha: commit.sha, ...(commit.html_url ? { url: commit.html_url } : {}) };
   }
 
   async createBranch(name: string, fromSha: string): Promise<void> {

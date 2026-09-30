@@ -1,61 +1,25 @@
-import { env } from "quiescent:runtime";
-import { writingAuthor } from "./writing/app";
 import { defineMiddleware } from "astro:middleware";
-import {
-  getSessionById,
-  readCookie,
-  SESSION_COOKIE,
-  verifySessionCookie,
-  wikiUserFromSession,
-} from "@quiescent/server";
+import { env } from "quiescent:runtime";
+import { writingAuthor } from "./writing/auth";
 
-// Everything except the auth flow requires a session: quiescent is an editing
-// tool, not a public site. The /demo routes are the exception — they run the
-// same packages against an in-memory store and a stubbed forge, so they need
-// no forge account and are what the Playwright specs drive.
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
-  const privateNext=async()=>{context.cache.set(false);const response=await next();response.headers.set("Cache-Control","private, no-store");return response;};
-  const writingEnv = env;
-  const editorRoute = pathname === "/write" || /^\/posts\/[^/]+\/edit\/?$/.test(pathname);
-  const authorRoute = editorRoute || pathname.startsWith("/api/writing/");
-  const readerRoute = pathname === "/read" || pathname.startsWith("/read/") || pathname.startsWith("/media/");
-  if (pathname.startsWith("/_astro/")) return next();
-  if (pathname === "/login" || pathname.startsWith("/api/auth/") || pathname.startsWith("/_server-islands/")) return privateNext();
-  if (authorRoute) {
-    if (!await writingAuthor(context.request, writingEnv)) {
-      return editorRoute
-        ? context.redirect("/login")
-        : new Response("Sign in to write", {status:401});
-    }
-    return privateNext();
+  const editor = pathname === "/write" || /^\/posts\/[^/]+\/edit\/?$/.test(pathname);
+  const author = editor || pathname.startsWith("/api/writing/");
+  const privateRoute =
+    author ||
+    pathname === "/login" ||
+    pathname.startsWith("/api/auth/") ||
+    pathname.startsWith("/_server-islands/");
+  if (privateRoute) context.cache.set(false);
+  if (author && !(await writingAuthor(context.request, env))) {
+    const response = editor
+      ? context.redirect("/login")
+      : new Response("Sign in to write", { status: 401 });
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
   }
-  if (readerRoute || (pathname === "/" && (writingEnv.WRITING_LOCAL === "true" || writingEnv.WRITING_TEST === "true"))) return next();
-  if ((writingEnv.WRITING_LOCAL === "true" || writingEnv.WRITING_TEST === "true") && !pathname.startsWith("/_astro/")) {
-    return new Response("Not found", {status:404});
-  }
-  if (pathname.startsWith("/auth/")) return next();
-  if (pathname === "/demo" || pathname.startsWith("/demo/") || pathname.startsWith("/api/demo/")) {
-    return next();
-  }
-
-
-  const cookie = readCookie(context.request.headers.get("Cookie"), SESSION_COOKIE);
-  const sessionId = cookie ? await verifySessionCookie(env, cookie) : null;
-  const session = sessionId ? await getSessionById(env, sessionId) : null;
-
-  if (!sessionId || !session) {
-    if (pathname.startsWith("/api/")) {
-      return new Response(JSON.stringify({ error: "unauthenticated" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-    return context.redirect("/auth/login");
-  }
-
-  context.locals.session = session;
-  context.locals.sessionId = sessionId;
-  context.locals.user = wikiUserFromSession(session);
-  return next();
+  const response = await next();
+  if (privateRoute) response.headers.set("Cache-Control", "private, no-store");
+  return response;
 });

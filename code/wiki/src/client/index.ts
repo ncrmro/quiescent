@@ -125,21 +125,37 @@ export function mountWikiGraph(
 
   let hovered: SimNode | null = null;
 
-  const draw = () => {
-    context.clearRect(0, 0, width, height);
-    const near = hovered ? neighborsOf(hovered.id) : null;
-
+  function drawLinks(near: Set<string> | null) {
     context.lineWidth = 1;
     for (const link of links) {
       const s = link.source as SimNode;
       const t = link.target as SimNode;
-      const active = near && (near.has(s.id) || near.has(t.id)) && (s.id === hovered!.id || t.id === hovered!.id);
+      const active =
+        near &&
+        (near.has(s.id) || near.has(t.id)) &&
+        (s.id === hovered!.id || t.id === hovered!.id);
       context.strokeStyle = active ? "#666" : "rgba(128,128,128,0.25)";
       context.beginPath();
       context.moveTo(s.x!, s.y!);
       context.lineTo(t.x!, t.y!);
       context.stroke();
     }
+  }
+  function drawLabels(near: Set<string> | null) {
+    context.font = "11px system-ui, sans-serif";
+    context.fillStyle = "#888";
+    for (const node of nodes) {
+      const emphasized = near?.has(node.id) || (!near && node.degree >= 5);
+      if (!emphasized) continue;
+      context.fillStyle = near?.has(node.id) ? "#444" : "#888";
+      context.fillText(node.label, node.x! + radius(node) + 3, node.y! + 3);
+    }
+  }
+  const draw = () => {
+    context.clearRect(0, 0, width, height);
+    const near = hovered ? neighborsOf(hovered.id) : null;
+
+    drawLinks(near);
 
     for (const node of nodes) {
       const dimmed = near !== null && !near.has(node.id);
@@ -151,20 +167,21 @@ export function mountWikiGraph(
     }
     context.globalAlpha = 1;
 
-    context.font = "11px system-ui, sans-serif";
-    context.fillStyle = "#888";
-    for (const node of nodes) {
-      const emphasized = near?.has(node.id) || (!near && node.degree >= 5);
-      if (!emphasized) continue;
-      context.fillStyle = near?.has(node.id) ? "#444" : "#888";
-      context.fillText(node.label, node.x! + radius(node) + 3, node.y! + 3);
-    }
+    drawLabels(near);
   };
 
   const simulation = forceSimulation(nodes)
-    .force("link", forceLink<SimNode, SimulationLinkDatum<SimNode>>(links).id((n) => n.id).distance(50))
+    .force(
+      "link",
+      forceLink<SimNode, SimulationLinkDatum<SimNode>>(links)
+        .id((n) => n.id)
+        .distance(50),
+    )
     .force("charge", forceManyBody().strength(-80))
-    .force("collide", forceCollide<SimNode>().radius((n) => radius(n) + 2))
+    .force(
+      "collide",
+      forceCollide<SimNode>().radius((n) => radius(n) + 2),
+    )
     .force("center", forceCenter(width / 2, height / 2))
     .on("tick", draw);
 

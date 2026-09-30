@@ -10,20 +10,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       # Before the tests: @quiescent/server imports @quiescent/git through its
       # published `exports` (./dist), and in-workspace that only exists once
       # built. A clean checkout has no dist/.
+      - run: bun run types:cloudflare --check
+      - run: bun run lint
       - run: bun run build:packages
       - run: bun run test
       - run: bun run typecheck
       - run: bun run --filter '@quiescent/web' build
+      - run: WRITING_RUNTIME=node bun run --filter '@quiescent/web' build
 
   e2e:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run build:packages

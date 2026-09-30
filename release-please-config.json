@@ -20,7 +20,5 @@
       "component": "quiescent-astro"
     }
   },
-  "plugins": [
-    "node-workspace"
-  ]
+  "plugins": ["node-workspace"]
 }

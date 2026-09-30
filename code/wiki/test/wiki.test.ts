@@ -3,12 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import MiniSearch from "minisearch";
 import { validateWikiLinks } from "../src/check-links.ts";
-import {
-  buildTagIndex,
-  buildWikiGraph,
-  buildWikiIndex,
-  resolveWikiTarget,
-} from "../src/graph.ts";
+import { buildTagIndex, buildWikiGraph, buildWikiIndex, resolveWikiTarget } from "../src/graph.ts";
 import { scanNotes } from "../src/notes.ts";
 import { buildSearchIndex, SEARCH_OPTIONS } from "../src/search.ts";
 

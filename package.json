@@ -7,14 +7,23 @@
   ],
   "scripts": {
     "test": "bun test --path-ignore-patterns 'code/web/tests/**'",
-    "typecheck": "bun run --filter '*' typecheck",
+    "typecheck": "bun run --filter \"*\" typecheck && tsc -p tsconfig.tools.json",
     "build": "bun run build:packages && bun run --filter '@quiescent/web' build",
-    "build:packages": "bun run --filter @quiescent/git build && bun run --filter @quiescent/editor build && bun run --filter @quiescent/server build && bun run --filter @quiescent/astro build && bun run --filter @quiescent/wiki build",
-    "test:e2e": "bun run --filter '@quiescent/web' test:e2e",
-    "dev:writing": "bash scripts/writing-dev.sh",
+    "build:packages": "bun run --filter @quiescent/git build && bun run --filter @quiescent/server build && bun run --filter @quiescent/editor build && bun run --filter @quiescent/astro build && bun run --filter @quiescent/wiki build",
+    "test:e2e": "node scripts/test-browser.mjs",
+    "dev:writing": "bun run build:packages && bash scripts/writing-dev.sh",
     "build:writing": "bun run build:packages && bun run --filter @quiescent/web build",
     "deploy:writing": "bash scripts/writing-deploy.sh",
     "build:node": "bun run build:packages && WRITING_RUNTIME=node bun run --filter @quiescent/web build",
-    "start:node": "node scripts/writing-node.mjs"
+    "start:node": "node scripts/writing-node.mjs",
+    "lint": "biome check . --error-on-warnings && node scripts/check-file-size.mjs",
+    "format": "biome check --write .",
+    "check": "bun run lint && bun run build:packages && bun run typecheck && bun run test",
+    "types:cloudflare": "node code/web/node_modules/wrangler/bin/wrangler.js types code/web/src/cloudflare-bindings.d.ts --config code/web/wrangler.writing-test.jsonc --env-file /dev/null --include-runtime false --strict-vars false"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@types/node": "^22",
+    "typescript": "^5.8"
   }
 }

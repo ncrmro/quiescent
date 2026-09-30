@@ -4,22 +4,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "astro dev",
+    "dev": "cd ../.. && bun run dev:writing",
     "build": "astro build",
-    "preview": "wrangler dev",
-    "deploy": "astro build && wrangler deploy",
+    "preview": "wrangler dev --config dist/server/wrangler.json",
+    "deploy": "bash ../../scripts/writing-deploy.sh",
     "typecheck": "astro check",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e": "node ../../scripts/test-browser.mjs",
+    "test:e2e:ui": "node ../../scripts/test-browser.mjs --ui"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.3",
-    "@astrojs/markdown-remark": "^7.3.1",
     "@astrojs/node": "^11.1.6",
     "@quiescent/editor": "workspace:*",
     "@quiescent/git": "workspace:*",
     "@quiescent/server": "workspace:*",
-    "@quiescent/wiki": "workspace:*",
     "astro": "^7.3.5",
     "@quiescent/astro": "workspace:*"
   },

@@ -2,7 +2,7 @@
   "name": "@quiescent/editor",
   "version": "0.2.0",
   "type": "module",
-  "description": "Formatted writing, schema metadata fields, Markdown conversion, and CodeMirror editing for Quiescent",
+  "description": "Formatted writing and schema-driven metadata editing for Quiescent",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -14,17 +14,9 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./document": {
-      "types": "./dist/document.d.ts",
-      "default": "./dist/document.js"
-    },
     "./writing": {
       "types": "./dist/writing.d.ts",
       "default": "./dist/writing.js"
-    },
-    "./markdown": {
-      "types": "./dist/markdown.d.ts",
-      "default": "./dist/markdown.js"
     },
     "./metadata": {
       "types": "./dist/metadata.d.ts",
@@ -39,22 +31,16 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "prepublishOnly": "tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run build",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@codemirror/commands": "^6.8.0",
-    "@codemirror/lang-markdown": "^6.3.0",
-    "@codemirror/language": "^6.11.0",
-    "@codemirror/state": "^6.5.0",
-    "@codemirror/view": "^6.36.0",
     "@tiptap/core": "^3.0.0",
     "@tiptap/extension-image": "^3.0.0",
-    "@tiptap/markdown": "^3.31.3",
     "@tiptap/starter-kit": "^3.0.0",
-    "marked": "^15.0.0"
+    "@quiescent/server": "^0.2.0"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",

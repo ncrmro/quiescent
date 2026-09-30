@@ -12,7 +12,6 @@ playwright-report/
 .env.local
 .dev.vars.*
 !.dev.vars.example
-!writing.dev.vars.example
 TASKS.md
 .writing-server.pid
 
@@ -20,3 +19,5 @@ code/web/dist-node/
 code/web/.writing-media/
 code/web/.writing-node.pid
 code/web/.env.node.local
+
+code/web/.env.e2e.local

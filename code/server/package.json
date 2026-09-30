@@ -2,7 +2,7 @@
   "name": "@quiescent/server",
   "version": "0.2.0",
   "type": "module",
-  "description": "Schema-validated Markdown document store, Git publishing, media, and legacy draft APIs for Quiescent",
+  "description": "Schema-validated Markdown documents, shared contracts, Git publishing, and media for Quiescent",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -21,6 +21,14 @@
     "./documents": {
       "types": "./dist/documents.d.ts",
       "default": "./dist/documents.js"
+    },
+    "./content": {
+      "types": "./dist/content/index.d.ts",
+      "default": "./dist/content/index.js"
+    },
+    "./contracts": {
+      "types": "./dist/contracts.d.ts",
+      "default": "./dist/contracts.js"
     }
   },
   "types": "./dist/index.d.ts",
@@ -31,17 +39,20 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "prepublishOnly": "tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run build",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
-    "@quiescent/editor": "^0.2.0",
     "@quiescent/git": "^0.2.0",
     "aws4fetch": "^1.0.20",
-    "yaml": "^2.9.1"
+    "yaml": "^2.9.1",
+    "@tiptap/core": "^3.0.0",
+    "@tiptap/starter-kit": "^3.0.0",
+    "@tiptap/extension-image": "^3.0.0",
+    "@tiptap/markdown": "^3.31.3"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",

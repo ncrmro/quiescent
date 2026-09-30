@@ -3,6 +3,6 @@
   "compilerOptions": {
     "jsx": "preserve"
   },
-  "include": ["src", ".astro/types.d.ts"],
-  "exclude": ["dist"]
+  "include": ["src", ".astro/types.d.ts", "tests", "*.config.ts"],
+  "exclude": ["dist", "dist-node"]
 }

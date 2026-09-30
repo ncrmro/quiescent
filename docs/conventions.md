@@ -58,5 +58,5 @@ Link liberally: the graph and backlinks are only as good as the edges.
 Keep an append-only `log.md` at the wiki root; one line per meaningful
 change: `- YYYY-MM-DD — <action>: <note> — <summary>` with actions like
 `create | update | rename | move | archive | supersede | ingest | correction`.
-With quiescent editing enabled, flush commits give you the same audit trail
+Git commits give you the same audit trail
 in git history.

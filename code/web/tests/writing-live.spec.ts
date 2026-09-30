@@ -7,29 +7,35 @@ const png = Buffer.from(
 const api = "/api/writing";
 
 test.describe("GitHub writing acceptance with configured media", () => {
-  test.skip(process.env.QUIESCENT_LIVE_TEST !== "1", "Explicit live opt-in and configured GitHub/media backend required");
+  test.skip(
+    process.env.QUIESCENT_LIVE_TEST !== "1",
+    "Explicit live opt-in and configured GitHub/media backend required",
+  );
 
-  test.beforeEach(async ({page}) => {
+  test.beforeEach(async ({ page }) => {
     if (!process.env.WRITING_TEST_PASSWORD) return;
     await page.goto("/login");
-    await page.getByLabel("Password",{exact:true}).fill(process.env.WRITING_TEST_PASSWORD);
-    await page.getByRole("button",{name:"Sign in",exact:true}).click();
+    await page.getByLabel("Password", { exact: true }).fill(process.env.WRITING_TEST_PASSWORD);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(/\/write$/);
   });
 
-  test("writes, reopens, isolates images, publishes and privately revises", async ({ page, context }) => {
+  test("writes, reopens, isolates images, publishes and privately revises", async ({
+    page,
+    context,
+  }) => {
     const suffix = crypto.randomUUID().slice(0, 8);
     const firstTitle = `Sunday at the farmers market ${suffix}`;
     const secondTitle = `An unfinished seaside memory ${suffix}`;
     const firstBody = "We bought peaches and shared a quiet breakfast beneath the trees.";
     const revisedBody = "We returned the next morning for flowers and warm bread.";
     const forbiddenAuth: boolean[] = [];
-    page.on("request", request => {
+    page.on("request", (request) => {
       if (new URL(request.url()).pathname.startsWith(api)) {
         forbiddenAuth.push(/^Bearer /i.test(request.headers().authorization ?? ""));
       }
     });
-    page.on("dialog", async dialog => {
+    page.on("dialog", async (dialog) => {
       if (dialog.type() === "prompt") await dialog.accept("A tiny photograph from our weekend");
       else if (dialog.type() === "beforeunload") await dialog.accept();
       else await dialog.dismiss();
@@ -42,36 +48,53 @@ test.describe("GitHub writing acceptance with configured media", () => {
       await expect(page.getByRole("status")).toHaveText("Saved");
     };
     const create = async (title: string, body: string) => {
-      const created = page.waitForResponse(response => new URL(response.url()).pathname === `${api}/posts` && response.request().method() === "POST");
+      const created = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === `${api}/posts` &&
+          response.request().method() === "POST",
+      );
       await page.getByRole("button", { name: "New post", exact: true }).click();
       const response = await created;
       expect(response.ok()).toBe(true);
-      const draft = await response.json() as { post: { id: string } };
+      const draft = (await response.json()) as { post: { id: string } };
       await expect(page.getByLabel("Title", { exact: true })).toHaveValue("");
       await expect(page.getByRole("status")).toHaveText("Saved");
       await page.getByLabel("Title", { exact: true }).fill(title);
-      await page.getByLabel("Description", { exact: true }).fill("A small story about an ordinary, lovely day.");
+      await page
+        .getByLabel("Description", { exact: true })
+        .fill("A small story about an ordinary, lovely day.");
       await page.getByRole("textbox", { name: "Post body" }).fill(body);
       // Format through the public toolbar, exercising editor document persistence.
       await page.getByRole("textbox", { name: "Post body" }).press("ControlOrMeta+a");
       await page.getByRole("button", { name: "Bold", exact: true }).click();
-      await expect(page.getByRole("textbox", { name: "Post body" }).locator("strong")).toContainText(body);
+      await expect(
+        page.getByRole("textbox", { name: "Post body" }).locator("strong"),
+      ).toContainText(body);
       await page.getByRole("textbox", { name: "Post body" }).press("ControlOrMeta+End");
       await page.getByRole("textbox", { name: "Post body" }).press("Enter");
-      await page.locator('[data-editor] input[type="file"]').setInputFiles({ name: "weekend.png", mimeType: "image/png", buffer: png });
+      await page
+        .locator('[data-editor] input[type="file"]')
+        .setInputFiles({ name: "weekend.png", mimeType: "image/png", buffer: png });
       const editorImage = page.getByRole("textbox", { name: "Post body" }).getByRole("img");
       await expect(editorImage).toHaveAttribute("alt", "A tiny photograph from our weekend");
       const imageSrc = await editorImage.getAttribute("src");
       expect(imageSrc).toMatch(/^\/api\/writing\/media\//);
       await save();
-      await expect(page.getByRole("navigation", { name: "Posts" }).getByRole("button", { name: `${title} — Draft`, exact: true })).toBeVisible();
+      await expect(
+        page
+          .getByRole("navigation", { name: "Posts" })
+          .getByRole("button", { name: `${title} — Draft`, exact: true }),
+      ).toBeVisible();
       return { id: draft.post.id, imagePath: imageSrc!.replace(api, "") };
     };
 
     const first = await create(firstTitle, firstBody);
     await page.getByRole("button", { name: "Preview", exact: true }).click();
     await expect(page.locator("[data-preview-area] strong")).toHaveText(firstBody);
-    await expect(page.locator("[data-preview-area] img")).toHaveAttribute("alt", "A tiny photograph from our weekend");
+    await expect(page.locator("[data-preview-area] img")).toHaveAttribute(
+      "alt",
+      "A tiny photograph from our weekend",
+    );
     const second = await create(secondTitle, "I have not decided how to finish this story yet.");
     expect((await page.request.get(second.imagePath)).status()).toBe(404);
     expect((await page.request.get(first.imagePath)).status()).toBe(404);
@@ -79,19 +102,29 @@ test.describe("GitHub writing acceptance with configured media", () => {
     // A fresh page after reload must recover from GitHub, with no browser-local fallback.
     await page.evaluate(() => localStorage.clear());
     await page.reload();
-    await page.getByRole("navigation", { name: "Posts" }).getByRole("button", { name: `${firstTitle} — Draft`, exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Posts" })
+      .getByRole("button", { name: `${firstTitle} — Draft`, exact: true })
+      .click();
     await expect(page.getByLabel("Title", { exact: true })).toHaveValue(firstTitle);
-    await expect(page.getByRole("textbox", { name: "Post body" }).locator("strong")).toHaveText(firstBody);
+    await expect(page.getByRole("textbox", { name: "Post body" }).locator("strong")).toHaveText(
+      firstBody,
+    );
     await expect(page.getByRole("textbox", { name: "Post body" }).getByRole("img")).toHaveCount(1);
     await page.getByRole("button", { name: "Publish", exact: true }).click();
     await expect(page.getByRole("status")).toHaveText("Published");
-    const readerHref = await page.getByRole("link", { name: "Read your post" }).getAttribute("href");
+    const readerHref = await page
+      .getByRole("link", { name: "Read your post" })
+      .getAttribute("href");
     expect(readerHref).toContain(`/read/${first.id}/`);
     const reader = await context.newPage();
     await reader.goto(readerHref!);
     await expect(reader.getByRole("heading", { name: firstTitle, exact: true })).toBeVisible();
     await expect(reader.locator("strong")).toHaveText(firstBody);
-    await expect(reader.getByRole("img")).toHaveAttribute("alt", "A tiny photograph from our weekend");
+    await expect(reader.getByRole("img")).toHaveAttribute(
+      "alt",
+      "A tiny photograph from our weekend",
+    );
     const home = await page.request.get("/");
     expect(home.ok()).toBe(true);
     const homeHtml = await home.text();
@@ -121,23 +154,34 @@ test.describe("GitHub writing acceptance with configured media", () => {
     await reader.close();
   });
 
-  test("retries failed uploads, waits before publishing, and preserves stale-tab writing", async ({ page, context }) => {
+  test("retries failed uploads, waits before publishing, and preserves stale-tab writing", async ({
+    page,
+    context,
+  }) => {
     const title = `A quiet afternoon in the garden ${crypto.randomUUID().slice(0, 8)}`;
-    page.on("dialog", async dialog => {
+    page.on("dialog", async (dialog) => {
       if (dialog.type() === "prompt") await dialog.accept("Sunlight in the garden");
       else if (dialog.type() === "beforeunload") await dialog.accept();
       else await dialog.dismiss();
     });
     await page.goto("/write");
     await expect(page.getByRole("status")).toHaveText("Choose a post or start writing.");
-    const created = page.waitForResponse(response => new URL(response.url()).pathname === `${api}/posts` && response.request().method() === "POST");
+    const created = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `${api}/posts` &&
+        response.request().method() === "POST",
+    );
     await page.getByRole("button", { name: "New post", exact: true }).click();
     const response = await created;
     expect(response.ok()).toBe(true);
-    const { post: { id } } = await response.json() as { post: { id: string } };
+    const {
+      post: { id },
+    } = (await response.json()) as { post: { id: string } };
     await expect(page.getByRole("status")).toHaveText("Saved");
     await page.getByLabel("Title", { exact: true }).fill(title);
-    await page.getByRole("textbox", { name: "Post body" }).fill("We watched the bees visit the flowers until the afternoon cooled.");
+    await page
+      .getByRole("textbox", { name: "Post body" })
+      .fill("We watched the bees visit the flowers until the afternoon cooled.");
     await page.getByRole("button", { name: "Save now", exact: true }).click();
     await expect(page.getByRole("status")).toHaveText("Saved");
 
@@ -146,11 +190,19 @@ test.describe("GitHub writing acceptance with configured media", () => {
     let reachedUpload!: () => void;
     let releasePublish!: () => void;
     let reachedPublish!: () => void;
-    const uploadHeld = new Promise<void>(resolve => { releaseUpload = resolve; });
-    const uploadReached = new Promise<void>(resolve => { reachedUpload = resolve; });
-    const publishHeld = new Promise<void>(resolve => { releasePublish = resolve; });
-    const publishReached = new Promise<void>(resolve => { reachedPublish = resolve; });
-    await page.route("**/*", async route => {
+    const uploadHeld = new Promise<void>((resolve) => {
+      releaseUpload = resolve;
+    });
+    const uploadReached = new Promise<void>((resolve) => {
+      reachedUpload = resolve;
+    });
+    const publishHeld = new Promise<void>((resolve) => {
+      releasePublish = resolve;
+    });
+    const publishReached = new Promise<void>((resolve) => {
+      reachedPublish = resolve;
+    });
+    await page.route("**/*", async (route) => {
       const request = route.request();
       if (request.method() === "PUT" && request.headers()["content-type"] === "image/png") {
         attempts++;
@@ -158,7 +210,10 @@ test.describe("GitHub writing acceptance with configured media", () => {
         reachedUpload();
         await uploadHeld;
       }
-      if (request.method() === "POST" && new URL(request.url()).pathname === `${api}/posts/${id}/publish`) {
+      if (
+        request.method() === "POST" &&
+        new URL(request.url()).pathname === `${api}/posts/${id}/publish`
+      ) {
         reachedPublish();
         await publishHeld;
       }
@@ -180,7 +235,10 @@ test.describe("GitHub writing acceptance with configured media", () => {
     await expect(uploadInput).toBeDisabled();
     releaseUpload();
     await publishReached;
-    await expect(page.getByRole("textbox", { name: "Post body" }).getByRole("img")).toHaveAttribute("alt", "Sunlight in the garden");
+    await expect(page.getByRole("textbox", { name: "Post body" }).getByRole("img")).toHaveAttribute(
+      "alt",
+      "Sunlight in the garden",
+    );
     // Upload completion must not unlock the editor while the merge is pending.
     await expect(page.getByRole("button", { name: "Add image", exact: true })).toBeDisabled();
     await expect(page.getByLabel("Description", { exact: true })).toBeDisabled();
@@ -188,11 +246,17 @@ test.describe("GitHub writing acceptance with configured media", () => {
     await expect(page.getByRole("status")).toHaveText("Published");
     expect(attempts).toBe(2);
     await page.unrouteAll({ behavior: "wait" });
-    const readerHref = await page.getByRole("link", { name: "Read your post" }).getAttribute("href");
+    const readerHref = await page
+      .getByRole("link", { name: "Read your post" })
+      .getAttribute("href");
     const reader = await context.newPage();
     await reader.goto(readerHref!);
-    await expect(reader.getByRole("img", { name: "Sunlight in the garden", exact: true })).toHaveCount(1);
-    await expect(reader.locator("main")).toContainText("We watched the bees visit the flowers until the afternoon cooled.");
+    await expect(
+      reader.getByRole("img", { name: "Sunlight in the garden", exact: true }),
+    ).toHaveCount(1);
+    await expect(reader.locator("main")).toContainText(
+      "We watched the bees visit the flowers until the afternoon cooled.",
+    );
     await reader.close();
 
     await page.getByRole("button", { name: "Edit post", exact: true }).click();
@@ -200,12 +264,19 @@ test.describe("GitHub writing acceptance with configured media", () => {
     await expect(page.getByLabel("Title", { exact: true })).toBeEnabled();
     await expect(page.getByLabel("Description", { exact: true })).toBeEnabled();
     const other = await context.newPage();
-    other.on("dialog", dialog => dialog.type() === "beforeunload" ? dialog.accept() : dialog.dismiss());
+    other.on("dialog", (dialog) =>
+      dialog.type() === "beforeunload" ? dialog.accept() : dialog.dismiss(),
+    );
     await other.goto("/write");
-    await other.getByRole("navigation", { name: "Posts" }).getByRole("button", { name: `${title} — Unpublished changes`, exact: true }).click();
+    await other
+      .getByRole("navigation", { name: "Posts" })
+      .getByRole("button", { name: `${title} — Unpublished changes`, exact: true })
+      .click();
     await expect(other.getByLabel("Title", { exact: true })).toHaveValue(title);
     await page.getByLabel("Title", { exact: true }).fill(`${title} revisited`);
-    await page.getByLabel("Description", { exact: true }).fill("A fresh description from the first tab.");
+    await page
+      .getByLabel("Description", { exact: true })
+      .fill("A fresh description from the first tab.");
     await page.getByRole("button", { name: "Save now", exact: true }).click();
     await expect(page.getByRole("status")).toHaveText("Saved");
     const retained = "My second-tab thoughts must remain available after a conflict.";
@@ -214,155 +285,273 @@ test.describe("GitHub writing acceptance with configured media", () => {
     await expect(other.getByRole("status")).toContainText("Could not save:");
     await expect(other.getByRole("status")).toContainText("newer changes");
     await expect(other.getByLabel("Description", { exact: true })).toHaveValue(retained);
-    expect(await other.evaluate(({ postId, description }) => Object.entries(localStorage).some(([key, value]) => {
-      if (!key.startsWith(`quiescent-writing:/api/writing:${postId}:`)) return false;
-      try { return JSON.parse(value)?.post?.description === description; } catch { return false; }
-    }), { postId: id, description: retained })).toBe(true);
+    expect(
+      await other.evaluate(
+        ({ postId, description }) =>
+          Object.entries(localStorage).some(([key, value]) => {
+            if (!key.startsWith(`quiescent-writing:/api/writing:${postId}:`)) return false;
+            try {
+              return JSON.parse(value)?.post?.description === description;
+            } catch {
+              return false;
+            }
+          }),
+        { postId: id, description: retained },
+      ),
+    ).toBe(true);
     await other.close();
   });
-
 });
 
-
-test("hosted password sign-in, session persistence, and sign-out", async ({page,context}) => {
-  test.skip(process.env.QUIESCENT_LIVE_TEST !== "1" || !process.env.WRITING_TEST_PASSWORD,"Hosted auth test requires password");
+test("hosted password sign-in, session persistence, and sign-out", async ({ page, context }) => {
+  test.skip(
+    process.env.QUIESCENT_LIVE_TEST !== "1" || !process.env.WRITING_TEST_PASSWORD,
+    "Hosted auth test requires password",
+  );
   expect((await page.request.get("/api/writing/posts")).status()).toBe(401);
   await page.goto("/write");
   await expect(page).toHaveURL(/\/login$/);
-  await page.getByLabel("Password",{exact:true}).fill("incorrect-password");
-  await page.getByRole("button",{name:"Sign in",exact:true}).click();
+  await page.getByLabel("Password", { exact: true }).fill("incorrect-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("did not work");
-  await page.getByLabel("Password",{exact:true}).fill(process.env.WRITING_TEST_PASSWORD!);
-  await page.getByRole("button",{name:"Sign in",exact:true}).click();
+  await page.getByLabel("Password", { exact: true }).fill(process.env.WRITING_TEST_PASSWORD!);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/write$/);
   await expect(page.getByRole("status")).toHaveText("Choose a post or start writing.");
   await page.reload();
-  await expect(page.getByRole("button",{name:"New post",exact:true})).toBeVisible();
-  const cookie=(await context.cookies()).find(c=>c.name==="quiescent.writer");
+  await expect(page.getByRole("button", { name: "New post", exact: true })).toBeVisible();
+  const cookie = (await context.cookies()).find((c) => c.name === "quiescent.writer");
   expect(cookie?.httpOnly).toBe(true);
   expect(cookie?.secure).toBe(process.env.BASE_URL!.startsWith("https:"));
-  const signup=await page.request.post("/api/auth/sign-up/email",{headers:{Origin:process.env.BASE_URL!},data:{email:"other@example.com",name:"Other",password:"another-password"}});
+  const signup = await page.request.post("/api/auth/sign-up/email", {
+    headers: { Origin: process.env.BASE_URL! },
+    data: { email: "other@example.com", name: "Other", password: "another-password" },
+  });
   expect(signup.ok()).toBe(false);
-  page.on("dialog",dialog=>dialog.accept());
-  await page.getByRole("button",{name:"Sign out",exact:true}).click();
+  page.on("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
   expect((await page.request.get("/api/writing/posts")).status()).toBe(401);
 });
 
-test("signed-in readers can edit the story they are reading", async ({page}) => {
-  test.skip(process.env.QUIESCENT_LIVE_TEST !== "1" || !process.env.WRITING_TEST_PASSWORD,"Hosted author session required");
+test("signed-in readers can edit the story they are reading", async ({ page }) => {
+  test.skip(
+    process.env.QUIESCENT_LIVE_TEST !== "1" || !process.env.WRITING_TEST_PASSWORD,
+    "Hosted author session required",
+  );
   await page.goto("/read");
-  await expect(page.getByRole("link",{name:"Edit",exact:true})).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Edit", exact: true })).toHaveCount(0);
   await page.locator("article h2 a").first().click();
-  const storyURL=page.url();
-  const storyId=new URL(storyURL).pathname.split("/")[2];
-  await expect(page.getByRole("link",{name:"Edit",exact:true})).toHaveCount(0);
+  const storyURL = page.url();
+  const storyId = new URL(storyURL).pathname.split("/")[2];
+  await expect(page.getByRole("link", { name: "Edit", exact: true })).toHaveCount(0);
   await page.goto("/login");
-  await page.getByLabel("Password",{exact:true}).fill(process.env.WRITING_TEST_PASSWORD!);
-  await page.getByRole("button",{name:"Sign in",exact:true}).click();
+  await page.getByLabel("Password", { exact: true }).fill(process.env.WRITING_TEST_PASSWORD!);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/write$/);
   await page.goto("/read");
-  await expect(page.getByRole("link",{name:"Edit",exact:true}).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Edit", exact: true }).first()).toBeVisible();
   await page.goto(storyURL);
-  const opened=page.waitForResponse(response=>new URL(response.url()).pathname===`/api/writing/posts/${storyId}` && response.request().method()==="GET");
-  await page.getByRole("link",{name:"Edit",exact:true}).click();
-  const draft=await (await opened).json();expect(draft.post.id).toBe(storyId);
-  const storyTitle=draft.post.title;
-  await expect(page).toHaveURL(new RegExp(`/posts/${new URL(storyURL).pathname.split("/")[3]}/edit$`));
-  await expect(page.getByLabel("Title",{exact:true})).toHaveValue(storyTitle);
-  await expect(page.getByRole("textbox",{name:"Post body"})).toBeVisible();
+  const opened = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/writing/posts/${storyId}` &&
+      response.request().method() === "GET",
+  );
+  await page.getByRole("link", { name: "Edit", exact: true }).click();
+  const draft = await (await opened).json();
+  expect(draft.post.id).toBe(storyId);
+  const storyTitle = draft.post.title;
+  await expect(page).toHaveURL(
+    new RegExp(`/posts/${new URL(storyURL).pathname.split("/")[3]}/edit$`),
+  );
+  await expect(page.getByLabel("Title", { exact: true })).toHaveValue(storyTitle);
+  await expect(page.getByRole("textbox", { name: "Post body" })).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel("Title",{exact:true})).toHaveValue(storyTitle);
-  const editorURL=page.url();
+  await expect(page.getByLabel("Title", { exact: true })).toHaveValue(storyTitle);
+  const editorURL = page.url();
   expect((await page.request.get("/posts/does-not-exist/edit")).status()).toBe(404);
   await page.context().clearCookies();
   await page.goto(editorURL);
   await expect(page).toHaveURL(/\/login$/);
 });
 
-test('native page cache is warmed by publication and deletion, with no private cache leaks',async({page,request})=>{
-  test.skip(process.env.QUIESCENT_LIVE_TEST!=='1','Requires the isolated GitHub test repository');
-  await page.goto('/login');await page.getByLabel('Password',{exact:true}).fill(process.env.WRITING_TEST_PASSWORD!);
-  await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page).toHaveURL(/\/write$/);
-  const headers={Origin:process.env.BASE_URL!};
-  const created=await page.request.post('/api/writing/posts',{headers,data:{}});expect(created.ok()).toBe(true);
-  let draft=await created.json();const id=draft.post.id;const title=`Portable cache proof ${crypto.randomUUID().slice(0,8)}`;
-  const saved=await page.request.put(`/api/writing/posts/${id}`,{headers,data:{branch:draft.branch,expectedHeadSha:draft.headSha,post:{...draft.post,title,body:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'A story about a walk in the rain.'}]}]}}}});
-  expect(saved.ok()).toBe(true);draft=await saved.json();
-  const before=await request.get('/');expect(await before.text()).not.toContain(title);
-  const published=await page.request.post(`/api/writing/posts/${id}/publish`,{headers,data:{branch:draft.branch,expectedHeadSha:draft.headSha}});
-  expect(published.ok()).toBe(true);const result=await published.json();expect(result.cacheWarning).toBeUndefined();
-  const path=`/read/${id}/${result.post.slug}`;
-  const hit=async(path:string)=>{
-    const response=await request.get(path);expect(response.headers()['x-astro-cache'] ?? response.headers()['cf-cache-status']).toBe('HIT');return response;
+test("native page cache is warmed by publication and deletion, with no private cache leaks", async ({
+  page,
+  request,
+}) => {
+  test.skip(
+    process.env.QUIESCENT_LIVE_TEST !== "1",
+    "Requires the isolated GitHub test repository",
+  );
+  await page.goto("/login");
+  await page.getByLabel("Password", { exact: true }).fill(process.env.WRITING_TEST_PASSWORD!);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/write$/);
+  const headers = { Origin: process.env.BASE_URL! };
+  const created = await page.request.post("/api/writing/posts", { headers, data: {} });
+  expect(created.ok()).toBe(true);
+  let draft = await created.json();
+  const id = draft.post.id;
+  const title = `Portable cache proof ${crypto.randomUUID().slice(0, 8)}`;
+  const saved = await page.request.put(`/api/writing/posts/${id}`, {
+    headers,
+    data: {
+      branch: draft.branch,
+      expectedHeadSha: draft.headSha,
+      post: {
+        ...draft.post,
+        title,
+        body: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "A story about a walk in the rain." }],
+            },
+          ],
+        },
+      },
+    },
+  });
+  expect(saved.ok()).toBe(true);
+  draft = await saved.json();
+  const before = await request.get("/");
+  expect(await before.text()).not.toContain(title);
+  const published = await page.request.post(`/api/writing/posts/${id}/publish`, {
+    headers,
+    data: { branch: draft.branch, expectedHeadSha: draft.headSha },
+  });
+  expect(published.ok()).toBe(true);
+  const result = await published.json();
+  expect(result.cacheWarning).toBeUndefined();
+  const path = `/read/${id}/${result.post.slug}`;
+  const hit = async (path: string) => {
+    const response = await request.get(path);
+    expect(response.headers()["x-astro-cache"] ?? response.headers()["cf-cache-status"]).toBe(
+      "HIT",
+    );
+    return response;
   };
-  const first=await hit(path);expect(await first.text()).toContain(title);
-  const second=await hit(path);expect(second.headers()['x-quiescent-rendered']).toBe(first.headers()['x-quiescent-rendered']);
-  expect(await (await hit('/')).text()).toContain(title);
+  const first = await hit(path);
+  expect(await first.text()).toContain(title);
+  const second = await hit(path);
+  expect(second.headers()["x-quiescent-rendered"]).toBe(first.headers()["x-quiescent-rendered"]);
+  expect(await (await hit("/")).text()).toContain(title);
   // Warming was anonymous: personalized controls must never appear in shared HTML.
   expect(await first.text()).not.toMatch(/class="edit"/);
-  expect((await request.get('/api/writing/posts')).status()).toBe(401);
-  const privateResponse=await page.request.get('/api/writing/posts');expect(privateResponse.headers()['cache-control']).toContain('no-store');
-  await page.goto(`/posts/${result.post.slug}/edit`);await expect(page.getByLabel('Title',{exact:true})).toHaveValue(title);
-  page.on('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Delete post',exact:true}).click();
-  await expect(page.getByRole('status')).toHaveText('Deleted');
+  expect((await request.get("/api/writing/posts")).status()).toBe(401);
+  const privateResponse = await page.request.get("/api/writing/posts");
+  expect(privateResponse.headers()["cache-control"]).toContain("no-store");
+  await page.goto(`/posts/${result.post.slug}/edit`);
+  await expect(page.getByLabel("Title", { exact: true })).toHaveValue(title);
+  page.on("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Delete post", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Deleted");
   expect((await hit(path)).status()).toBe(404);
-  expect(await (await hit('/')).text()).not.toContain(title);
-  const stale=await page.request.put(`/api/writing/posts/${id}`,{headers,data:{branch:draft.branch,expectedHeadSha:draft.headSha,post:draft.post}});
+  expect(await (await hit("/")).text()).not.toContain(title);
+  const stale = await page.request.put(`/api/writing/posts/${id}`, {
+    headers,
+    data: { branch: draft.branch, expectedHeadSha: draft.headSha, post: draft.post },
+  });
   expect(stale.status()).toBe(404);
 });
 
-test('schema-driven posts save metadata and body together, publish header images, and warm pages',async({page,request,context})=>{
- test.skip(process.env.QUIESCENT_LIVE_TEST!=='1','Explicit live opt-in required');
- if(process.env.WRITING_TEST_PASSWORD){
-  await page.goto('/login');await page.getByLabel('Password',{exact:true}).fill(process.env.WRITING_TEST_PASSWORD);
-  await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page).toHaveURL(/\/write$/);
- }
- await page.goto('/write');await expect(page.getByRole('status')).toHaveText('Choose a post or start writing.');
- const created=page.waitForResponse(r=>r.url().endsWith('/api/writing/posts') && r.request().method()==='POST');
- await page.getByRole('button',{name:'New post',exact:true}).click();
- const {post:{id}}=await (await created).json();
- await expect(page.getByRole('status')).toHaveText('Saved');
- const slug=`a-slow-sunday-${id.slice(0,8)}`;
- await page.getByLabel('Title',{exact:true}).fill('A slow Sunday');
- await page.getByLabel('Slug',{exact:true}).fill(slug);
- await page.getByLabel('Tags',{exact:true}).fill('weekends, food');
- await page.getByLabel('Description',{exact:true}).fill('Peaches, coffee, and no plans.');
- await page.getByRole('textbox',{name:'Post body'}).fill('We shared breakfast outside and let the morning take its time.');
- await page.locator('[data-header-file]').setInputFiles({name:'sunday.png',mimeType:'image/png',buffer:png});
- await expect(page.locator('[data-header-preview]')).toBeVisible();
- await page.getByRole('button',{name:'Save now',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Saved');
- const saved=await (await page.request.get(`${api}/posts/${id}`)).json();
- expect(saved.post).toMatchObject({title:'A slow Sunday',slug,tags:['weekends','food'],headerImage:expect.stringContaining(`/media/${id}/`)});
- expect((await request.get(saved.post.headerImage)).status()).toBe(404);
- console.log(`[document-proof] id=${id} head=${saved.headSha}`);
- // An invalid slug must preserve both the previous metadata and body revision.
- const invalid=page.waitForResponse(r=>r.url().endsWith(`${api}/posts/${id}`) && r.request().method()==='PUT' && r.status()===400);
- await page.getByLabel('Slug',{exact:true}).fill('Not a valid slug!');await page.getByRole('button',{name:'Save now',exact:true}).click();await invalid;
- await expect(page.getByLabel('Slug',{exact:true})).toHaveAttribute('aria-invalid','true');
- expect((await (await page.request.get(`${api}/posts/${id}`)).json()).headSha).toBe(saved.headSha);
- await page.getByLabel('Slug',{exact:true}).fill(slug);await page.getByRole('button',{name:'Save now',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Saved');
- await page.reload();await expect(page.getByRole('status')).toHaveText('Saved');
- await expect(page.getByLabel('Tags',{exact:true})).toHaveValue('weekends, food');
- await expect(page.getByLabel('Slug',{exact:true})).toHaveValue(slug);
- await expect(page.locator('[data-header-preview]')).toBeVisible();
- await page.getByRole('button',{name:'Publish',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Published');
- const path=(await page.getByRole('link',{name:'Read your post'}).getAttribute('href'))!;
- for(const route of ['/', '/read',path]){
-  const first=await request.get(route);expect(first.status()).toBe(200);
-  expect(first.headers()['x-astro-cache'] ?? first.headers()['cf-cache-status']).toBe('HIT');
-  expect((await request.get(route)).headers()['x-quiescent-rendered']).toBe(first.headers()['x-quiescent-rendered']);
- }
- const reader=await context.newPage();await reader.goto(path);
- await expect(reader.locator('.tags')).toHaveText('weekendsfood');
- await expect(reader.locator('.header-image')).toBeVisible();
- expect(await reader.locator('.header-image').evaluate((image:HTMLImageElement)=>image.complete && image.naturalWidth>0)).toBe(true);
- expect((await request.get(saved.post.headerImage)).status()).toBe(200);
- await reader.close();
- await page.getByRole('button',{name:'Edit post',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Saved');
- await page.getByLabel('Tags',{exact:true}).fill('weekends, memories');
- await page.getByRole('button',{name:'Save now',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Saved');
- expect(await (await request.get(path)).text()).not.toContain('<li>memories</li>');
- await page.getByRole('button',{name:'Publish changes',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Published');
- const revised=await request.get(path);expect(revised.headers()['x-astro-cache'] ?? revised.headers()['cf-cache-status']).toBe('HIT');expect(await revised.text()).toContain('<li>memories</li>');
+test("schema-driven posts save metadata and body together, publish header images, and warm pages", async ({
+  page,
+  request,
+  context,
+}) => {
+  test.skip(process.env.QUIESCENT_LIVE_TEST !== "1", "Explicit live opt-in required");
+  if (process.env.WRITING_TEST_PASSWORD) {
+    await page.goto("/login");
+    await page.getByLabel("Password", { exact: true }).fill(process.env.WRITING_TEST_PASSWORD);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(/\/write$/);
+  }
+  await page.goto("/write");
+  await expect(page.getByRole("status")).toHaveText("Choose a post or start writing.");
+  const created = page.waitForResponse(
+    (r) => r.url().endsWith("/api/writing/posts") && r.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "New post", exact: true }).click();
+  const {
+    post: { id },
+  } = await (await created).json();
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  const slug = `a-slow-sunday-${id.slice(0, 8)}`;
+  await page.getByLabel("Title", { exact: true }).fill("A slow Sunday");
+  await page.getByLabel("Slug", { exact: true }).fill(slug);
+  await page.getByLabel("Tags", { exact: true }).fill("weekends, food");
+  await page.getByLabel("Description", { exact: true }).fill("Peaches, coffee, and no plans.");
+  await page
+    .getByRole("textbox", { name: "Post body" })
+    .fill("We shared breakfast outside and let the morning take its time.");
+  await page
+    .locator("[data-header-file]")
+    .setInputFiles({ name: "sunday.png", mimeType: "image/png", buffer: png });
+  await expect(page.locator("[data-header-preview]")).toBeVisible();
+  await page.getByRole("button", { name: "Save now", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  const saved = await (await page.request.get(`${api}/posts/${id}`)).json();
+  expect(saved.post).toMatchObject({
+    title: "A slow Sunday",
+    slug,
+    tags: ["weekends", "food"],
+    headerImage: expect.stringContaining(`/media/${id}/`),
+  });
+  expect((await request.get(saved.post.headerImage)).status()).toBe(404);
+  console.log(`[document-proof] id=${id} head=${saved.headSha}`);
+  // An invalid slug must preserve both the previous metadata and body revision.
+  const invalid = page.waitForResponse(
+    (r) =>
+      r.url().endsWith(`${api}/posts/${id}`) &&
+      r.request().method() === "PUT" &&
+      r.status() === 400,
+  );
+  await page.getByLabel("Slug", { exact: true }).fill("Not a valid slug!");
+  await page.getByRole("button", { name: "Save now", exact: true }).click();
+  await invalid;
+  await expect(page.getByLabel("Slug", { exact: true })).toHaveAttribute("aria-invalid", "true");
+  expect((await (await page.request.get(`${api}/posts/${id}`)).json()).headSha).toBe(saved.headSha);
+  await page.getByLabel("Slug", { exact: true }).fill(slug);
+  await page.getByRole("button", { name: "Save now", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  await page.reload();
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  await expect(page.getByLabel("Tags", { exact: true })).toHaveValue("weekends, food");
+  await expect(page.getByLabel("Slug", { exact: true })).toHaveValue(slug);
+  await expect(page.locator("[data-header-preview]")).toBeVisible();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Published");
+  const path = (await page.getByRole("link", { name: "Read your post" }).getAttribute("href"))!;
+  for (const route of ["/", "/read", path]) {
+    const first = await request.get(route);
+    expect(first.status()).toBe(200);
+    expect(first.headers()["x-astro-cache"] ?? first.headers()["cf-cache-status"]).toBe("HIT");
+    expect((await request.get(route)).headers()["x-quiescent-rendered"]).toBe(
+      first.headers()["x-quiescent-rendered"],
+    );
+  }
+  const reader = await context.newPage();
+  await reader.goto(path);
+  await expect(reader.locator(".tags")).toHaveText("weekendsfood");
+  await expect(reader.locator(".header-image")).toBeVisible();
+  expect(
+    await reader
+      .locator(".header-image")
+      .evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0),
+  ).toBe(true);
+  expect((await request.get(saved.post.headerImage)).status()).toBe(200);
+  await reader.close();
+  await page.getByRole("button", { name: "Edit post", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  await page.getByLabel("Tags", { exact: true }).fill("weekends, memories");
+  await page.getByRole("button", { name: "Save now", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  expect(await (await request.get(path)).text()).not.toContain("<li>memories</li>");
+  await page.getByRole("button", { name: "Publish changes", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Published");
+  const revised = await request.get(path);
+  expect(revised.headers()["x-astro-cache"] ?? revised.headers()["cf-cache-status"]).toBe("HIT");
+  expect(await revised.text()).toContain("<li>memories</li>");
 });

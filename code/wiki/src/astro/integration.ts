@@ -40,10 +40,10 @@ export function quiescentWiki(options: QuiescentWikiOptions): AstroIntegration {
               {
                 name: "quiescent-wiki-virtual",
                 resolveId(id: string) {
-                  if (id === VIRTUAL_ID) return RESOLVED_ID;
+                  return id === VIRTUAL_ID ? RESOLVED_ID : undefined;
                 },
                 load(id: string) {
-                  if (id !== RESOLVED_ID) return;
+                  if (id !== RESOLVED_ID) return undefined;
                   const index = buildWikiIndex(options);
                   const graph = buildWikiGraph(index, {
                     includeTags: options.tagsInGraph ?? true,

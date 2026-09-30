@@ -38,7 +38,8 @@ is example access control, not a production authentication policy.
 Photos persist under `code/web/.writing-media` by default. Set
 `WRITING_MEDIA_DIRECTORY` to a persistent mounted directory for containers.
 The file adapter uses the same upload validation and content-addressed finalization
-as the R2 adapter. Preserve that directory across restarts.
+as the R2 adapter. Preserve that directory across restarts. Supplying the complete
+R2 credential set and bucket selects R2 instead, including on Node.
 
 For phone access over Tailscale on ncrmro-workstation:
 
@@ -175,21 +176,34 @@ hits after publishing, stable cached HTML, deletion, and draft privacy. The Node
 acceptance repository is the separate private `ncrmro/quiescent-writing-node-demo`
 so filesystem-backed images are not mixed with the Cloudflare demo's R2 objects.
 
-Validation on 2026-09-30: 96 package tests pass, workspace type checks pass,
-and Node and Cloudflare production builds pass. Frozen dependency installation
-succeeds without changes. Coverage includes arbitrary non-blog schemas, atomic
-metadata/body saves, invalid metadata leaving Git unchanged, legacy JSON migration,
-Markdown rich-text round trips, and collection-specific Astro cache warming.
+Quality gates also run `bun run lint` (Biome plus the 1,000-line source limit)
+and strict checks for the development scripts. `bun run test:e2e` exercises the
+actual editor against the shared in-memory forge without GitHub credentials.
+The opt-in live suite remains the proof for GitHub, configured media, and native
+full-page cache behavior on each runtime. No npm packages are published by these
+commands. MDX remains deferred.
 
-The live metadata journey passed on both Node and the deployed Cloudflare Worker: title/slug/tags/header image/body save and
-reopen, invalid-slug rejection, private images, publication, private revisions,
-and first-request HTML cache hits after publish and revision. Cloudflare used the existing private R2 bucket for the header-image upload.
-The stored Markdown was read directly from its GitHub commit. The phone-width editor has no horizontal
-overflow. Node and the deployed Cloudflare Worker both passed the focused
-publication/deletion cache test, including cached 404s and stale-draft protection.
-This resolves the previously pending cache-fill confirmation check.
+### Cleanup validation — 2026-09-30
 
-Cloudflare deployment: `af815298-146d-4fad-b330-f498c80812a0`.
-The Node app runs on ncrmro-workstation at the URL recorded in
-`code/web/.env.node.local`; the hosted app uses its existing R2 bucket. No npm
-packages were published. MDX remains deferred.
+The cleanup passes 78 unit tests, the current-example browser test, Biome,
+complexity/file-size enforcement, strict package/Astro/test/script checks, and
+both production builds. The largest source file is 557 lines. Node passed both
+live metadata/image and publication/deletion-cache journeys; its phone-width
+editor renders without horizontal overflow.
+
+Cloudflare passed the publication/deletion-cache journey. Live testing exposed
+GitHub Contents returning a missing-commit response for an existing immutable Git
+object. The forge now falls back to that commit's tree/blob, with a regression
+test and rejection of truncated trees. The previously failing draft was verified
+to reopen on the deployed fix.
+
+The subsequent full Cloudflare metadata retest was blocked by GitHub's hourly
+quota, confirmed from the repository API: 5,000 used, 0 remaining, reset at
+2026-09-30 07:07:50 UTC. That complete retest remains unverified after the fix;
+it must be rerun after the quota resets. GitHub's stored Markdown was independently
+verified to contain the saved metadata and body in one commit.
+
+Deployed Worker version: `bda740bb-155d-4f7d-b984-df8d689cb9b7`.
+No npm packages were published. The JSON-post import adapter is deliberately
+retained to preserve existing stories while converting them on save; the retired
+notes/OAuth/KV/cron editing path and its demos are removed.

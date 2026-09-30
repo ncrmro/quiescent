@@ -2,12 +2,11 @@ import { GiteaForge } from "./gitea.ts";
 import { GitHubForge } from "./github.ts";
 import type { ForgeClient, ForgeConfig, PublishingForge } from "./types.ts";
 
-export * from "./types.ts";
+export { decodeBase64, encodeBase64 } from "./base64.ts";
 export * from "./errors.ts";
-export * from "./oauth.ts";
-export { GitHubForge } from "./github.ts";
 export { GiteaForge, resolveGiteaBaseUrl } from "./gitea.ts";
-export { encodeBase64, decodeBase64 } from "./base64.ts";
+export { GitHubForge } from "./github.ts";
+export * from "./types.ts";
 
 export function createForge(config: ForgeConfig): ForgeClient {
   switch (config.kind) {

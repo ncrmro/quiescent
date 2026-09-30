@@ -120,14 +120,16 @@ function parseFrontmatter(source: string): Frontmatter {
   }
   if (typeof data !== "object" || data === null) return none;
   const fm = data as Record<string, unknown>;
-  const tags = Array.isArray(fm.tags) ? fm.tags.filter((t): t is string => typeof t === "string") : [];
+  const tags = Array.isArray(fm.tags)
+    ? fm.tags.filter((t): t is string => typeof t === "string")
+    : [];
   return {
     title: typeof fm.title === "string" ? fm.title : null,
-    type: typeof fm.type === "string" ? fm.type : undefined,
-    status: typeof fm.status === "string" ? fm.status : undefined,
+    ...(typeof fm.type === "string" ? { type: fm.type } : {}),
+    ...(typeof fm.status === "string" ? { status: fm.status } : {}),
     tags,
-    created: asDateString(fm.created),
-    updated: asDateString(fm.updated),
+    ...(asDateString(fm.created) ? { created: asDateString(fm.created)! } : {}),
+    ...(asDateString(fm.updated) ? { updated: asDateString(fm.updated)! } : {}),
     body: source.slice(block[0].length),
   };
 }
@@ -180,15 +182,15 @@ export function scanNotes(options: WikiOptions): WikiNote[] {
       url: noteUrl(noteId(relPath), options.base),
       title: fm.title,
       basename: path.basename(relPath, ".md"),
-      type: fm.type,
-      status: fm.status,
+      ...(fm.type !== undefined ? { type: fm.type } : {}),
+      ...(fm.status !== undefined ? { status: fm.status } : {}),
       tags: fm.tags,
       headings: extractHeadings(fm.body),
       excerpt: text.slice(0, 200),
       text,
       links: extractLinks(source),
-      created: fm.created,
-      updated: fm.updated,
+      ...(fm.created !== undefined ? { created: fm.created } : {}),
+      ...(fm.updated !== undefined ? { updated: fm.updated } : {}),
     });
   }
   return notes;

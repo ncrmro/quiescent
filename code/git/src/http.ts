@@ -42,7 +42,11 @@ export function createHttpClient(options: {
     const response = await request(path, init);
     if (response.status === 404) {
       await response.body?.cancel();
-      throw new ForgeError(`${init.method ?? "GET"} ${options.apiBase}${path} failed: 404`, 404, `${options.apiBase}${path}`);
+      throw new ForgeError(
+        `${init.method ?? "GET"} ${options.apiBase}${path} failed: 404`,
+        404,
+        `${options.apiBase}${path}`,
+      );
     }
     return (await response.json()) as T;
   }

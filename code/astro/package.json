@@ -15,10 +15,10 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "tsc -p tsconfig.build.json"
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@quiescent/server": "^0.2.0"

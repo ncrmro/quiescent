@@ -1,22 +1,229 @@
 ---
-interface Props { postId?: string }
+interface Props {
+  postId?: string;
+}
 const { postId } = Astro.props;
 ---
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width"/><title>Write · Quiescent</title></head>
-<body><header><a href="/write">Quiescent</a><span>A place for your stories</span><a href="/read" target="_blank">Read stories ↗</a><button id="sign-out">Sign out</button></header><div id="writing" data-post-id={postId}></div>
-<script>
-import { mountWritingApp } from '@quiescent/editor/writing';
-const root = document.getElementById('writing')!;
-mountWritingApp(root, {
-  initialPostId: root.dataset.postId,
-  onPostOpen: (id, slug) => window.history.replaceState(null, '', `/posts/${encodeURIComponent(slug ?? id)}/edit`),
-});
-document.getElementById('sign-out')?.addEventListener('click',async()=>{
-  if (!window.confirm('Sign out? Wait for your writing to show Saved first.')) return;
-  const response=await fetch('/api/auth/logout',{method:'POST'});
-  if (response.ok) window.location.assign('/login');
-});
-</script>
-<style is:global>
-*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;background:#faf9f6;color:#293530;font:16px/1.6 system-ui,sans-serif}header{display:flex;gap:2rem;align-items:center;padding:1.5rem 3rem;border-bottom:1px solid #ddd}header a:first-child{font:700 1.5rem Georgia,serif}header span{flex:1;color:#69736b}a{color:#315c4c}button{cursor:pointer;border:1px solid #bac7be;background:#fff;border-radius:6px;padding:.5rem .8rem;color:inherit;font:inherit}button:hover{background:#eaf0e8}button:disabled{opacity:.55;cursor:wait}.writing-app{display:grid;grid-template-columns:250px minmax(0,850px);max-width:1200px;margin:auto;gap:2rem;padding:2rem}.writing-app aside{border-right:1px solid #ddd;padding-right:1rem}.writing-app nav{display:grid;gap:.6rem;margin-top:1rem}.writing-app nav button{text-align:left}.writing-app main{min-width:0}[role=status]{min-height:1.6em;color:#526956}label{display:block;margin-bottom:1rem;color:#59655d}input,textarea,select{display:block;width:100%;background:transparent;border:0;border-bottom:1px solid #cad1c8;padding:.5rem 0;font:inherit;color:#293530}[data-header-preview]{max-width:100%;max-height:250px;object-fit:cover;margin:1rem 0;border-radius:8px}[data-header-tools]{margin:1rem 0}[data-metadata]>small{display:block;margin:-.75rem 0 1rem}small[role=alert]{color:#a12e26}input[aria-invalid=true]{border-color:#a12e26}[data-title]{font:700 2.2rem/1.3 Georgia,serif}.writing-toolbar{display:flex;flex-wrap:wrap;gap:.35rem;margin:1rem 0}.writing-toolbar button{font-size:.8rem}.tiptap{min-height:340px;outline:0;font:20px/1.7 Georgia,serif;padding:1rem 0}.tiptap img,[data-preview-area] img{max-width:100%;height:auto;border-radius:8px}.tiptap .ProseMirror-selectednode{outline:2px solid #315c4c}.writing-actions{display:flex;gap:.6rem;border-top:1px solid #ddd;padding-top:1rem}[data-publish]{margin-left:auto;background:#315c4c;color:#fff}[data-preview-area]{font:20px/1.7 Georgia,serif;margin-top:2rem;padding:1.5rem;border:1px solid #cad1c8;border-radius:8px}blockquote{border-left:3px solid #b4c4b4;padding-left:1rem}@media(max-width:700px){header{padding:1rem;gap:1rem}header span{display:none}.writing-app{grid-template-columns:1fr;padding:1rem}.writing-app aside{border:0}.writing-app nav{max-height:180px;overflow:auto}}
-</style></body></html>
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Write · Quiescent</title>
+  </head>
+  <body>
+    <header>
+      <a href="/write">Quiescent</a><span>A place for your stories</span
+      ><a href="/read" target="_blank">Read stories ↗</a
+      ><button type="button" id="sign-out">Sign out</button>
+    </header>
+    <div id="writing" data-post-id={postId}></div>
+    <script>
+    import { mountWritingApp } from "@quiescent/editor/writing";
+
+    const root = document.getElementById("writing")!;
+    mountWritingApp(root, {
+      ...(root.dataset.postId ? { initialPostId: root.dataset.postId } : {}),
+      onPostOpen: (id, slug) =>
+        window.history.replaceState(null, "", `/posts/${encodeURIComponent(slug ?? id)}/edit`),
+    });
+    document.getElementById("sign-out")?.addEventListener("click", async () => {
+      if (!window.confirm("Sign out? Wait for your writing to show Saved first.")) return;
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (response.ok) window.location.assign("/login");
+    });
+    </script>
+    <style is:global>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #faf9f6;
+      color: #293530;
+      font:
+        16px / 1.6 system-ui,
+        sans-serif;
+    }
+    header {
+      display: flex;
+      gap: 2rem;
+      align-items: center;
+      padding: 1.5rem 3rem;
+      border-bottom: 1px solid #ddd;
+    }
+    header a:first-child {
+      font:
+        700 1.5rem Georgia,
+        serif;
+    }
+    header span {
+      flex: 1;
+      color: #69736b;
+    }
+    a {
+      color: #315c4c;
+    }
+    button {
+      cursor: pointer;
+      border: 1px solid #bac7be;
+      background: #fff;
+      border-radius: 6px;
+      padding: 0.5rem 0.8rem;
+      color: inherit;
+      font: inherit;
+    }
+    button:hover {
+      background: #eaf0e8;
+    }
+    button:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+    .writing-app {
+      display: grid;
+      grid-template-columns: 250px minmax(0, 850px);
+      max-width: 1200px;
+      margin: auto;
+      gap: 2rem;
+      padding: 2rem;
+    }
+    .writing-app aside {
+      border-right: 1px solid #ddd;
+      padding-right: 1rem;
+    }
+    .writing-app nav {
+      display: grid;
+      gap: 0.6rem;
+      margin-top: 1rem;
+    }
+    .writing-app nav button {
+      text-align: left;
+    }
+    .writing-app main {
+      min-width: 0;
+    }
+    [role="status"] {
+      min-height: 1.6em;
+      color: #526956;
+    }
+    label {
+      display: block;
+      margin-bottom: 1rem;
+      color: #59655d;
+    }
+    input,
+    textarea,
+    select {
+      display: block;
+      width: 100%;
+      background: transparent;
+      border: 0;
+      border-bottom: 1px solid #cad1c8;
+      padding: 0.5rem 0;
+      font: inherit;
+      color: #293530;
+    }
+    [data-header-preview] {
+      max-width: 100%;
+      max-height: 250px;
+      object-fit: cover;
+      margin: 1rem 0;
+      border-radius: 8px;
+    }
+    [data-header-tools] {
+      margin: 1rem 0;
+    }
+    [data-metadata] > small {
+      display: block;
+      margin: -0.75rem 0 1rem;
+    }
+    small[role="alert"] {
+      color: #a12e26;
+    }
+    input[aria-invalid="true"] {
+      border-color: #a12e26;
+    }
+    [data-title] {
+      font:
+        700 2.2rem / 1.3 Georgia,
+        serif;
+    }
+    .writing-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin: 1rem 0;
+    }
+    .format-button {
+      font-size: 0.8rem;
+    }
+    .tiptap {
+      min-height: 340px;
+      outline: 0;
+      font:
+        20px / 1.7 Georgia,
+        serif;
+      padding: 1rem 0;
+    }
+    .tiptap img,
+    [data-preview-area] img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+    }
+    .tiptap .ProseMirror-selectednode {
+      outline: 2px solid #315c4c;
+    }
+    .writing-actions {
+      display: flex;
+      gap: 0.6rem;
+      border-top: 1px solid #ddd;
+      padding-top: 1rem;
+    }
+    [data-publish] {
+      margin-left: auto;
+      background: #315c4c;
+      color: #fff;
+    }
+    [data-preview-area] {
+      font:
+        20px / 1.7 Georgia,
+        serif;
+      margin-top: 2rem;
+      padding: 1.5rem;
+      border: 1px solid #cad1c8;
+      border-radius: 8px;
+    }
+    blockquote {
+      border-left: 3px solid #b4c4b4;
+      padding-left: 1rem;
+    }
+    @media (max-width: 700px) {
+      header {
+        padding: 1rem;
+        gap: 1rem;
+      }
+      header span {
+        display: none;
+      }
+      .writing-app {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+      }
+      .writing-app aside {
+        border: 0;
+      }
+      .writing-app nav {
+        max-height: 180px;
+        overflow: auto;
+      }
+    }
+    [hidden] {
+      display: none;
+    }
+    </style>
+  </body>
+</html>

@@ -4,12 +4,7 @@
   "title": "DeepWork Job Definition",
   "description": "Schema for DeepWork job.yml files. Jobs define multi-step workflows executed by AI agents. Workflows contain steps with explicit input/output data flow through shared step_arguments.",
   "type": "object",
-  "required": [
-    "name",
-    "summary",
-    "step_arguments",
-    "workflows"
-  ],
+  "required": ["name", "summary", "step_arguments", "workflows"],
   "additionalProperties": false,
   "properties": {
     "name": {
@@ -45,11 +40,7 @@
   "$defs": {
     "step_argument": {
       "type": "object",
-      "required": [
-        "name",
-        "description",
-        "type"
-      ],
+      "required": ["name", "description", "type"],
       "additionalProperties": false,
       "description": "A named piece of data that flows between workflow steps. Step arguments are the shared vocabulary — steps reference them by name in their inputs and outputs sections. The type determines how the data is passed: 'file_path' means the value is a path to a file on disk (validated for existence), while 'string' means the value is inline text.",
       "properties": {
@@ -80,10 +71,7 @@
     },
     "review_block": {
       "type": "object",
-      "required": [
-        "strategy",
-        "instructions"
-      ],
+      "required": ["strategy", "instructions"],
       "additionalProperties": false,
       "description": "A review rule that defines how an output should be evaluated. Uses the same shape as .deepreview review blocks — the framework creates dynamic ReviewRule objects from these at runtime and merges them with any .deepreview rules that match the output files. The strategy determines how files are grouped for review, and the instructions tell the reviewer what to check.",
       "properties": {
@@ -125,10 +113,7 @@
     },
     "workflow": {
       "type": "object",
-      "required": [
-        "summary",
-        "steps"
-      ],
+      "required": ["summary", "steps"],
       "additionalProperties": false,
       "description": "A named workflow defining a sequence of steps. Workflows are the primary execution unit — agents start workflows, not individual steps. Each step in the sequence is executed in order, with data flowing through step_arguments.",
       "properties": {
@@ -164,9 +149,7 @@
     },
     "workflow_step": {
       "type": "object",
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "additionalProperties": false,
       "description": "A single step in a workflow. Each step must have either 'instructions' (inline markdown telling the agent what to do) or 'sub_workflow' (delegation to another workflow). Steps declare their inputs and outputs by referencing step_arguments by name.",
       "properties": {
@@ -239,9 +222,7 @@
     },
     "sub_workflow_ref": {
       "type": "object",
-      "required": [
-        "workflow_name"
-      ],
+      "required": ["workflow_name"],
       "additionalProperties": false,
       "description": "Reference to another workflow to delegate to. The agent will be instructed to call start_workflow with the referenced workflow. This enables workflow composition — complex workflows can be built from simpler ones.",
       "properties": {

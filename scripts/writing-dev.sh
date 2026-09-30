@@ -13,16 +13,7 @@ if [ -f .writing-server.pid ]; then
   fi
 fi
 export WRITING_HOST="${WRITING_HOST:-127.0.0.1}"
-port=$(node --input-type=module - <<'JS'
-import net from 'node:net';
-import fs from 'node:fs';
-let port = Number(process.env.DEV_PORT || (fs.existsSync('.env.local') ? fs.readFileSync('.env.local','utf8').match(/^DEV_PORT=(\d+)$/m)?.[1] : undefined) || 4180);
-const available = p => new Promise(resolve => { const s = net.createServer(); s.once('error',()=>resolve(false)); s.listen(p,process.env.WRITING_HOST,()=>s.close(()=>resolve(true))); });
-while (!await available(port)) port++;
-fs.writeFileSync('.env.local',`DEV_PORT=${port}\nDEV_URL=http://${process.env.WRITING_HOST}:${port}\n`);
-console.log(port);
-JS
-)
+port=$(node ../../scripts/writing-port.mjs)
 args=()
 if [ -n "${WRITING_SECRETS_FILE:-}" ]; then args+=(--env-file "$WRITING_SECRETS_FILE"); fi
 if [ -n "${WRITING_ALLOWED_ORIGINS:-}" ]; then args+=(--var "WRITING_ALLOWED_ORIGINS:$WRITING_ALLOWED_ORIGINS"); fi

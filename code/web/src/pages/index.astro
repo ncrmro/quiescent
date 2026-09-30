@@ -1,11 +1,11 @@
 ---
-import {env} from 'quiescent:runtime';
-import {prepareReader} from '@quiescent/astro';
-import {writingApp} from '../writing/app';
-import ReaderPage from '../components/ReaderPage.astro';
-import ForgeBrowser from '../components/ForgeBrowser.astro';
-const writing=env.WRITING_TEST==='true' || env.WRITING_LOCAL==='true';
-const data=writing ? await prepareReader(Astro,writingApp(env).service) : null;
-if(data instanceof Response)return data;
+import { env } from "quiescent:runtime";
+import { prepareReader } from "@quiescent/astro";
+import ReaderPage from "../components/ReaderPage.astro";
+import { writingApp } from "../writing/app";
+
+const data = await prepareReader(Astro, writingApp(env).service);
+if (data instanceof Response) return data;
 ---
-{data ? <ReaderPage {...data}/> : <ForgeBrowser/>}
+
+<ReaderPage {...data} />

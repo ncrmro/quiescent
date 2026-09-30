@@ -3,9 +3,7 @@
   "name": "quiescent-writing-test",
   "main": "./src/worker.ts",
   "compatibility_date": "2026-07-08",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "binding": "ASSETS",
     "directory": "./dist/client",
@@ -22,8 +20,7 @@
     "WRITING_REPO_NAME": "quiescent-writing-demo",
     "WRITING_AUTHOR_NAME": "Nicholas Romero",
     "WRITING_AUTHOR_EMAIL": "ncrmro@users.noreply.github.com",
-    "WRITING_R2_BUCKET": "quiescent-writing-demo-images",
-    "WRITING_TEST": "true"
+    "WRITING_R2_BUCKET": "quiescent-writing-demo-images"
   },
   "observability": {
     "enabled": true

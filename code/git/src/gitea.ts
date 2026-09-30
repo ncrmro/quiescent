@@ -31,13 +31,13 @@ export class GiteaForge implements ForgeClient {
   private readonly http: HttpClient;
   private readonly repoPath: string;
 
-  constructor(private readonly config: ForgeConfig) {
+  constructor(config: ForgeConfig) {
     this.kind = config.kind;
     const baseUrl = resolveGiteaBaseUrl(config);
     this.http = createHttpClient({
       apiBase: `${baseUrl}/api/v1`,
       token: config.token,
-      fetch: config.fetch,
+      ...(config.fetch ? { fetch: config.fetch } : {}),
     });
     this.repoPath = `/repos/${config.owner}/${config.repo}`;
   }
@@ -53,9 +53,9 @@ export class GiteaForge implements ForgeClient {
     return {
       id: user.id,
       login: user.login,
-      name: user.full_name || undefined,
-      email: user.email ?? undefined,
-      avatarUrl: user.avatar_url,
+      ...(user.full_name ? { name: user.full_name } : {}),
+      ...(user.email ? { email: user.email } : {}),
+      ...(user.avatar_url ? { avatarUrl: user.avatar_url } : {}),
     };
   }
 
@@ -74,7 +74,10 @@ export class GiteaForge implements ForgeClient {
     const response = await this.http.request(
       `${this.repoPath}/contents/${encodePath(path)}${query}`,
     );
-    if (response.status === 404) { await response.body?.cancel(); return null; }
+    if (response.status === 404) {
+      await response.body?.cancel();
+      return null;
+    }
     const entry = (await response.json()) as GiteaContentsEntry;
     if (entry.type !== "file" || entry.content == null) {
       throw new ForgeError(`${path} is not a file`, 422, path);
@@ -119,7 +122,7 @@ export class GiteaForge implements ForgeClient {
         return {
           operation: file.content === null ? "delete" : existing ? "update" : "create",
           path: file.path,
-          ...(file.content === null ? {} : {content: encodeBase64(file.content)}),
+          ...(file.content === null ? {} : { content: encodeBase64(file.content) }),
           ...(existing ? { sha: existing.sha } : {}),
         };
       }),
@@ -138,7 +141,10 @@ export class GiteaForge implements ForgeClient {
         }),
       },
     );
-    return { sha: result.commit.sha, url: result.commit.html_url };
+    return {
+      sha: result.commit.sha,
+      ...(result.commit.html_url ? { url: result.commit.html_url } : {}),
+    };
   }
 
   async createBranch(name: string, fromSha: string): Promise<void> {

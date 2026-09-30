@@ -1,9 +1,11 @@
 ---
-import {env} from 'quiescent:runtime';
-import {prepareReader} from '@quiescent/astro';
-import {writingApp} from '../../writing/app';
-import ReaderPage from '../../components/ReaderPage.astro';
-const data=await prepareReader(Astro,writingApp(env).service,Astro.params.path?.split('/')[0]);
-if(data instanceof Response)return data;
+import { env } from "quiescent:runtime";
+import { prepareReader } from "@quiescent/astro";
+import ReaderPage from "../../components/ReaderPage.astro";
+import { writingApp } from "../../writing/app";
+
+const data = await prepareReader(Astro, writingApp(env).service, Astro.params.path?.split("/")[0]);
+if (data instanceof Response) return data;
 ---
-<ReaderPage {...data}/>
+
+<ReaderPage {...data} />

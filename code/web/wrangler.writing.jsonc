@@ -3,9 +3,7 @@
   "name": "quiescent-writing-local",
   "main": "./src/worker.ts",
   "compatibility_date": "2026-07-08",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "binding": "ASSETS",
     "directory": "./dist/client"
@@ -17,7 +15,6 @@
     }
   ],
   "vars": {
-    "WRITING_LOCAL": "true",
     "WRITING_REPO_OWNER": "ncrmro",
     "WRITING_REPO_NAME": "quiescent-writing-demo",
     "WRITING_AUTHOR_NAME": "Nicholas Romero",

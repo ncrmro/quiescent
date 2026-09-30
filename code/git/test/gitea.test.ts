@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { GiteaForge, resolveGiteaBaseUrl } from "../src/gitea.ts";
 import { decodeBase64, encodeBase64 } from "../src/base64.ts";
+import { GiteaForge, resolveGiteaBaseUrl } from "../src/gitea.ts";
 import { createMockFetch, type Route } from "./mock-fetch.ts";
 
 function forge(routes: Route[]) {
@@ -18,7 +18,9 @@ function forge(routes: Route[]) {
 describe("resolveGiteaBaseUrl", () => {
   test("codeberg defaults, gitea requires baseUrl", () => {
     expect(resolveGiteaBaseUrl({ kind: "codeberg" })).toBe("https://codeberg.org");
-    expect(resolveGiteaBaseUrl({ kind: "forgejo", baseUrl: "https://fj.example/" })).toBe("https://fj.example");
+    expect(resolveGiteaBaseUrl({ kind: "forgejo", baseUrl: "https://fj.example/" })).toBe(
+      "https://fj.example",
+    );
     expect(() => resolveGiteaBaseUrl({ kind: "gitea" })).toThrow();
   });
 });
@@ -38,9 +40,26 @@ describe("GiteaForge", () => {
       {
         method: "GET",
         url: "/contents/existing.md",
-        response: { path: "existing.md", name: "existing.md", type: "file", sha: "blob1", size: 1, content: encodeBase64("old") },
+        response: {
+          path: "existing.md",
+          name: "existing.md",
+          type: "file",
+          sha: "blob1",
+          size: 1,
+          content: encodeBase64("old"),
+        },
       },
-      {method:"GET",url:"/contents/removed.json",response:{path:"removed.json",name:"removed.json",type:"file",sha:"old-blob",content:encodeBase64("{}")}},
+      {
+        method: "GET",
+        url: "/contents/removed.json",
+        response: {
+          path: "removed.json",
+          name: "removed.json",
+          type: "file",
+          sha: "old-blob",
+          content: encodeBase64("{}"),
+        },
+      },
       {
         method: "POST",
         url: "/contents",
@@ -64,7 +83,7 @@ describe("GiteaForge", () => {
     expect(body.files).toEqual([
       { operation: "update", path: "existing.md", content: encodeBase64("new"), sha: "blob1" },
       { operation: "create", path: "brand-new.md", content: encodeBase64("fresh") },
-      { operation: "delete", path: "removed.json", sha:"old-blob" },
+      { operation: "delete", path: "removed.json", sha: "old-blob" },
     ]);
   });
 
@@ -81,16 +100,14 @@ describe("GiteaForge", () => {
       author: { name: "Nico", email: "nico@example.com" },
     });
     const batch = requests.find((r) => r.method === "POST" && r.url.endsWith("/contents"));
-    expect((batch?.body as { author: unknown }).author).toEqual({
+    expect((batch!.body as { author: unknown }).author).toEqual({
       name: "Nico",
       email: "nico@example.com",
     });
   });
 
   test("createBranch uses gitea branch endpoint", async () => {
-    const { client, requests } = forge([
-      { method: "POST", url: "/branches", response: {} },
-    ]);
+    const { client, requests } = forge([{ method: "POST", url: "/branches", response: {} }]);
     await client.createBranch("suggest-1", "head1");
     expect(requests[0]?.body).toEqual({ new_branch_name: "suggest-1", old_ref_name: "head1" });
   });

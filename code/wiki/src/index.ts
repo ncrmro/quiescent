@@ -1,30 +1,31 @@
 // Build-time / server-side API. Everything here may touch node:fs — do not
 // import from client islands; use "@quiescent/wiki/client" there.
+
+export { type QuiescentWikiOptions, quiescentWiki } from "./astro/integration.ts";
 export {
-  scanNotes,
-  noteId,
-  noteUrl,
-  normalizeName,
-  WIKILINK,
-  type WikiOptions,
-  type WikiNote,
-} from "./notes.ts";
+  type DeadLink,
+  type LinkReport,
+  reportWikiLinks,
+  validateWikiLinks,
+} from "./check-links.ts";
 export {
+  buildTagIndex,
+  buildWikiGraph,
   buildWikiIndex,
   resolveWikiTarget,
-  buildWikiGraph,
-  buildTagIndex,
-  type WikiIndex,
   type WikiGraph,
-  type WikiGraphNode,
   type WikiGraphEdge,
+  type WikiGraphNode,
+  type WikiIndex,
 } from "./graph.ts";
-export { buildSearchIndex, SEARCH_OPTIONS } from "./search.ts";
-export { remarkWikiLinks } from "./remark-wiki-links.ts";
 export {
-  validateWikiLinks,
-  reportWikiLinks,
-  type LinkReport,
-  type DeadLink,
-} from "./check-links.ts";
-export { quiescentWiki, type QuiescentWikiOptions } from "./astro/integration.ts";
+  normalizeName,
+  noteId,
+  noteUrl,
+  scanNotes,
+  WIKILINK,
+  type WikiNote,
+  type WikiOptions,
+} from "./notes.ts";
+export { remarkWikiLinks } from "./remark-wiki-links.ts";
+export { buildSearchIndex, SEARCH_OPTIONS } from "./search.ts";

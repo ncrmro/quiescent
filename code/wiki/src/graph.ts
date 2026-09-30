@@ -94,7 +94,7 @@ export function buildWikiGraph(
       url: note.url,
       label: note.title ?? note.basename,
       kind: "note",
-      type: note.type,
+      ...(note.type ? { type: note.type } : {}),
       degree: 0,
     });
   }
@@ -109,7 +109,7 @@ export function buildWikiGraph(
     nodes.get(target)!.degree++;
   };
 
-  for (const note of index.notes) {
+  function connectNote(note: WikiIndex["notes"][number]) {
     for (const raw of note.links) {
       const url = resolveWikiTarget(raw.split("|")[0]!, index);
       if (url && nodes.has(url)) addEdge(note.url, url, "link");
@@ -123,6 +123,8 @@ export function buildWikiGraph(
     }
   }
 
+  index.notes.forEach(connectNote);
+
   return { nodes: [...nodes.values()], edges };
 }
 
@@ -133,7 +135,8 @@ export function buildTagIndex(
   const tags: Record<string, Array<{ url: string; title: string }>> = {};
   for (const note of index.notes) {
     for (const tag of note.tags) {
-      (tags[tag] ??= []).push({ url: note.url, title: note.title ?? note.basename });
+      tags[tag] ??= [];
+      tags[tag].push({ url: note.url, title: note.title ?? note.basename });
     }
   }
   const sorted: typeof tags = {};
