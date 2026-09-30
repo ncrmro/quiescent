@@ -20,7 +20,8 @@
     "@quiescent/git": "workspace:*",
     "@quiescent/server": "workspace:*",
     "@quiescent/wiki": "workspace:*",
-    "astro": "^7.3.5"
+    "astro": "^7.3.5",
+    "@quiescent/astro": "workspace:*"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",

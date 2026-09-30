@@ -1,7 +1,7 @@
 import {expect,test} from 'bun:test';
-import {astroWriting,type RouteCache} from '../src/astro-writing.ts';
-import type {createPublishingService} from '../src/publishing.ts';
-import {localR2Media} from '../src/media.ts';
+import {astroWriting,type RouteCache} from '../src/index.ts';
+import type {createPublishingService} from '@quiescent/server';
+import {localR2Media} from '@quiescent/server';
 const post={id:'11111111-1111-4111-8111-111111111111',slug:'story',title:'Story',description:'',body:{type:'doc',content:[]}};
 const media=localR2Media({async get(){return null;},async put(){}});
 test('publishing invalidates and warms affected pages before returning; drafts do not warm public pages',async()=>{

@@ -41,7 +41,8 @@ Bun workspace with packages under `code/`:
 | Package | Published | Purpose |
 | --- | --- | --- |
 | `@quiescent/git` | npm | Forge API abstraction: contents, multi-file commits, branches, pull requests, forks, OAuth |
-| `@quiescent/server` | npm | Worker-side sessions, KV drafts, and flush-to-commit logic |
+| `@quiescent/server` | npm | Framework-independent publishing, media, sessions, drafts, and commit logic |
+| `@quiescent/astro` | no (private workspace) | Astro route helpers, page-cache policies, invalidation, and warming |
 | `@quiescent/editor` | npm | CodeMirror 6 markdown editor with idle detection (the flush-on-stop signal) |
 | `@quiescent/wiki` | npm | Astro wiki toolkit: wikilinks remark plugin, tag index, MiniSearch index, d3-force note graph, all baked at build time (`virtual:quiescent-wiki`) |
 | `@quiescent/web` | no (example) | Reference Astro app on Cloudflare Workers wiring the packages together: auth routes, draft API, cron flush, and the `/demo` blog + wiki apps |

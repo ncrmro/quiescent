@@ -1,6 +1,6 @@
-import type { createPublishingService, PostDocument } from './publishing.ts';
-import type { MediaStorage } from './media.ts';
-import { createWritingHandler, writingErrorResponse } from './writing-http.ts';
+import type { createPublishingService, PostDocument } from '@quiescent/server';
+import type { MediaStorage } from '@quiescent/server';
+import { createWritingHandler, writingErrorResponse } from '@quiescent/server';
 
 /** Astro's public cache contract, structural so other server consumers do not need Astro. */
 export interface RouteCache {

@@ -85,14 +85,17 @@ Astro development mode intentionally does not cache pages.
 The main pieces are existing workspace packages:
 
 - `@quiescent/git`: refs, commit conflict checks, comparisons, and merges.
-- `@quiescent/server`: publishing service, HTTP handler, media adapters,
-  `astroWriting()` lifecycle, and `cachePublication()` page policy.
+- `@quiescent/server`: framework-independent publishing service, HTTP handler, and media adapters.
+- `@quiescent/astro`: Astro route helpers, cache policies, invalidation, and warming.
+  This is a private workspace package and is not published to npm.
 - `@quiescent/editor`: formatted editor, serialized saves, recovery, photos,
   publication and deletion controls, and incremental author-list updates.
 
 The example's writing API delegates to the library:
 
 ```ts
+import {astroWriting} from "@quiescent/astro";
+
 export const ALL = context => astroWriting({
   service,
   media,

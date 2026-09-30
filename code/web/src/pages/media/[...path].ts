@@ -1,6 +1,7 @@
+import { cachePublication } from "@quiescent/astro";
 import { env } from "quiescent:runtime";
 import type { APIRoute } from "astro";
-import { publishedMedia, writingErrorResponse, cachePublication } from "@quiescent/server";
+import { publishedMedia, writingErrorResponse } from "@quiescent/server";
 import { writingApp } from "../../writing/app";
 export const prerender=false;
 export const GET:APIRoute=async({params,cache})=>{

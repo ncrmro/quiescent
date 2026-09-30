@@ -1,6 +1,6 @@
 ---
 import {env} from 'quiescent:runtime';
-import {prepareReader} from '@quiescent/server';
+import {prepareReader} from '@quiescent/astro';
 import {writingApp} from '../../writing/app';
 import ReaderPage from '../../components/ReaderPage.astro';
 const data=await prepareReader(Astro,writingApp(env).service,Astro.params.path?.split('/')[0]);

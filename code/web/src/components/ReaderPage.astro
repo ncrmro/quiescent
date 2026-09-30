@@ -1,5 +1,6 @@
 ---
-import {readerPath,type PostDraft} from '@quiescent/server';
+import {readerPath} from '@quiescent/astro';
+import type {PostDraft} from '@quiescent/server';
 import {renderDocument} from '@quiescent/editor/document';
 import EditLink from './EditLink.astro';
 interface Props {post:PostDraft|null;posts:PostDraft[]}
