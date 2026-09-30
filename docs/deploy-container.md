@@ -11,6 +11,10 @@ Mount `WRITING_MEDIA_DIRECTORY` as a persistent volume. The default is
 R2 on Node as well as Cloudflare. Direct browser uploads require exact-origin
 bucket CORS. Keep the bucket private.
 
+Install and retain the production dependencies alongside the Node build, including
+`sharp` and its platform-specific optional binaries. Astro uses Sharp for runtime
+responsive WebP images; it is intentionally external to the JavaScript bundle.
+
 The launcher warms Astro's full-page memory cache before accepting normal traffic.
 The supported example is one Node process. Multiple replicas need a shared Astro
 cache provider. Put HTTPS in front of the app for public hosting.

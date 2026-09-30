@@ -1,7 +1,11 @@
 ---
+import { env } from "quiescent:runtime";
 import { readerPath } from "@quiescent/astro";
+import DocumentBody from "@quiescent/astro/components/DocumentBody.astro";
+import DocumentImage from "@quiescent/astro/components/DocumentImage.astro";
+import { postImages } from "@quiescent/astro/images";
 import type { PostDraft } from "@quiescent/server";
-import { documentMediaUrl, renderDocument } from "@quiescent/server/content";
+import { writingApp } from "../writing/app";
 import EditLink from "./EditLink.astro";
 
 interface Props {
@@ -9,6 +13,10 @@ interface Props {
   posts: PostDraft[];
 }
 const { post, posts } = Astro.props;
+const { service } = writingApp(env);
+const imageSets = new Map<string, Awaited<ReturnType<typeof postImages>>>();
+for (const draft of posts) imageSets.set(draft.post.id, await postImages(draft, service, !post));
+const images = post ? imageSets.get(post.post.id)! : {};
 ---
 
 <!doctype html>
@@ -27,12 +35,8 @@ const { post, posts } = Astro.props;
       <EditLink server:defer slug={post.post.slug ?? post.post.id} />
     </nav>
     <h1>{post.post.title}</h1>
-    {post.post.headerImage && (
-      <img
-        src={documentMediaUrl(post.post.id, post.post.headerImage, { revision: post.headSha })}
-        alt=""
-        class="header-image"
-      />
+    {post.post.headerImage && images[post.post.headerImage] && (
+      <DocumentImage source={images[post.post.headerImage]!} alt="" class="header-image" priority />
     )}
     {post.post.tags?.length ? (
       <ul class="tags" aria-label="Tags">
@@ -42,30 +46,23 @@ const { post, posts } = Astro.props;
       </ul>
     ) : null}
     <p>{post.post.description}</p>
-    <Fragment
-      set:html={renderDocument(post.post.body, (ref) =>
-        documentMediaUrl(
-          post.post.id,
-          ref.postId ? `/media/${ref.postId}/${ref.assetId}` : ref.assetId,
-          { revision: post.headSha },
-        ),
-      )}
-    />
+    <DocumentBody node={post.post.body} images={images} />
   </>
 ) : (
   <>
     <h1>Stories</h1>
-    {posts.map(({ post, headSha }) => (
+    {posts.map(({ post }, index) => (
       <article>
         <h2>
           <a href={readerPath(post)}>{post.title}</a>
         </h2>
         <p>{post.description}</p>
-        {post.headerImage && (
-          <img
-            src={documentMediaUrl(post.id, post.headerImage, { revision: headSha })}
+        {post.headerImage && imageSets.get(post.id)?.[post.headerImage] && (
+          <DocumentImage
+            source={imageSets.get(post.id)![post.headerImage]!}
             alt=""
             class="header-image"
+            priority={index === 0}
           />
         )}
         {post.tags?.length ? <p class="tags">{post.tags.join(" · ")}</p> : null}

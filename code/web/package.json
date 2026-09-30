@@ -15,11 +15,12 @@
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.3",
     "@astrojs/node": "^11.1.6",
+    "@quiescent/astro": "workspace:*",
     "@quiescent/editor": "workspace:*",
     "@quiescent/git": "workspace:*",
     "@quiescent/server": "workspace:*",
     "astro": "^7.3.5",
-    "@quiescent/astro": "workspace:*"
+    "sharp": "0.35.5"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",

@@ -8,11 +8,17 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./images": {
+      "types": "./dist/images.d.ts",
+      "default": "./dist/images.js"
+    },
+    "./components/*": "./components/*"
   },
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "components"
   ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",

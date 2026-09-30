@@ -8,6 +8,7 @@
     "binding": "ASSETS",
     "directory": "./dist/client"
   },
+  "images": { "binding": "IMAGES" },
   "r2_buckets": [
     {
       "binding": "WRITING_MEDIA",

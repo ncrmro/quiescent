@@ -67,10 +67,16 @@ test("publishes a garden story with filename-only header and body images", async
     reader.getByRole("link", { name: "A slow morning in the garden", exact: true }),
   ).toBeVisible();
   await reader.getByRole("link", { name: "A slow morning in the garden", exact: true }).click();
-  await expect(
-    reader.getByAltText("Tomatoes and a cup of tea in the morning sun"),
-  ).toHaveJSProperty("naturalWidth", 1536);
-  await expect(reader.locator(".header-image")).toHaveJSProperty("naturalWidth", 1536);
+  await expect
+    .poll(() =>
+      reader
+        .getByAltText("Tomatoes and a cup of tea in the morning sun")
+        .evaluate((el: HTMLImageElement) => el.naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  await expect
+    .poll(() => reader.locator(".header-image").evaluate((el: HTMLImageElement) => el.naturalWidth))
+    .toBeGreaterThan(0);
   expect(await reader.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
     true,
   );
@@ -85,4 +91,43 @@ test("publishes a garden story with filename-only header and body images", async
     fullPage: true,
   });
   await anonymous.close();
+});
+
+test("loads optimized responsive Astro images", async ({ page, request }) => {
+  test.skip(
+    process.env.QUIESCENT_LIVE_TEST !== "1" || !process.env.EXAMPLE_READER_PATH,
+    "Requires an existing published example",
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(process.env.EXAMPLE_READER_PATH!);
+  const header = page.locator(".header-image");
+  const body = page.getByAltText("Tomatoes and a cup of tea in the morning sun");
+  await expect(header).toHaveAttribute("fetchpriority", "high");
+  await expect(header).toHaveAttribute("loading", "eager");
+  await expect(header).toHaveAttribute("srcset", /360w/);
+  await expect(body).toHaveAttribute("loading", "lazy");
+  await expect(body).toHaveAttribute("srcset", /720w/);
+  await body.scrollIntoViewIfNeeded();
+  await expect
+    .poll(() => body.evaluate((el: HTMLImageElement) => el.naturalWidth))
+    .toBeGreaterThan(0);
+  const src = await header.evaluate((el: HTMLImageElement) => el.currentSrc);
+  const optimized = await request.get(src);
+  expect(optimized.status()).toBe(200);
+  expect(optimized.headers()["content-type"]).toBe("image/webp");
+  expect((await optimized.body()).length).toBeLessThan(3305091 / 2);
+  expect(optimized.headers()["cache-control"]).not.toContain("immutable");
+  const source = new URL(new URL(src).searchParams.get("href")!, process.env.BASE_URL!);
+  const original = await request.get(source.href);
+  expect(original.headers()["content-type"]).toBe("image/png");
+  console.log(
+    JSON.stringify({
+      originalBytes: (await original.body()).length,
+      optimizedBytes: (await optimized.body()).length,
+      width: await header.evaluate((el: HTMLImageElement) => el.naturalWidth),
+    }),
+  );
+  const forbidden = new URL(src);
+  forbidden.searchParams.set("href", "https://example.com/private.png");
+  expect((await request.get(forbidden.href)).status()).toBe(400);
 });

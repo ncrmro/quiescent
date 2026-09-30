@@ -204,3 +204,12 @@ requires updating the locator; creating arbitrary files does not automatically
 register or publish documents. Old UUID/JSON layouts remain readable and migrate
 on save. Previously stored `/media/...` references remain compatible but are not
 bulk converted into LFS images.
+
+
+Astro applications can render these references with
+`@quiescent/astro/components/DocumentImage.astro` and `DocumentBody.astro`.
+`postImages(draft, service)` supplies their intrinsic image metadata; pass `true`
+as its third argument when only index header images are needed. The components
+use Astro's `Image` for responsive WebP candidates and loading hints. See the
+[example's runtime optimization setup](writing-prototype.md#astro-image-loading)
+for publication-aware caching and native Node/Cloudflare transforms.

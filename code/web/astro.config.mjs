@@ -8,10 +8,17 @@ import { defineConfig, memoryCache } from "astro/config";
 const selfHosted = process.env.WRITING_RUNTIME === "node";
 export default defineConfig({
   session: false,
+  image: {
+    endpoint: { route: "/_image", entrypoint: "./src/writing/image-endpoint.ts" },
+    ...(!selfHosted
+      ? { service: { entrypoint: "@astrojs/cloudflare/image-service-workerd" } }
+      : {}),
+  },
   cache: { provider: selfHosted ? memoryCache() : cacheCloudflare() },
   outDir: selfHosted ? "./dist-node" : "./dist",
   output: "server",
   vite: {
+    ...(selfHosted ? { ssr: { external: ["sharp"] } } : {}),
     server: { strictPort: true },
     resolve: {
       alias: {
@@ -25,6 +32,6 @@ export default defineConfig({
     ? node({ mode: "standalone" })
     : cloudflare({
         configPath: process.env.WRITING_CONFIG ?? "wrangler.writing-test.jsonc",
-        imageService: "compile",
+        imageService: "custom",
       }),
 });

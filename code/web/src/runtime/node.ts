@@ -21,3 +21,21 @@ export const warmFetch: typeof fetch = (input, init) =>
         : {}),
     },
   });
+
+export const transformImage: import("@quiescent/astro/images").TransformImage = async (
+  source,
+  options,
+  logger,
+) => {
+  const { default: sharp } = await import("astro/assets/services/sharp");
+  const { imageConfig } = await import("astro:assets");
+  const result = await sharp.transform(
+    new Uint8Array(await source.arrayBuffer()),
+    { src: "image.png", ...options },
+    imageConfig,
+    logger,
+  );
+  return new Response(new Uint8Array(result.data), {
+    headers: { "Content-Type": `image/${result.format}` },
+  });
+};

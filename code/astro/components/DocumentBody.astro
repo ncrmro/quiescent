@@ -1,0 +1,41 @@
+---
+import type { DocumentImages } from "@quiescent/astro/images";
+import { renderDocument, validateDocument, type WritingDocument } from "@quiescent/server/content";
+import DocumentImage from "./DocumentImage.astro";
+
+interface Props {
+  node: WritingDocument;
+  images: DocumentImages;
+}
+const { images } = Astro.props;
+const node =
+  Astro.props.node.type === "doc" ? validateDocument(Astro.props.node) : Astro.props.node;
+const containers = {
+  blockquote: "blockquote",
+  bulletList: "ul",
+  orderedList: "ol",
+  listItem: "li",
+} as const;
+const Tag = containers[node.type as keyof typeof containers];
+const source = images[String(node.attrs?.src)];
+---
+
+{node.type === "image" ? (
+  source && (
+    <DocumentImage
+      source={source}
+      alt={String(node.attrs?.alt ?? "")}
+      {...(node.attrs?.title ? { title: String(node.attrs.title) } : {})}
+    />
+  )
+) : node.type === "doc" ? (
+  node.content?.map((child) => <Astro.self node={child} images={images} />)
+) : Tag ? (
+  <Tag {...(node.type === "orderedList" ? { start: Number(node.attrs?.start ?? 1) } : {})}>
+    {node.content?.map((child) => (
+      <Astro.self node={child} images={images} />
+    ))}
+  </Tag>
+) : (
+  <Fragment set:html={renderDocument({ type: "doc", content: [node] })} />
+)}
