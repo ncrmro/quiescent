@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./file-media": {
+      "types": "./dist/file-media.d.ts",
+      "default": "./dist/file-media.js"
     }
   },
   "types": "./dist/index.d.ts",

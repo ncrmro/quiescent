@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env } from "quiescent:runtime";
 import { writingAuthor } from "./writing/app";
 import { defineMiddleware } from "astro:middleware";
 import {
@@ -15,18 +15,20 @@ import {
 // no forge account and are what the Playwright specs drive.
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
+  const privateNext=async()=>{context.cache.set(false);const response=await next();response.headers.set("Cache-Control","private, no-store");return response;};
   const writingEnv = env;
   const editorRoute = pathname === "/write" || /^\/posts\/[^/]+\/edit\/?$/.test(pathname);
   const authorRoute = editorRoute || pathname.startsWith("/api/writing/");
   const readerRoute = pathname === "/read" || pathname.startsWith("/read/") || pathname.startsWith("/media/");
-  if (writingEnv.WRITING_TEST === "true" && (pathname === "/login" || pathname.startsWith("/api/auth/"))) return next();
+  if (pathname.startsWith("/_astro/")) return next();
+  if (pathname === "/login" || pathname.startsWith("/api/auth/") || pathname.startsWith("/_server-islands/")) return privateNext();
   if (authorRoute) {
     if (!await writingAuthor(context.request, writingEnv)) {
-      return editorRoute && writingEnv.WRITING_TEST === "true"
+      return editorRoute
         ? context.redirect("/login")
         : new Response("Sign in to write", {status:401});
     }
-    return next();
+    return privateNext();
   }
   if (readerRoute || (pathname === "/" && (writingEnv.WRITING_LOCAL === "true" || writingEnv.WRITING_TEST === "true"))) return next();
   if ((writingEnv.WRITING_LOCAL === "true" || writingEnv.WRITING_TEST === "true") && !pathname.startsWith("/_astro/")) {

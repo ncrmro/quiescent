@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env } from "quiescent:runtime";
 import type { APIRoute } from "astro";
 import {
   deleteSession,

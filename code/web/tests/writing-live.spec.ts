@@ -238,9 +238,9 @@ test("hosted password sign-in, session persistence, and sign-out", async ({page,
   await expect(page.getByRole("status")).toHaveText("Choose a post or start writing.");
   await page.reload();
   await expect(page.getByRole("button",{name:"New post",exact:true})).toBeVisible();
-  const cookie=(await context.cookies()).find(c=>c.name.endsWith("better-auth.session_token"));
+  const cookie=(await context.cookies()).find(c=>c.name==="quiescent.writer");
   expect(cookie?.httpOnly).toBe(true);
-  expect(cookie?.secure).toBe(true);
+  expect(cookie?.secure).toBe(process.env.BASE_URL!.startsWith("https:"));
   const signup=await page.request.post("/api/auth/sign-up/email",{headers:{Origin:process.env.BASE_URL!},data:{email:"other@example.com",name:"Other",password:"another-password"}});
   expect(signup.ok()).toBe(false);
   page.on("dialog",dialog=>dialog.accept());
@@ -255,7 +255,7 @@ test("signed-in readers can edit the story they are reading", async ({page}) => 
   await expect(page.getByRole("link",{name:"Edit",exact:true})).toHaveCount(0);
   await page.locator("article h2 a").first().click();
   const storyURL=page.url();
-  const storyTitle=await page.locator("h1").innerText();
+  const storyId=new URL(storyURL).pathname.split("/")[2];
   await expect(page.getByRole("link",{name:"Edit",exact:true})).toHaveCount(0);
   await page.goto("/login");
   await page.getByLabel("Password",{exact:true}).fill(process.env.WRITING_TEST_PASSWORD!);
@@ -264,7 +264,10 @@ test("signed-in readers can edit the story they are reading", async ({page}) => 
   await page.goto("/read");
   await expect(page.getByRole("link",{name:"Edit",exact:true}).first()).toBeVisible();
   await page.goto(storyURL);
+  const opened=page.waitForResponse(response=>new URL(response.url()).pathname===`/api/writing/posts/${storyId}` && response.request().method()==="GET");
   await page.getByRole("link",{name:"Edit",exact:true}).click();
+  const draft=await (await opened).json();expect(draft.post.id).toBe(storyId);
+  const storyTitle=draft.post.title;
   await expect(page).toHaveURL(new RegExp(`/posts/${new URL(storyURL).pathname.split("/")[3]}/edit$`));
   await expect(page.getByLabel("Title",{exact:true})).toHaveValue(storyTitle);
   await expect(page.getByRole("textbox",{name:"Post body"})).toBeVisible();
@@ -275,4 +278,36 @@ test("signed-in readers can edit the story they are reading", async ({page}) => 
   await page.context().clearCookies();
   await page.goto(editorURL);
   await expect(page).toHaveURL(/\/login$/);
+});
+
+test('native page cache is warmed by publication and deletion, with no private cache leaks',async({page,request})=>{
+  test.skip(process.env.QUIESCENT_LIVE_TEST!=='1','Requires the isolated GitHub test repository');
+  await page.goto('/login');await page.getByLabel('Password',{exact:true}).fill(process.env.WRITING_TEST_PASSWORD!);
+  await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page).toHaveURL(/\/write$/);
+  const headers={Origin:process.env.BASE_URL!};
+  const created=await page.request.post('/api/writing/posts',{headers,data:{}});expect(created.ok()).toBe(true);
+  let draft=await created.json();const id=draft.post.id;const title=`Portable cache proof ${crypto.randomUUID().slice(0,8)}`;
+  const saved=await page.request.put(`/api/writing/posts/${id}`,{headers,data:{branch:draft.branch,expectedHeadSha:draft.headSha,post:{...draft.post,title,body:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'A story about a walk in the rain.'}]}]}}}});
+  expect(saved.ok()).toBe(true);draft=await saved.json();
+  const before=await request.get('/');expect(await before.text()).not.toContain(title);
+  const published=await page.request.post(`/api/writing/posts/${id}/publish`,{headers,data:{branch:draft.branch,expectedHeadSha:draft.headSha}});
+  expect(published.ok()).toBe(true);const result=await published.json();expect(result.cacheWarning).toBeUndefined();
+  const path=`/read/${id}/${result.post.slug}`;
+  const hit=async(path:string)=>{
+    const response=await request.get(path);expect(response.headers()['x-astro-cache'] ?? response.headers()['cf-cache-status']).toBe('HIT');return response;
+  };
+  const first=await hit(path);expect(await first.text()).toContain(title);
+  const second=await hit(path);expect(second.headers()['x-quiescent-rendered']).toBe(first.headers()['x-quiescent-rendered']);
+  expect(await (await hit('/')).text()).toContain(title);
+  // Warming was anonymous: personalized controls must never appear in shared HTML.
+  expect(await first.text()).not.toMatch(/class="edit"/);
+  expect((await request.get('/api/writing/posts')).status()).toBe(401);
+  const privateResponse=await page.request.get('/api/writing/posts');expect(privateResponse.headers()['cache-control']).toContain('no-store');
+  await page.goto(`/posts/${result.post.slug}/edit`);await expect(page.getByLabel('Title',{exact:true})).toHaveValue(title);
+  page.on('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Delete post',exact:true}).click();
+  await expect(page.getByRole('status')).toHaveText('Deleted');
+  expect((await hit(path)).status()).toBe(404);
+  expect(await (await hit('/')).text()).not.toContain(title);
+  const stale=await page.request.put(`/api/writing/posts/${id}`,{headers,data:{branch:draft.branch,expectedHeadSha:draft.headSha,post:draft.post}});
+  expect(stale.status()).toBe(404);
 });

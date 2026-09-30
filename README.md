@@ -1,7 +1,7 @@
 # quiescent
 
 For the GitHub-backed formatted writing and publishing prototype, see
-[Writing with Quiescent](docs/writing-prototype.md). It runs locally as a Worker,
+[Writing with Quiescent](docs/writing-prototype.md). It runs on self-hosted Node or Cloudflare Workers,
 uses workspace packages without npm releases, and publishes without PRs.
 
 npm packages for editing documents in a git repo from the browser, and for

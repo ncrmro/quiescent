@@ -13,3 +13,9 @@ declare namespace App {
     user?: import("@quiescent/server").WikiUser;
   }
 }
+
+declare module "quiescent:runtime" {
+ export const env: import("@quiescent/server").Env & import("./writing/app").WritingEnv;
+ export const warmFetch:typeof fetch;
+ export function hostedMedia(): import("@quiescent/server").MediaStorage | undefined;
+}

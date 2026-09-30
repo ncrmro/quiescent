@@ -1,0 +1,9 @@
+---
+import {env} from 'quiescent:runtime';
+import {writingAuthor} from '../writing/auth';
+interface Props {slug:string}
+Astro.cache.set(false);
+Astro.response.headers.set('Cache-Control','private, no-store');
+const canEdit=await writingAuthor(Astro.request,env);
+---
+{canEdit && <a class="edit" href={`/posts/${encodeURIComponent(Astro.props.slug)}/edit`}>Edit</a>}

@@ -1,37 +1,25 @@
-import { publishingCache } from "./cache";
-import { writingAuth, TEST_WRITER_EMAIL } from "./auth";
+import { hostedMedia } from "quiescent:runtime";
+export { writingAuthor } from "./auth";
 import { createForge, requirePublishingForge } from "@quiescent/git";
-import { createPublishingService, cachedPublishingService, localR2Media, r2Media, WritingConfigurationError, PublishingError, type MediaStorage } from "@quiescent/server";
+import { createPublishingService, localR2Media, r2Media, WritingConfigurationError, PublishingError, type MediaStorage } from "@quiescent/server";
 import { imageReferences } from "@quiescent/editor/document";
 
 export type WritingEnv = Partial<WritingBindings> & Partial<HostedWritingBindings> & {
   SERVICE_TOKEN?: string;
-  BETTER_AUTH_SECRET?: string;
   WRITING_ALLOWED_ORIGINS?: string;
   R2_ACCOUNT_ID?: string;
   R2_ACCESS_KEY_ID?: string;
   R2_SECRET_ACCESS_KEY?: string;
 };
-export function localAuthor(request:Request,env:WritingEnv) {
-  const url=new URL(request.url);
-  const allowed = (env.WRITING_ALLOWED_ORIGINS ?? "").split(",").map(value => value.trim());
-  return env.WRITING_LOCAL === "true" && (["localhost","127.0.0.1","[::1]"].includes(url.hostname) || allowed.includes(url.origin))
-    && !["cross-site"].includes(request.headers.get("Sec-Fetch-Site") ?? "");
-}
-/** Hosted author access is a Better Auth session for the seeded test account. */
-export async function writingAuthor(request:Request, env:WritingEnv) {
-  if (env.WRITING_TEST !== "true") return localAuthor(request, env);
-  const session=await writingAuth(env).api.getSession({headers:request.headers});
-  return session?.user.email === TEST_WRITER_EMAIL;
-}
 export function writingApp(env:WritingEnv) {
   if(!env.SERVICE_TOKEN)throw new WritingConfigurationError("Set SERVICE_TOKEN in code/web/.dev.vars to connect the private writing repository.");
   if(!env.WRITING_REPO_OWNER || !env.WRITING_REPO_NAME)throw new WritingConfigurationError("Writing repository is not configured.");
   const forge=requirePublishingForge(createForge({kind:"github",owner:env.WRITING_REPO_OWNER,repo:env.WRITING_REPO_NAME,token:env.SERVICE_TOKEN}));
   let media:MediaStorage;
+  const selfHosted=hostedMedia();
   const remoteFields=[env.R2_ACCOUNT_ID,env.R2_ACCESS_KEY_ID,env.R2_SECRET_ACCESS_KEY];
   if(remoteFields.some(Boolean) && !remoteFields.every(Boolean))throw new WritingConfigurationError("Provide all R2 credentials or leave all unset for local emulation.");
-  if(env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.WRITING_R2_BUCKET){
+  if(selfHosted) { media=selfHosted; } else if(env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.WRITING_R2_BUCKET){
     media=r2Media({accountId:env.R2_ACCOUNT_ID,bucket:env.WRITING_R2_BUCKET,accessKeyId:env.R2_ACCESS_KEY_ID,secretAccessKey:env.R2_SECRET_ACCESS_KEY});
   } else {
     if(!env.WRITING_MEDIA)throw new WritingConfigurationError("Writing media storage is not configured.");
@@ -43,8 +31,5 @@ export function writingApp(env:WritingEnv) {
       await media.verify(ref.postId,ref.assetId);
     }
   }});
-  const cached = env.WRITING_TEST === "true" && env.WRITING_AUTH_DB
-    ? cachedPublishingService(service, publishingCache(env.WRITING_AUTH_DB, `${env.WRITING_REPO_OWNER}/${env.WRITING_REPO_NAME}`), (a,b)=>forge.isAncestor(a,b))
-    : { ...service, warmCache: async () => {} };
-  return {service: cached,media};
+  return {service,media};
 }

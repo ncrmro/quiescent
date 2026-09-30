@@ -214,3 +214,26 @@ describe("Git-backed publication", () => {
     expect(await service.getPublished(clean.post.id)).toBeNull();
   });
 });
+
+describe('deletion',()=>{
+  test('deletes a published revision and prevents stale branches resurrecting it',async()=>{
+    const f=fixture();const draft=await saved(f,'A temporary story');
+    await f.service().publish(selection(draft));
+    const edit=await f.service().getDraft(draft.post.id);
+    const result=await f.service().deletePost({...selection(edit)});
+    expect(result.deleted).toBe(true);
+    expect(await f.service().getPublished(draft.post.id)).toBeNull();
+    expect(await f.service().listPosts()).toEqual([]);
+    await expect(f.service().saveDraft({...selection(edit),post:edit.post})).rejects.toMatchObject({code:'not_found'});
+    await expect(f.service().publish(selection(edit))).rejects.toMatchObject({code:'not_found'});
+    expect((await f.service().deletePost(selection(edit))).deleted).toBe(true);
+  });
+  test('rejects stale deletion and removes an unpublished draft without exposing it',async()=>{
+    const f=fixture();const draft=await saved(f,'Unfinished');
+    const updated=await f.service().saveDraft({...selection(draft),post:{...draft.post,title:'Newer'}});
+    await expect(f.service().deletePost(selection(draft))).rejects.toMatchObject({code:'conflict'});
+    await f.service().deletePost(selection(updated));
+    expect(await f.service().listPosts()).toEqual([]);
+    expect(await f.service().listPublished()).toEqual([]);
+  });
+});

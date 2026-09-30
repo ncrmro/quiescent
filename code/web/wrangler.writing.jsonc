@@ -10,16 +10,6 @@
     "binding": "ASSETS",
     "directory": "./dist/client"
   },
-  "kv_namespaces": [
-    {
-      "binding": "SESSIONS",
-      "id": "local-writing-sessions"
-    },
-    {
-      "binding": "DRAFTS",
-      "id": "local-writing-drafts"
-    }
-  ],
   "r2_buckets": [
     {
       "binding": "WRITING_MEDIA",
@@ -36,5 +26,11 @@
   },
   "observability": {
     "enabled": true
-  }
+  },
+  "services": [
+    {
+      "binding": "WRITING_SELF",
+      "service": "quiescent-writing-local"
+    }
+  ]
 }

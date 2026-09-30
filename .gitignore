@@ -15,3 +15,8 @@ playwright-report/
 !writing.dev.vars.example
 TASKS.md
 .writing-server.pid
+
+code/web/dist-node/
+code/web/.writing-media/
+code/web/.writing-node.pid
+code/web/.env.node.local

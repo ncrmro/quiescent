@@ -1,0 +1,27 @@
+import {createServer} from 'node:http';
+import net from 'node:net';
+import {writeFile} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import {warmSite} from './writing-warm.mjs';
+if(!process.env.SERVICE_TOKEN)throw new Error('Set SERVICE_TOKEN to the content repository PAT.');
+process.chdir(fileURLToPath(new URL('../code/web/',import.meta.url)));
+const host=process.env.HOST ?? '127.0.0.1';
+let port=Number(process.env.PORT ?? 4280);
+const available=port=>new Promise(resolve=>{const probe=net.createServer();probe.once('error',()=>resolve(false));probe.listen(port,host,()=>probe.close(()=>resolve(true)));});
+while(!await available(port)){if(process.env.PORT)throw new Error(`Port ${port} is occupied.`);port++;}
+const base=`http://${host}:${port}`;
+await writeFile('.env.node.local',`DEV_NODE_PORT=${port}\nDEV_NODE_URL=${base}\n`);
+process.env.ASTRO_NODE_AUTOSTART='disabled';
+process.env.QUIESCENT_WARM_TOKEN=crypto.randomUUID();
+const {handler}=await import('../code/web/dist-node/server/entry.mjs');
+let ready=false;
+const server=createServer((request,response)=>{
+  if(!ready && request.headers['x-quiescent-warm']!==process.env.QUIESCENT_WARM_TOKEN){response.writeHead(503,{'Retry-After':'5','Cache-Control':'no-store'});response.end('Preparing stories');return;}
+  handler(request,response);
+});
+await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,host,resolve);});
+try {
+  await warmSite(base,{'X-Quiescent-Warm':process.env.QUIESCENT_WARM_TOKEN});ready=true;
+  await writeFile('.writing-node.pid',String(process.pid));
+  console.log(`Quiescent ready: ${base}/write`);
+}catch(error){server.closeAllConnections();server.close();throw error;}

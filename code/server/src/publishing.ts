@@ -11,7 +11,7 @@ export interface PostDocument {
   body: PostBody;
   publishedAt?: string;
 }
-interface StoredPost extends PostDocument { publicationSource?: string }
+interface StoredPost extends PostDocument { publicationSource?: string; deletedAt?: string }
 export interface PostDraft {
   post: PostDocument;
   branch: string | null;
@@ -45,7 +45,7 @@ function checkBranch(id: string, branch: string) {
   }
 }
 function publicPost(post: StoredPost): PostDocument {
-  const { publicationSource: _, ...document } = post;
+  const { publicationSource: _, deletedAt: __, ...document } = post;
   return document;
 }
 
@@ -75,7 +75,7 @@ export function createPublishingService(options: PublishingOptions) {
   async function getPublished(id: string): Promise<PostDraft | null> {
     const headSha = await forge.getBranchSha(main);
     const post = await read(id, headSha);
-    return post?.publishedAt ? { post: publicPost(post), branch: null, headSha, state: "published" } : null;
+    return post?.publishedAt && !post.deletedAt ? { post: publicPost(post), branch: null, headSha, state: "published" } : null;
   }
   async function listPublished(): Promise<PostDraft[]> {
     const headSha = await forge.getBranchSha(main);
@@ -85,7 +85,7 @@ export function createPublishingService(options: PublishingOptions) {
     });
     const posts = await Promise.all(entries.filter(e => e.type === "dir" && uuid.test(e.name)).map(async e => {
       const post = await read(e.name, headSha);
-      return post?.publishedAt ? { post: publicPost(post), branch: null, headSha, state: "published" as const } : null;
+      return post?.publishedAt && !post.deletedAt ? { post: publicPost(post), branch: null, headSha, state: "published" as const } : null;
     }));
     return posts.filter((p): p is PostDraft & {state:"published";branch:null} => p !== null);
   }
@@ -99,6 +99,7 @@ export function createPublishingService(options: PublishingOptions) {
         const postId = name.slice(prefix.length).split("/")[0]!;
         try { checkBranch(postId, name); } catch { return null; }
         if (await forge.isAncestor(sha, mainSha)) return null;
+        if ((await read(postId, mainSha))?.deletedAt) return null;
         const post = await read(postId, sha);
         return post ? { post: publicPost(post), branch: name, headSha: sha,
           state: post.publishedAt ? "unpublished-changes" as const : "draft" as const } : null;
@@ -147,8 +148,13 @@ export function createPublishingService(options: PublishingOptions) {
   async function createPost(): Promise<PostDraft> {
     return start({ id: crypto.randomUUID(), title: "", description: "", slug: null, body: { type: "doc", content: [{ type: "paragraph" }] } });
   }
+  async function assertNotDeleted(id: string, mainSha?: string) {
+    if ((await read(id, mainSha ?? await forge.getBranchSha(main)))?.deletedAt)
+      throw new PublishingError("This post was deleted. Your local writing has been preserved.", "not_found");
+  }
   async function getDraft(id: string, branch?: string): Promise<PostDraft> {
     path(id);
+    await assertNotDeleted(id);
     if (branch) {
       checkBranch(id, branch);
       const headSha = await forge.getBranchSha(branch);
@@ -164,6 +170,7 @@ export function createPublishingService(options: PublishingOptions) {
   }
   async function saveDraft(input: DraftSelection & { post: PostDocument }): Promise<PostDraft> {
     checkBranch(input.id, input.branch);
+    await assertNotDeleted(input.id);
     if (input.id !== input.post.id) throw new PublishingError("Post identifier mismatch", "invalid");
     const head = await forge.getBranchSha(input.branch);
     if (head !== input.expectedHeadSha) throw new PublishingError("This draft has newer changes. Your writing has been preserved.", "conflict");
@@ -178,6 +185,7 @@ export function createPublishingService(options: PublishingOptions) {
   }
   async function publish(input: DraftSelection) {
     checkBranch(input.id, input.branch);
+    await assertNotDeleted(input.id);
     let head = await forge.getBranchSha(input.branch);
     let post = await read(input.id, head);
     if (!post) throw new PublishingError("Draft not found", "not_found");
@@ -210,6 +218,28 @@ export function createPublishingService(options: PublishingOptions) {
     if (!visible || visible.publicationSource !== publicationSource) throw new PublishingError("Publication could not be confirmed. Retry safely.", "conflict");
     return { post: publicPost(visible), headSha: head, publishedSha: result.sha, state: "published" as const };
   }
+  async function deletePost(input: {id:string; branch?:string|null; expectedHeadSha:string}) {
+    path(input.id);
+    const mainSha=await forge.getBranchSha(main);
+    const current=await read(input.id,mainSha);
+    if (current?.deletedAt) return {id:input.id,post:publicPost(current),headSha:mainSha,deleted:true as const};
+    const previous=await read(input.id,input.expectedHeadSha);
+    if (!previous) throw new PublishingError("Post not found","not_found");
+    if (input.branch) {
+      checkBranch(input.id,input.branch);
+      if (await forge.getBranchSha(input.branch)!==input.expectedHeadSha)
+        throw new PublishingError("This draft has newer changes. Reopen it before deleting.","conflict");
+      // A concurrently published revision must not be removed by a stale draft tab.
+      if (current?.publicationSource && !await forge.isAncestor(current.publicationSource,input.expectedHeadSha)
+        && current.publicationSource!==input.expectedHeadSha)
+        throw new PublishingError("This post was published since you opened it. Reopen it before deleting.","conflict");
+    } else if (JSON.stringify(current)!==JSON.stringify(previous)) {
+      throw new PublishingError("This post has newer changes. Reopen it before deleting.","conflict");
+    }
+    // The tombstone is authoritative across all retained branches and survives restarts.
+    const result=await commit(main,mainSha,{...previous,body:{type:"doc",content:[]},deletedAt:new Date().toISOString()},"Delete post");
+    return {id:input.id,post:publicPost(previous),headSha:result.sha,deleted:true as const};
+  }
   async function listPosts(): Promise<PostDraft[]> {
     const [drafts, published] = await Promise.all([activeDrafts(), listPublished()]);
     const ids = new Set(drafts.map(d => d.post.id));
@@ -217,7 +247,10 @@ export function createPublishingService(options: PublishingOptions) {
   }
   async function findPostForEditing(slug: string): Promise<PostDraft | null> {
     // Unpublished posts use their stable ID until their first publication assigns a slug.
-    return (await listPosts()).find(({post}) => (post.slug ?? post.id) === slug) ?? null;
+    if(uuid.test(slug)) {
+      try {return await getDraft(slug);} catch(error){if(error instanceof PublishingError && error.code==="not_found")return null;throw error;}
+    }
+    return (await listPublished()).find(({post}) => post.slug === slug) ?? null;
   }
-  return { createPost, getDraft, saveDraft, publish, getPublished, listPublished, listPosts, findPostForEditing };
+  return { createPost, getDraft, saveDraft, publish, deletePost, getPublished, listPublished, listPosts, findPostForEditing };
 }

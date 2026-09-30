@@ -210,6 +210,9 @@ export function mountWritingApp(
   const api = options.apiBase ?? "/api/writing";
   const reader = options.readerBase ?? "/read";
   let active: Draft | undefined;
+  let publishedPost: {post:Post;headSha:string}|undefined;
+  const summaries=new Map<string,Draft>();
+  let listLoaded=false;
   let editor: ReturnType<typeof createWritingEditor> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let saving: Promise<void> | undefined;
@@ -220,7 +223,7 @@ export function mountWritingApp(
   let recoveryNeedsReview = false;
   let destroyed = false;
   root.innerHTML =
-    '<div class="writing-app"><aside><button type="button" data-new>New post</button><nav aria-label="Posts"></nav></aside><main><p role="status" aria-live="polite"></p><div data-fields hidden><label>Title<input data-title></label><label>Description<input data-description></label><div data-editor></div><div class="writing-actions"><button type="button" data-save>Save now</button><button type="button" data-preview>Preview</button><button type="button" data-publish>Publish</button></div><section data-preview-area hidden></section><p data-link></p></div></main></div>';
+    '<div class="writing-app"><aside><button type="button" data-new>New post</button><nav aria-label="Posts"></nav></aside><main><p role="status" aria-live="polite"></p><div data-fields hidden><label>Title<input data-title></label><label>Description<input data-description></label><div data-editor></div><div class="writing-actions"><button type="button" data-save>Save now</button><button type="button" data-preview>Preview</button><button type="button" data-delete>Delete post</button><button type="button" data-publish>Publish</button></div><section data-preview-area hidden></section><p data-link></p></div></main></div>';
   const q = <T extends HTMLElement>(selector: string) =>
     root.querySelector<T>(selector)!;
   const status = (message: string) => {
@@ -241,7 +244,7 @@ export function mountWritingApp(
       await action();
     } finally {
       navigating = false;
-      root.querySelectorAll<HTMLButtonElement>("nav button, [data-new]").forEach(button => { button.disabled = false; });
+      root.querySelectorAll<HTMLButtonElement>("nav button, [data-new]").forEach(button => { button.disabled = !listLoaded; });
       title.disabled = !active;
       description.disabled = !active;
       editor?.setEditable(Boolean(active));
@@ -316,6 +319,7 @@ export function mountWritingApp(
       draft.branch = updated.branch;
       draft.headSha = updated.headSha;
       draft.state = updated.state;
+      updateList(updated);
       savedGeneration = version;
       if (generation === version) {
         try {
@@ -357,8 +361,8 @@ export function mountWritingApp(
   };
   title.addEventListener("input", changed);
   description.addEventListener("input", changed);
-  const list = async () => {
-    const drafts = await request<Draft[]>("/posts");
+  const renderList = () => {
+    const drafts = [...summaries.values()];
     const nav = q("nav");
     nav.replaceChildren();
     for (const draft of drafts) {
@@ -377,6 +381,13 @@ export function mountWritingApp(
       nav.append(button);
     }
   };
+  const updateList=(draft:Draft)=>{summaries.set(draft.post.id,structuredClone(draft));renderList();};
+  const list = async () => {
+    const drafts=await request<Draft[]>("/posts");
+    for(const draft of drafts)if(!summaries.has(draft.post.id))summaries.set(draft.post.id,draft);
+    listLoaded=true;renderList();q<HTMLButtonElement>("[data-new]").disabled=navigating;
+  };
+  q<HTMLButtonElement>("[data-new]").disabled=true;
   const open = async (id: string, branch?: string) => {
     await editor?.waitForUploads();
     await flush();
@@ -386,6 +397,8 @@ export function mountWritingApp(
     if (destroyed) return;
     editor?.destroy();
     active = draft;
+    publishedPost=undefined;
+    updateList(draft);
     generation = 0;
     savedGeneration = 0;
     let recovery = false;
@@ -472,7 +485,7 @@ export function mountWritingApp(
         method: "POST",
         body: "{}",
       });
-      await list();
+      updateList(draft);
       await open(draft.post.id, draft.branch);
     }).catch((e) => status(e.message));
   };
@@ -480,7 +493,6 @@ export function mountWritingApp(
     if (publishing || navigating) return;
     recoveryNeedsReview = false;
     void flush()
-      .then(list)
       .catch((e) => status(`Could not save: ${e.message}`));
   };
   q("[data-preview]").onclick = () => {
@@ -503,7 +515,7 @@ export function mountWritingApp(
       await flush();
       const draft = active!;
       status("Publishing…");
-      const result = await request<{ post: Post; publishedSha: string }>(
+      const result = await request<{ post: Post; publishedSha: string;cacheWarning?:string }>(
         `/posts/${draft.post.id}/publish`,
         {
           method: "POST",
@@ -525,6 +537,7 @@ export function mountWritingApp(
       link.textContent = "Read your post";
       link.target = "_blank";
       link.rel = "noopener";
+      if (!result.cacheWarning) {
       const readerResponse = await fetch(link.href, { cache: "no-store" });
       if (
         !readerResponse.ok ||
@@ -533,7 +546,9 @@ export function mountWritingApp(
         throw new Error(
           "The reader page has not confirmed this revision yet. Retry safely.",
         );
-      await list();
+      }
+      updateList({...draft,post:result.post,headSha:published.headSha,state:"published"});
+      publishedPost=published;
       active = undefined;
       generation = savedGeneration = 0;
       const edit = document.createElement("button");
@@ -546,7 +561,7 @@ export function mountWritingApp(
       };
       q("[data-link]").replaceChildren(link, edit);
       options.onPostOpen?.(result.post.id, result.post.slug);
-      status("Published");
+      status(result.cacheWarning ?? "Published");
     })()
       .catch((e) => status(`Could not publish: ${e.message}`))
       .finally(() => {
@@ -555,6 +570,20 @@ export function mountWritingApp(
         description.disabled = !active;
         editor?.setEditable(Boolean(active));
       });
+  };
+  q("[data-delete]").onclick=()=>{
+    if(publishing || navigating || (!active && !publishedPost))return;
+    if(!window.confirm("Delete this post? It will disappear from your stories. Its history remains in GitHub."))return;
+    void navigate(async()=>{
+      await editor?.waitForUploads();await flush();
+      const target=active ?? publishedPost!;
+      const result=await request<{cacheWarning?:string}>(`/posts/${target.post.id}`,{method:"DELETE",body:JSON.stringify({branch:active?.branch ?? null,expectedHeadSha:target.headSha})});
+      summaries.delete(target.post.id);renderList();
+      for(const k of Object.keys(localStorage))if(k.startsWith(recoveryPrefix(target.post.id)))localStorage.removeItem(k);
+      active=undefined;publishedPost=undefined;editor?.destroy();editor=undefined;generation=savedGeneration=0;
+      q("[data-fields]").hidden=true;q("[data-link]").replaceChildren();
+      window.history.replaceState(null,"","/write");status(result.cacheWarning ?? "Deleted");
+    }).catch(e=>status(`Could not delete: ${e.message}`));
   };
   const beforeUnload = (event: BeforeUnloadEvent) => {
     if (generation !== savedGeneration || publishing) {
@@ -568,8 +597,7 @@ export function mountWritingApp(
       if (publishing || navigating) return;
       recoveryNeedsReview = false;
       void flush()
-        .then(list)
-        .catch((e) => status(`Could not save: ${e.message}`));
+          .catch((e) => status(`Could not save: ${e.message}`));
     }
   };
   root.addEventListener("keydown", shortcut);

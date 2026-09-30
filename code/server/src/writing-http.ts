@@ -22,7 +22,7 @@ function selection(id:string,value:Record<string,unknown>):DraftSelection {
   return {id,branch:value.branch,expectedHeadSha:value.expectedHeadSha};
 }
 /** Thin host routes delegate all post/media behavior and error translation here. */
-export function createWritingHandler(options:{service:Service;media:MediaStorage;authorize:(request:Request)=>boolean|Promise<boolean>;apiBase?:string}) {
+export function createWritingHandler(options:{service:Service;media:MediaStorage;authorize:(request:Request)=>boolean|Promise<boolean>;apiBase?:string; afterPublication?:(post:PostDocument,deleted:boolean)=>Promise<void>}) {
   const {service,media}=options; const base=options.apiBase ?? "/api/writing";
   return async(request:Request):Promise<Response>=>{
     try {
@@ -52,7 +52,20 @@ export function createWritingHandler(options:{service:Service;media:MediaStorage
           if(!data.post || typeof data.post!=="object")throw new PublishingError("Post missing","invalid");
           return json(await service.saveDraft({...selection(id,data),post:data.post as PostDocument}));
         }
-        if(action==="publish" && request.method==="POST")return json(await service.publish(selection(id,await payload(request))));
+        if(action==="publish" && request.method==="POST") {
+          const result=await service.publish(selection(id,await payload(request)));
+          try { await options.afterPublication?.(result.post,false); }
+          catch { return json({...result,cacheWarning:"Published on GitHub, but page warming failed. Refresh the site cache before sharing."}); }
+          return json(result);
+        }
+        if(!action && request.method==="DELETE") {
+          const data=await payload(request);
+          if(typeof data.expectedHeadSha!=="string" || (data.branch!=null && typeof data.branch!=="string")) throw new PublishingError("Post revision missing","invalid");
+          const result=await service.deletePost({id,expectedHeadSha:data.expectedHeadSha,branch:data.branch as string|null|undefined});
+          try { await options.afterPublication?.(result.post,true); }
+          catch { return json({...result,cacheWarning:"Deleted on GitHub, but cache removal failed. Refresh the site cache before sharing."}); }
+          return json(result);
+        }
         if(action==="uploads"){
           // Resolve the post before accepting media; arbitrary bucket prefixes aren't API inputs.
           await service.getDraft(id);

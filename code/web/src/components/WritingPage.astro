@@ -1,10 +1,9 @@
 ---
-import { env } from "cloudflare:workers";
 interface Props { postId?: string }
 const { postId } = Astro.props;
 ---
 <!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width"/><title>Write · Quiescent</title></head>
-<body><header><a href="/write">Quiescent</a><span>A place for your stories</span><a href="/read" target="_blank">Read stories ↗</a>{env.WRITING_TEST === "true" && <button id="sign-out">Sign out</button>}</header><div id="writing" data-post-id={postId}></div>
+<body><header><a href="/write">Quiescent</a><span>A place for your stories</span><a href="/read" target="_blank">Read stories ↗</a><button id="sign-out">Sign out</button></header><div id="writing" data-post-id={postId}></div>
 <script>
 import { mountWritingApp } from '@quiescent/editor/writing';
 const root = document.getElementById('writing')!;
@@ -12,11 +11,10 @@ mountWritingApp(root, {
   initialPostId: root.dataset.postId,
   onPostOpen: (id, slug) => window.history.replaceState(null, '', `/posts/${encodeURIComponent(slug ?? id)}/edit`),
 });
-import { createAuthClient } from 'better-auth/client';
 document.getElementById('sign-out')?.addEventListener('click',async()=>{
   if (!window.confirm('Sign out? Wait for your writing to show Saved first.')) return;
-  const {error}=await createAuthClient().signOut();
-  if (!error) window.location.assign('/login');
+  const response=await fetch('/api/auth/logout',{method:'POST'});
+  if (response.ok) window.location.assign('/login');
 });
 </script>
 <style is:global>
