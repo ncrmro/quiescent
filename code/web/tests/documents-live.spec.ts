@@ -26,6 +26,7 @@ for (const collection of ["posts", "recipes"] as const) {
     expect(create.status()).toBe(201);
     let draft = (await create.json()) as DocumentDraft<ExampleMetadata>;
     const id = draft.document.id;
+    const tag = `acceptance-${id}`;
     const bytes = await readFile(process.env.EXAMPLE_IMAGE!);
     const ticketResponse = await page.request.post(`${api}/${id}/uploads`, {
       headers,
@@ -63,6 +64,7 @@ for (const collection of ["posts", "recipes"] as const) {
             title: "A slow morning in the garden",
             slug,
             headerImage: src,
+            tags: [tag],
           },
           body: `A quiet morning.\n\n![Watercolor garden](${src})`,
         },
@@ -71,9 +73,13 @@ for (const collection of ["posts", "recipes"] as const) {
     expect(save.ok()).toBe(true);
     draft = await save.json();
     expect(draft.document.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(await (await anonymous.request.get(`/api/tags/${collection}`)).json()).not.toContain(
+      tag,
+    );
     const publish = await page.request.post(`${api}/${id}/publish`, { headers, data: selection() });
     expect(publish.ok()).toBe(true);
     expect((await publish.json()).cacheWarning).toBeUndefined();
+    expect(await (await anonymous.request.get(`/api/tags/${collection}`)).json()).toContain(tag);
     const path = `/${collection}/${slug}`;
     const warm = await anonymous.request.get(path);
     expect(warm.ok()).toBe(true);
@@ -128,6 +134,9 @@ for (const collection of ["posts", "recipes"] as const) {
     expect((await deleted.json()).cacheWarning).toBeUndefined();
     expect((await anonymous.request.get(`${path}-updated`)).status()).toBe(404);
     expect((await anonymous.request.get(`/media/${id}/${src}`)).status()).toBe(404);
+    expect(await (await anonymous.request.get(`/api/tags/${collection}`)).json()).not.toContain(
+      tag,
+    );
     await anonymous.close();
   });
 }

@@ -41,6 +41,9 @@ for (const collection of ["posts", "recipes"] as const) {
         body: await response.text(),
       });
     });
+    await page.route(`/api/tags/${collection}`, (route) =>
+      route.fulfill({ json: ["weekend", "family", "gardening"] }),
+    );
     await page.goto("/write");
     await expect(page).toHaveURL(/\/login$/);
     await page.getByLabel("Password", { exact: true }).fill("quiescent-demo");
@@ -82,7 +85,18 @@ for (const collection of ["posts", "recipes"] as const) {
     await page.getByLabel("Title", { exact: true }).fill("A quiet afternoon!");
     await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("quiet-afternoon");
     await page.getByLabel("Title", { exact: true }).fill("A quiet afternoon");
-    await page.getByLabel("Tags", { exact: true }).fill("weekend, family");
+    await page.getByLabel("Tags", { exact: true }).fill("wee");
+    await page.getByRole("button", { name: "Add tag weekend", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Remove tag weekend" })).toBeVisible();
+    await page.getByLabel("Tags", { exact: true }).fill("family");
+    await page.getByLabel("Tags", { exact: true }).press("Enter");
+    await page.getByLabel("Tags", { exact: true }).fill("FAMILY");
+    await page.getByRole("button", { name: "Add tag", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Remove tag family", exact: true })).toHaveCount(
+      1,
+    );
+    await page.getByRole("button", { name: "Add tag gardening", exact: true }).click();
+    await page.getByRole("button", { name: "Remove tag gardening", exact: true }).click();
     if (collection === "recipes")
       await page
         .getByLabel("Ingredients", { exact: true })
@@ -109,6 +123,15 @@ for (const collection of ["posts", "recipes"] as const) {
     expect(await editor!.evaluate((element) => element.isConnected)).toBe(true);
     expect(await geometry()).toEqual(beforeSave);
     const saved = (await service.listDocuments())[0]!;
+    expect(saved.document.frontmatter.tags).toEqual(["weekend", "family"]);
+    await page.getByLabel("Tags", { exact: true }).fill("unfinished");
+    await page.waitForTimeout(1000);
+    expect((await service.getDraft(saved.document.id)).document.frontmatter.tags).toEqual([
+      "weekend",
+      "family",
+    ]);
+    await expect(page.getByLabel("Tags", { exact: true })).toHaveValue("unfinished");
+    await page.getByLabel("Tags", { exact: true }).fill("");
     if (collection === "recipes")
       expect(saved.document.frontmatter.ingredients).toEqual([{ name: "Tomato", quantity: "2" }]);
     expect(saved.document.id).toBe(localId);

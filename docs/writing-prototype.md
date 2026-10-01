@@ -140,3 +140,19 @@ The empty-only, 500ms debounced slug behavior passed desktop/mobile regression t
 and live checks on Node and Cloudflare, with no Git document creation during typing.
 Existing generated and custom slugs both remain unchanged after title edits. Worker
 version: `dda53372-62c7-4b60-bf69-1c3cfac3f32b`.
+
+## Example-only tag suggestions
+
+The example supplies a `tags` field control with removable chips, a native datalist,
+and tappable suggestions. New tags are allowed and saved with the rest of the document.
+`/api/tags/<collection>` deduplicates tags from published main-branch documents only.
+It uses the collection's 24-hour Astro route cache and is an index warming target,
+so publication, deletion, startup, and deployment refresh it eagerly. Suggestions
+are optional: if loading fails, writers can still enter tags. No library code is
+changed for this feature.
+
+Tag acceptance passed: 81 unit tests, strict checks, desktop/mobile picker tests,
+and real post/recipe publish/rename/delete lifecycles on Node and Cloudflare. Live
+checks proved draft-only tags are excluded and publication/deletion update cached
+suggestions. Final mobile smoke verified existing/new tags and that partial typing
+is not saved. Worker version: `0c403b92-72ac-4d8c-8b67-0781207d20a5`.

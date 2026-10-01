@@ -13,7 +13,7 @@ export function collectionApp(origin: string, collection: Collection = "posts") 
     apiBase: `/api/documents/${collection}`,
     fetch: warmFetch,
     documentPath: (document) => documentPath(collection, document),
-    indexPaths: indexPaths(collection),
+    indexPaths: [...indexPaths(collection), `/api/tags/${collection}`],
     authorize: (request) => writingAuthor(request, env),
   });
   return { service, pages };

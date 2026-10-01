@@ -1,5 +1,6 @@
 ---
 import SiteNav from "./SiteNav.astro";
+import "../writing/tag-picker.css";
 
 interface Props {
   documentId?: string;
@@ -23,6 +24,7 @@ const { documentId, collection = "posts" } = Astro.props;
     import { mountDocumentApp } from "@quiescent/editor/writing";
     import { deriveSlug, documentPath, initialDocument } from "../writing/collections";
     import { wireNewLinks } from "../writing/navigation";
+    import { tagPicker } from "../writing/tag-picker";
 
     wireNewLinks();
     const root = document.getElementById("writing");
@@ -43,6 +45,7 @@ const { documentId, collection = "posts" } = Astro.props;
         documentPath: (document) => documentPath(collection, document),
         displayName: (document) => String(document.frontmatter.title ?? document.id),
         imageFields: ["headerImage"],
+        fieldControls: { tags: tagPicker(collection) },
         label: collection === "posts" ? "post" : "recipe",
         ...(initialId ? { initialDocumentId: initialId } : {}),
         onDocumentOpen: (document) => {
