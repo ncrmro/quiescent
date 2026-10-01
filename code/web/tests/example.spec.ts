@@ -90,6 +90,7 @@ for (const collection of ["posts", "recipes"] as const) {
     await page.getByLabel("Title", { exact: true }).fill("A quiet afternoon");
     await page.waitForTimeout(600);
     await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("cafe-family-weekend");
+    await page.getByRole("button", { name: "Editor options", exact: true }).click();
     await page
       .getByRole("button", {
         name: collection === "posts" ? "Post details" : "Recipe details",
@@ -102,6 +103,7 @@ for (const collection of ["posts", "recipes"] as const) {
     await page.getByLabel("Title", { exact: true }).fill("A quiet afternoon!");
     await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("quiet-afternoon");
     await page.getByLabel("Title", { exact: true }).fill("A quiet afternoon");
+    await page.getByRole("button", { name: "Editor options", exact: true }).click();
     await page
       .getByRole("button", {
         name: collection === "posts" ? "Post details" : "Recipe details",
@@ -156,6 +158,7 @@ for (const collection of ["posts", "recipes"] as const) {
     expect(await geometry()).toEqual(beforeSave);
     const saved = (await service.listDocuments())[0]!;
     expect(saved.document.frontmatter.tags).toEqual(["weekend", "family"]);
+    await page.getByRole("button", { name: "Editor options", exact: true }).click();
     await page
       .getByRole("button", {
         name: collection === "posts" ? "Post details" : "Recipe details",
@@ -187,6 +190,7 @@ for (const collection of ["posts", "recipes"] as const) {
     expect(markdown).toContain("slug: quiet-afternoon");
     expect(markdown).toContain("- family");
     expect(markdown).toContain("We walked beside the river.");
+    await page.getByRole("button", { name: "Editor options", exact: true }).click();
     await page
       .getByRole("button", {
         name: collection === "posts" ? "Post details" : "Recipe details",
