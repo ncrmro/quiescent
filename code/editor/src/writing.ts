@@ -18,6 +18,8 @@ import { createWritingEditor } from "./rich-text.ts";
 export { createWritingEditor, type WritingEditorOptions } from "./rich-text.ts";
 export interface DocumentAppOptions {
   initialDocumentId?: string;
+  startNew?: boolean;
+  navigation?: boolean;
   onLocalDocumentOpen?: (document: DocumentRecord) => void;
   onDocumentOpen?: (document: DocumentRecord) => void;
   initialDocument: () => { frontmatter: Record<string, unknown>; body: string };
@@ -58,6 +60,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   root.innerHTML =
     '<div class="writing-app"><aside><button type="button" data-new>New document</button><nav aria-label="Documents"></nav></aside><main><p role="status" aria-live="polite"></p><div data-fields hidden><div data-metadata></div><div data-header-tools></div><div data-editor></div><div class="writing-actions"><button type="button" data-save>Save now</button><button type="button" data-preview>Preview</button><button type="button" data-delete>Delete document</button><button type="button" data-publish>Publish</button></div><section data-preview-area hidden></section><p data-link></p></div></main></div>';
   const q = <T extends HTMLElement>(selector: string) => root.querySelector<T>(selector)!;
+  q("aside").hidden = options.navigation === false;
   q("[data-new]").textContent = `New ${label}`;
   q("[data-delete]").textContent = `Delete ${label}`;
   q("nav").setAttribute("aria-label", `${label}s`);
@@ -366,7 +369,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   const open = async (id: string, branch?: string | null) => {
     await editor?.waitForUploads();
     await flush();
-    const cached = summaries.get(id);
+    const cached = summaries.get(id) ?? local.list().find((draft) => draft.document.id === id);
     const draft =
       cached && cached.branch === ""
         ? (structuredClone(cached) as Draft)
@@ -392,24 +395,25 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     loadBody(draft);
     opened(draft, recovery);
   };
+  const createLocal = async () => {
+    await editor?.waitForUploads();
+    await flush();
+    const draft: Draft = {
+      document: {
+        ...options.initialDocument(),
+        id: documentUuid(),
+        createdAt: new Date().toISOString().slice(0, 10),
+      },
+      branch: "",
+      headSha: "",
+      state: "draft",
+    };
+    local.save(draft.document);
+    updateList(draft);
+    await open(draft.document.id, draft.branch);
+  };
   q("[data-new]").onclick = () => {
-    void navigate(async () => {
-      await editor?.waitForUploads();
-      await flush();
-      const draft: Draft = {
-        document: {
-          ...options.initialDocument(),
-          id: documentUuid(),
-          createdAt: new Date().toISOString().slice(0, 10),
-        },
-        branch: "",
-        headSha: "",
-        state: "draft",
-      };
-      local.save(draft.document);
-      updateList(draft);
-      await open(draft.document.id, draft.branch);
-    }).catch((e) => status(e.message));
+    void navigate(createLocal).catch((e) => status(e.message));
   };
   q("[data-save]").onclick = () => {
     if (publishing || navigating) return;
@@ -573,12 +577,10 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
         status,
       });
       q("[data-header-tools]").hidden = !fields.length;
-      if (options.initialDocumentId)
-        await Promise.all([navigate(() => open(options.initialDocumentId!)), list()]);
-      else {
-        await list();
-        status("Choose a document or start writing.");
-      }
+      if (options.initialDocumentId) await navigate(() => open(options.initialDocumentId!));
+      else if (options.startNew) await navigate(createLocal);
+      else status("Choose a document or start writing.");
+      if (options.navigation !== false) await list();
     })
     .catch((error) => status(`Could not load editor: ${error.message}`));
   return {

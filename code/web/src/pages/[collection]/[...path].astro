@@ -1,0 +1,20 @@
+---
+import ReaderPage from "../../components/ReaderPage.astro";
+import WritingPage from "../../components/WritingPage.astro";
+import { reader } from "../../writing/reader";
+
+const { collection, path = "" } = Astro.params;
+if (collection !== "posts" && collection !== "recipes")
+  return new Response("Not found", { status: 404 });
+const edit = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/edit$/.exec(path);
+const editor = path === "new" || Boolean(edit);
+if (!editor && (!path || path.includes("/"))) return new Response("Not found", { status: 404 });
+const data = editor ? null : await reader(Astro, collection, path);
+if (data instanceof Response) return data;
+---
+
+{editor ? (
+  <WritingPage collection={collection} {...(edit ? { documentId: edit[1]! } : {})} />
+) : (
+  data && <ReaderPage {...data} />
+)}

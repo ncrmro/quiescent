@@ -46,13 +46,15 @@ for (const collection of ["posts", "recipes"] as const) {
     await page.getByLabel("Password", { exact: true }).fill("quiescent-demo");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(/\/write$/);
-    if (collection === "recipes") await page.goto("/recipes/new");
+    await expect(page.getByRole("textbox", { name: "Document body" })).toHaveCount(0);
+    if (collection === "recipes") await page.setViewportSize({ width: 390, height: 844 });
     await page
-      .getByRole("button", {
+      .getByRole("link", {
         name: collection === "posts" ? "New post" : "New recipe",
         exact: true,
       })
       .click();
+    await expect(page).toHaveURL(new RegExp(`/${collection}/new$`));
     await expect(page.getByRole("status")).toContainText("Saved on this device");
     expect(await service.listDocuments()).toEqual([]);
     const localId = await page.evaluate(() => {
@@ -70,13 +72,23 @@ for (const collection of ["posts", "recipes"] as const) {
     await page.waitForTimeout(1000);
     expect(await service.listDocuments()).toEqual([]);
     await page.reload();
-    await page.getByRole("button", { name: /Local · A quiet afternoon/ }).click();
+
     await expect(page.getByLabel("Title", { exact: true })).toHaveValue("A quiet afternoon");
     await expect(page.getByRole("textbox", { name: "Document body" })).toHaveText(
       "We walked beside the river.",
     );
+    const editor = await page.getByRole("textbox", { name: "Document body" }).elementHandle();
+    const geometry = () =>
+      page.locator("[data-fields]").evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return { x: rect.x + scrollX, y: rect.y + scrollY, width: rect.width, height: rect.height };
+      });
+    const beforeSave = await geometry();
     await page.getByRole("button", { name: "Save now", exact: true }).click();
     await expect(page.getByRole("status")).toHaveText("Saved");
+    await expect(page).toHaveURL(new RegExp(`/${collection}/${localId}/edit$`));
+    expect(await editor!.evaluate((element) => element.isConnected)).toBe(true);
+    expect(await geometry()).toEqual(beforeSave);
     const saved = (await service.listDocuments())[0]!;
     if (collection === "recipes")
       expect(saved.document.frontmatter.ingredients).toEqual([{ name: "Tomato", quantity: "2" }]);
@@ -86,6 +98,8 @@ for (const collection of ["posts", "recipes"] as const) {
         Object.keys(localStorage).filter((key) => key.startsWith("quiescent-local:")),
       ),
     ).toEqual([]);
+    await page.reload();
+    await expect(page.getByLabel("Title", { exact: true })).toHaveValue("A quiet afternoon");
     const head = saved.headSha;
     const { directory } = await service.location(saved.document.id, head);
     const markdown = backend.commits.get(head)!.files[`${directory}/index.md`];
@@ -104,7 +118,7 @@ for (const collection of ["posts", "recipes"] as const) {
     await expect(page.locator("[data-preview-area]")).toContainText("We walked beside the river.");
     const branchesBefore = [...backend.branches.keys()];
     await page
-      .getByRole("button", {
+      .getByRole("link", {
         name: collection === "posts" ? "New post" : "New recipe",
         exact: true,
       })
@@ -117,7 +131,8 @@ for (const collection of ["posts", "recipes"] as const) {
         exact: true,
       })
       .click();
-    await expect(page.getByRole("status")).toHaveText("Deleted");
+    await expect(page).toHaveURL(/\/write$/);
+    await expect(page.getByRole("textbox", { name: "Document body" })).toHaveCount(0);
     expect([...backend.branches.keys()]).toEqual(branchesBefore);
     expect(
       await page.evaluate(() =>

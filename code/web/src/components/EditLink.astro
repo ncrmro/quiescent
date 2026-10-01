@@ -3,7 +3,7 @@ import { env } from "quiescent:runtime";
 import { writingAuthor } from "../writing/auth";
 
 interface Props {
-  slug: string;
+  documentId: string;
   collection: string;
 }
 Astro.cache.set(false);
@@ -12,7 +12,10 @@ const canEdit = await writingAuthor(Astro.request, env);
 ---
 
 {canEdit && (
-  <a class="edit" href={`/${Astro.props.collection}/${encodeURIComponent(Astro.props.slug)}/edit`}>
+  <a
+    class="edit"
+    href={`/${Astro.props.collection}/${encodeURIComponent(Astro.props.documentId)}/edit`}
+  >
     Edit
   </a>
 )}

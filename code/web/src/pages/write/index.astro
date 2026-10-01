@@ -1,6 +1,62 @@
 ---
-import WritingPage from "../../components/WritingPage.astro";
 export const prerender = false;
 ---
 
-<WritingPage />
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Documents · Quiescent</title>
+  </head>
+  <body>
+    <main>
+      <a href="/">Read stories</a>
+      <h1>Your documents</h1>
+      {["posts", "recipes"].map((collection) => (
+  <section data-collection={collection}>
+    <h2>{collection === "posts" ? "Posts" : "Recipes"}</h2>
+    <a href={`/${collection}/new`} data-new-document={collection}>
+      New {collection === "posts" ? "post" : "recipe"}
+    </a>
+    <p role="status">Loading documents…</p>
+    <ul></ul>
+  </section>
+))}
+    </main>
+    <script>
+    import { mountDocumentList } from "../../writing/document-list";
+    import { wireNewLinks } from "../../writing/navigation";
+
+    wireNewLinks();
+    document.querySelectorAll<HTMLElement>("[data-collection]").forEach(mountDocumentList);
+    </script>
+    <style>
+    :global(body) {
+      margin: 0;
+      background: #faf9f6;
+      color: #293530;
+      font:
+        16px / 1.6 system-ui,
+        sans-serif;
+    }
+    main {
+      max-width: 850px;
+      margin: auto;
+      padding: 2rem;
+    }
+    section {
+      margin-block: 2rem;
+    }
+    a {
+      color: #315c4c;
+    }
+    ul {
+      padding-left: 1.2rem;
+    }
+    li {
+      margin-block: 0.6rem;
+    }
+    </style>
+  </body>
+</html>

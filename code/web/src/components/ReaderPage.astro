@@ -49,17 +49,13 @@ const images = post ? imageSets.get(post.document.id)! : {};
     <meta name="viewport" content="width=device-width">
     <title>{post?.document.frontmatter.title ?? "Stories"}</title>
   </head>
-  <body>
+  <body class="reader-page">
     <main>
       {post ? (
   <>
     <nav>
       <a href="/">All stories</a>
-      <EditLink
-        server:defer
-        collection={collection}
-        slug={post.document.frontmatter.slug ?? post.document.id}
-      />
+      <EditLink server:defer collection={collection} documentId={post.document.id} />
     </nav>
     <h1>{post.document.frontmatter.title}</h1>
     {post.document.frontmatter.headerImage && images[post.document.frontmatter.headerImage] && (
@@ -101,7 +97,9 @@ const images = post ? imageSets.get(post.document.id)! : {};
     <nav>
       <a href="/">Stories</a>
       <a href="/recipes">Recipes</a>
-      <a href={collection === "posts" ? "/write" : "/recipes/new"}>Write</a>
+      <a href={`/${collection}/new`} data-new-document={collection}>
+        New {collection === "posts" ? "post" : "recipe"}
+      </a>
     </nav>
     {posts.map(({ document }, index) => (
       <article>
@@ -121,11 +119,7 @@ const images = post ? imageSets.get(post.document.id)! : {};
         {document.frontmatter.tags?.length ? (
           <p class="tags">{document.frontmatter.tags.join(" · ")}</p>
         ) : null}
-        <EditLink
-          server:defer
-          collection={collection}
-          slug={document.frontmatter.slug ?? document.id}
-        />
+        <EditLink server:defer collection={collection} documentId={document.id} />
       </article>
     ))}
   </>
@@ -133,59 +127,66 @@ const images = post ? imageSets.get(post.document.id)! : {};
     </main>
   </body>
 </html>
+<script>
+import { wireNewLinks } from "../writing/navigation";
+
+wireNewLinks();
+</script>
 <style is:global>
-body {
-  max-width: 720px;
-  margin: 4rem auto;
-  padding: 0 1.5rem;
-  font:
-    19px / 1.7 Georgia,
-    serif;
-  color: #293530;
-  background: #faf9f6;
-}
-h1,
-h2 {
-  line-height: 1.2;
-}
-a {
-  color: #315c4c;
-}
-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.edit {
-  display: inline-block;
-  padding: 0.25rem 0.85rem;
-  border: 1px solid #bac7be;
-  border-radius: 6px;
-  text-decoration: none;
-  font:
-    16px / 1.6 system-ui,
-    sans-serif;
-}
-img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 8px;
-}
-.header-image {
-  width: 100%;
-  max-height: 420px;
-  object-fit: cover;
-}
-.tags {
-  display: flex;
-  gap: 0.75rem;
-  list-style: none;
-  padding: 0;
-  font: 14px system-ui;
-  color: #59655d;
-}
-blockquote {
-  border-left: 3px solid #b4c4b4;
-  padding-left: 1em;
+body.reader-page {
+  & {
+    max-width: 720px;
+    margin: 4rem auto;
+    padding: 0 1.5rem;
+    font:
+      19px / 1.7 Georgia,
+      serif;
+    color: #293530;
+    background: #faf9f6;
+  }
+  h1,
+  h2 {
+    line-height: 1.2;
+  }
+  a {
+    color: #315c4c;
+  }
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .edit {
+    display: inline-block;
+    padding: 0.25rem 0.85rem;
+    border: 1px solid #bac7be;
+    border-radius: 6px;
+    text-decoration: none;
+    font:
+      16px / 1.6 system-ui,
+      sans-serif;
+  }
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+  }
+  .header-image {
+    width: 100%;
+    max-height: 420px;
+    object-fit: cover;
+  }
+  .tags {
+    display: flex;
+    gap: 0.75rem;
+    list-style: none;
+    padding: 0;
+    font: 14px system-ui;
+    color: #59655d;
+  }
+  blockquote {
+    border-left: 3px solid #b4c4b4;
+    padding-left: 1em;
+  }
 }
 </style>

@@ -1,9 +1,0 @@
----
-import ReaderPage from "../../../components/ReaderPage.astro";
-import { reader } from "../../../writing/reader";
-
-const data = await reader(Astro, "recipes", Astro.params.slug);
-if (data instanceof Response) return data;
----
-
-<ReaderPage {...data} />

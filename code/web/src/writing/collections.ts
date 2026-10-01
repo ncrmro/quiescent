@@ -9,7 +9,7 @@ export interface ExampleMetadata extends Frontmatter {
 }
 const common = {
   title: { type: "string", title: "Title", maxLength: 300 },
-  slug: { type: "string", title: "Slug", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+  slug: { type: "string", title: "Slug", pattern: "^(?!new$)[a-z0-9]+(?:-[a-z0-9]+)*$" },
   description: { type: "string", title: "Description" },
   tags: { type: "array", title: "Tags", items: { type: "string" } },
   headerImage: { type: ["string", "null"], title: "Image" },

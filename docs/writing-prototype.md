@@ -2,7 +2,8 @@
 
 The example hosts posts and recipes with one document service, schema-driven editor,
 and Astro cache integration. Posts appear on `/`; recipes appear on `/recipes`.
-Write at `/write` or `/recipes/new`, and edit at `/<collection>/<slug>/edit`.
+List documents at `/write`, start at `/posts/new` or `/recipes/new`, and edit at
+`/<collection>/<uuid>/edit`.
 Reader URLs omit dates; post folders in Git include the date-only creation value.
 
 Sign in using `quiescent-demo`. This fixed password and signed cookie are example
@@ -95,8 +96,7 @@ Their front matter records `createdAt: 2026-10-01`; browser slugs contain no dat
 ## Browser-local drafts
 
 New post and New recipe allocate a UUID and store metadata and body in localStorage.
-Typing and navigating between these drafts do not write to GitHub. Reload the editor
-and select a Local entry to resume it. Save now (or Publish) creates the first Git
+Typing and navigating between these drafts do not write to GitHub. Reload the new page to resume this tab’s draft, or open a Local entry from `/write`. Save now (or Publish) creates the first Git
 branch with the same UUID; subsequent edits autosave normally. Local entries are
 removed after a successful first save. Deleting a local draft makes no Git request.
 Images require the first save before uploading. Unsaved local drafts are specific
@@ -106,3 +106,18 @@ Validated with 81 unit tests, strict type/lint checks, and post/recipe browser t
 covering reload, first save, and local deletion. Live workstation and Cloudflare
 checks confirmed zero create requests before Save now and the same UUID after
 saving. Cloudflare version: `811ad2a5-49cf-42f0-8985-0a8ba8130601`.
+
+## Editor routes
+
+`/write` is a document list. New links navigate to `/posts/new` or `/recipes/new`;
+edit links use `/<collection>/<uuid>/edit`. One Astro rest route dispatches to the
+shared editor component or public slug reader. Editor routes do not scan branches
+to resolve a slug. New pages resume their tab's local draft after reload. The first
+save changes the URL with `history.replaceState`; the editor DOM and layout remain
+in place. Public reader URLs continue to use slugs. The slug `new` is reserved.
+
+Route acceptance passed on desktop and a 390px mobile viewport: editor bounds are
+identical before and after first save and the original editor element stays mounted.
+All 81 unit tests and strict checks pass. Live Node and Cloudflare checks verified
+local reload, UUID-preserving first save, edit-URL reload, and existing public readers
+and image rendering. Worker version: `a1f6cfba-0607-4138-aaf8-4a7969214e07`.

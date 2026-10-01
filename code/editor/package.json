@@ -21,6 +21,10 @@
     "./metadata": {
       "types": "./dist/metadata.d.ts",
       "default": "./dist/metadata.js"
+    },
+    "./local-drafts": {
+      "types": "./dist/local-drafts.d.ts",
+      "default": "./dist/local-drafts.js"
     }
   },
   "types": "./dist/index.d.ts",
