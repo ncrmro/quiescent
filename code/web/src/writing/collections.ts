@@ -47,7 +47,7 @@ export function initialDocument(collection: Collection) {
     frontmatter: {
       title: "",
       description: "",
-      slug: "draft",
+      slug: "",
       tags: [],
       headerImage: null,
       ...(collection === "recipes" ? { ingredients: [], preparationMinutes: 0 } : {}),
@@ -68,10 +68,10 @@ export function titleSlug(title: unknown): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  return slug === "new" ? "new-document" : slug || "draft";
+  return slug === "new" ? "new-document" : slug;
 }
-export function deriveSlug(current: Record<string, unknown>, previous: Record<string, unknown>) {
-  if (current.title === previous.title || current.slug !== previous.slug) return {};
-  if (previous.slug !== titleSlug(previous.title)) return {};
-  return { slug: titleSlug(current.title) };
+export function deriveSlug(current: Record<string, unknown>) {
+  if (current.slug) return {};
+  const slug = titleSlug(current.title);
+  return slug ? { slug } : {};
 }

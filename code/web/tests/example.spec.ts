@@ -71,11 +71,13 @@ for (const collection of ["posts", "recipes"] as const) {
       const key = Object.keys(localStorage).find((key) => key.startsWith("quiescent-local:"))!;
       return JSON.parse(localStorage.getItem(key)!).id as string;
     });
-    await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("draft");
+    await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("");
     await page.getByLabel("Title", { exact: true }).fill("Café & Family Weekend!");
+    expect(await page.getByLabel("Slug", { exact: true }).inputValue()).toBe("");
     await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("cafe-family-weekend");
     await page.getByLabel("Title", { exact: true }).fill("A quiet afternoon");
-    await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("a-quiet-afternoon");
+    await page.waitForTimeout(600);
+    await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("cafe-family-weekend");
     await page.getByLabel("Slug", { exact: true }).fill("quiet-afternoon");
     await page.getByLabel("Title", { exact: true }).fill("A quiet afternoon!");
     await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("quiet-afternoon");

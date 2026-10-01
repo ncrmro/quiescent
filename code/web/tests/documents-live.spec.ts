@@ -20,7 +20,9 @@ for (const collection of ["posts", "recipes"] as const) {
       ).ok(),
     ).toBe(true);
     const api = `/api/documents/${collection}`;
-    const create = await page.request.post(api, { headers, data: initialDocument(collection) });
+    const input = initialDocument(collection);
+    input.frontmatter.slug = `image-test-${Date.now()}`;
+    const create = await page.request.post(api, { headers, data: input });
     expect(create.status()).toBe(201);
     let draft = (await create.json()) as DocumentDraft<ExampleMetadata>;
     const id = draft.document.id;

@@ -51,6 +51,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   const summaries = new Map<string, DocumentDraft>();
   let listLoaded = false;
   let editor: ReturnType<typeof createWritingEditor> | undefined;
+  let derivationTimer: ReturnType<typeof setTimeout> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let saving: Promise<void> | undefined;
   let generation = 0;
@@ -169,6 +170,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   }
   const flush = async (create = false): Promise<void> => {
     clearTimeout(timer);
+    applyDerivation();
     await images?.wait();
     if (!metadataValid)
       throw new Error("Enter valid JSON in structured metadata fields before saving.");
@@ -233,13 +235,27 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     }
     return true;
   }
+  function applyDerivation() {
+    if (!derivationTimer) return;
+    clearTimeout(derivationTimer);
+    derivationTimer = undefined;
+    if (!active || !metadataValid) return;
+    const derived = options.deriveMetadata?.(metadata.read(), active.document.frontmatter) ?? {};
+    if (!Object.keys(derived).length) return;
+    metadata.patch(derived);
+    changed();
+  }
+  function metadataChanged() {
+    changed();
+    images?.show();
+    clearTimeout(derivationTimer);
+    derivationTimer = setTimeout(applyDerivation, 500);
+  }
   const changed = () => {
     if (!active) return;
     try {
       const current = metadata.read();
-      const derived = options.deriveMetadata?.(current, active.document.frontmatter) ?? {};
-      metadata.patch(derived);
-      Object.assign(active.document.frontmatter, current, derived);
+      Object.assign(active.document.frontmatter, current);
       metadataValid = true;
     } catch {
       metadataValid = false;
@@ -565,10 +581,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       metadata = createMetadataForm(
         q("[data-metadata]"),
         schema,
-        () => {
-          changed();
-          images?.show();
-        },
+        metadataChanged,
         fields,
         options.fieldControls,
       );
@@ -594,6 +607,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     destroy: () => {
       destroyed = true;
       clearTimeout(timer);
+      clearTimeout(derivationTimer);
       editor?.destroy();
       window.removeEventListener("beforeunload", beforeUnload);
       root.removeEventListener("keydown", shortcut);

@@ -124,8 +124,9 @@ and image rendering. Worker version: `a1f6cfba-0607-4138-aaf8-4a7969214e07`.
 
 ## Slugs and mobile navigation
 
-New documents start with `draft` as the slug. The example derives a normalized slug
-from the title while the slug remains automatic; a manually chosen slug is retained.
+New documents start with an empty slug. After a 500ms typing pause, the example
+fills an empty slug from the title. Any existing slug, generated or manually chosen,
+is retained when the title changes. There is no `draft` fallback.
 Quiescent exposes a generic metadata-derivation callback so this policy stays in the
 example. A shared navigation bar uses a native modal dialog as a mobile sidebar,
 with a hamburger button, Escape dismissal, and focus returned to the button.
@@ -134,3 +135,8 @@ Validated with 81 unit tests, strict checks, and desktop/mobile browser coverage
 slug defaults, accent normalization, manual overrides, menu dismissal/focus, and
 first-save layout stability. Both live deployments passed mobile slug/save checks
 and reader/image smoke tests. Worker version: `1fa9342e-8cc2-4505-997c-3fff24a4f1fe`.
+
+The empty-only, 500ms debounced slug behavior passed desktop/mobile regression tests
+and live checks on Node and Cloudflare, with no Git document creation during typing.
+Existing generated and custom slugs both remain unchanged after title edits. Worker
+version: `dda53372-62c7-4b60-bf69-1c3cfac3f32b`.
