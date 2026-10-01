@@ -1,33 +1,46 @@
 import type { JSONSchema } from "@quiescent/server/documents";
 import { createField, loadField, type MetadataField, readField } from "./metadata-fields.ts";
 export type MetadataSchema = JSONSchema;
+export type { MetadataField } from "./metadata-fields.ts";
+export type MetadataControl = (
+  parent: HTMLElement,
+  name: string,
+  onChange: () => void,
+) => MetadataField;
 /** Schema annotations choose controls; the server validates the full schema on each atomic save. */
 export function createMetadataForm(
   parent: HTMLElement,
   schema: MetadataSchema,
   onChange: () => void,
   imageFields: string[] = [],
+  controls: Record<string, MetadataControl> = {},
 ) {
+  let original: Record<string, unknown> = {};
   const fields = new Map<string, MetadataField>();
   const properties = typeof schema === "boolean" ? {} : (schema.properties ?? {});
   for (const [name, property] of Object.entries(properties)) {
     if (property === false) continue;
     fields.set(
       name,
-      createField(
-        parent,
-        name,
-        property === true ? {} : property,
-        imageFields.includes(name),
-        onChange,
-      ),
+      controls[name]?.(parent, name, onChange) ??
+        createField(
+          parent,
+          name,
+          property === true ? {} : property,
+          imageFields.includes(name),
+          onChange,
+        ),
     );
   }
   return {
     read(): Record<string, unknown> {
-      return Object.fromEntries([...fields].map(([name, field]) => [name, readField(field)]));
+      return {
+        ...original,
+        ...Object.fromEntries([...fields].map(([name, field]) => [name, readField(field)])),
+      };
     },
     load(value: object) {
+      original = structuredClone(value) as Record<string, unknown>;
       const values: Record<string, unknown> = { ...value };
       for (const [name, field] of fields) loadField(field, values[name]);
     },

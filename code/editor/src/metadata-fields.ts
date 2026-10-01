@@ -7,6 +7,8 @@ export interface MetadataField {
   type: string;
   nullable: boolean;
   schema: FieldSchema;
+  read?: () => unknown;
+  load?: (value: unknown) => void;
 }
 function textInput(schema: FieldSchema, type: string, hidden: boolean) {
   const input = document.createElement("input");
@@ -34,7 +36,9 @@ function createInput(schema: FieldSchema, type: string, hidden: boolean): FieldI
     });
     return input;
   }
-  return type === "object" ? document.createElement("textarea") : textInput(schema, type, hidden);
+  return type === "object" || (type === "array" && structuredArray(schema))
+    ? document.createElement("textarea")
+    : textInput(schema, type, hidden);
 }
 function description(
   parent: HTMLElement,
@@ -81,13 +85,23 @@ export function createField(
   parent.append(error);
   return { input, error, type, nullable: types.includes("null"), schema };
 }
-export function readField({ input, type, nullable, schema }: MetadataField): unknown {
+function structuredArray(schema: FieldSchema) {
+  return (
+    !schema.items ||
+    typeof schema.items !== "object" ||
+    Array.isArray(schema.items) ||
+    schema.items.type !== "string"
+  );
+}
+export function readField({ input, type, nullable, schema, read }: MetadataField): unknown {
+  if (read) return read();
   if (input instanceof HTMLSelectElement) return schema.enum?.[input.selectedIndex];
   if (type === "boolean") return (input as HTMLInputElement).checked;
   const value = input.value;
   if (nullable && value === "") return null;
   switch (type) {
     case "array":
+      if (structuredArray(schema)) return JSON.parse(value || "[]") as unknown;
       return value
         .split(",")
         .map((v) => v.trim())
@@ -101,7 +115,11 @@ export function readField({ input, type, nullable, schema }: MetadataField): unk
       return value;
   }
 }
-export function loadField({ input, type, schema }: MetadataField, value: unknown) {
+export function loadField({ input, type, schema, load }: MetadataField, value: unknown) {
+  if (load) {
+    load(value);
+    return;
+  }
   if (input instanceof HTMLSelectElement) {
     input.selectedIndex =
       schema.enum?.findIndex((v) => JSON.stringify(v) === JSON.stringify(value)) ?? -1;
@@ -112,7 +130,11 @@ export function loadField({ input, type, schema }: MetadataField, value: unknown
     return;
   }
   if (type === "array") {
-    input.value = Array.isArray(value) ? value.join(", ") : "";
+    input.value = structuredArray(schema)
+      ? JSON.stringify(value ?? [], null, 2)
+      : Array.isArray(value)
+        ? value.join(", ")
+        : "";
     return;
   }
   if (type === "object") {

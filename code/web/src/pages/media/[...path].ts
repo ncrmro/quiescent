@@ -1,21 +1,12 @@
-import { env } from "quiescent:runtime";
-import { cachePublication } from "@quiescent/astro";
-import { publishedMedia, writingErrorResponse } from "@quiescent/server";
+import { documentErrorResponse } from "@quiescent/server";
 import type { APIRoute } from "astro";
-import { writingApp } from "../../writing/app";
-export const prerender = false;
+import { publishedMedia } from "../../writing/media";
 export const GET: APIRoute = async ({ params, cache }) => {
   try {
-    const [id, asset, ...extra] = (params.path ?? "").split("/");
-    if (!id || !asset || extra.length) return new Response("Not found", { status: 404 });
-    const { service, media } = writingApp(env);
-    const response = await publishedMedia(service, media, id, asset);
-    if (response.ok) {
-      cachePublication(cache, id);
-      response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
-    }
-    return response;
+    const [id, filename, ...extra] = (params.path ?? "").split("/");
+    if (!id || !filename || extra.length) return new Response("Not found", { status: 404 });
+    return await publishedMedia(id, filename, cache);
   } catch (error) {
-    return writingErrorResponse(error);
+    return documentErrorResponse(error);
   }
 };

@@ -25,7 +25,7 @@ describe("writing documents", () => {
         {
           type: "image",
           attrs: {
-            src: "/media/post/asset",
+            src: "asset.png",
             alt: '" onerror="alert(1)',
             onerror: "alert(2)",
           },
@@ -37,9 +37,9 @@ describe("writing documents", () => {
     );
     expect(renderDocument(doc)).toContain('alt="&quot; onerror=&quot;alert(1)"');
     expect(renderDocument(doc)).not.toContain("alert(2)");
-    expect(imageReferences(doc)).toEqual([{ postId: "post", assetId: "asset" }]);
+    expect(imageReferences(doc)).toEqual([{ assetId: "asset.png" }]);
     expect(renderDocument(doc, (ref) => `/preview/${ref.assetId}`)).toContain(
-      'src="/preview/asset"',
+      'src="/preview/asset.png"',
     );
   });
   test("rejects scripts, unsafe links, external images and invalid structure", () => {

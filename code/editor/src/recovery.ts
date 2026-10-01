@@ -1,13 +1,9 @@
-import { validateDocument } from "@quiescent/server/content";
-import type { PostDocument } from "@quiescent/server/contracts";
-
-type RecoveredPost = Pick<PostDocument, "title" | "description" | "body"> &
-  Partial<Pick<PostDocument, "slug" | "tags" | "headerImage">>;
+import type { DocumentInput } from "@quiescent/server/documents";
 export interface RecoveryRecord {
   key: string;
   raw: string;
   updatedAt: number;
-  post: RecoveredPost;
+  document: DocumentInput;
 }
 export type RecoveryStorage = Pick<Storage, "length" | "key" | "getItem" | "removeItem">;
 function object(value: unknown): Record<string, unknown> {
@@ -15,31 +11,15 @@ function object(value: unknown): Record<string, unknown> {
     throw new Error("Invalid recovery");
   return value as Record<string, unknown>;
 }
-function metadata(post: Record<string, unknown>): Partial<RecoveredPost> {
-  const result: Partial<RecoveredPost> = {};
-  if (typeof post.slug === "string" || post.slug === null) result.slug = post.slug;
-  if (typeof post.headerImage === "string" || post.headerImage === null)
-    result.headerImage = post.headerImage;
-  if (Array.isArray(post.tags) && post.tags.every((v: unknown) => typeof v === "string"))
-    result.tags = post.tags;
-  return result;
-}
 function parseRecord(key: string, raw: string): RecoveryRecord {
   const value = object(JSON.parse(raw));
-  const post = object(value.post);
-  if (typeof post.title !== "string" || typeof post.description !== "string")
-    throw new Error("Invalid recovery");
+  const document = object(value.document);
+  if (typeof document.body !== "string") throw new Error("Invalid recovery");
   return {
     key,
     raw,
-    updatedAt:
-      typeof value.updatedAt === "number" && Number.isFinite(value.updatedAt) ? value.updatedAt : 0,
-    post: {
-      ...metadata(post),
-      title: post.title,
-      description: post.description,
-      body: validateDocument(post.body),
-    },
+    updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : 0,
+    document: { frontmatter: object(document.frontmatter), body: document.body },
   };
 }
 /** Failed parses stay in storage for manual recovery; old editing cycles are still offered. */

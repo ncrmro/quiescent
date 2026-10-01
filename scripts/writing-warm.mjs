@@ -14,21 +14,23 @@ export async function warmSite(base, extraHeaders = {}) {
     .map((value) => value.split(";")[0])
     .join("; ");
   try {
-    const response = await fetch(`${base}/api/writing/cache/refresh`, {
-      method: "POST",
-      headers: { ...headers, Cookie: cookie },
-    });
-    if (!response.ok) throw new Error(`Cache warming failed: ${response.status}`);
-    const result = /** @type {unknown} */ (await response.json());
-    if (
-      !result ||
-      typeof result !== "object" ||
-      !("refreshed" in result) ||
-      !result.refreshed ||
-      !("pages" in result)
-    )
-      throw new Error("Cache provider is not enabled. Build the application first.");
-    console.log(`Public page caches are ready (${result.pages} pages).`);
+    for (const collection of ["posts", "recipes"]) {
+      const response = await fetch(`${base}/api/documents/${collection}/cache/refresh`, {
+        method: "POST",
+        headers: { ...headers, Cookie: cookie },
+      });
+      if (!response.ok) throw new Error(`Cache warming failed: ${response.status}`);
+      const result = /** @type {unknown} */ (await response.json());
+      if (
+        !result ||
+        typeof result !== "object" ||
+        !("refreshed" in result) ||
+        !result.refreshed ||
+        !("pages" in result)
+      )
+        throw new Error("Cache provider is not enabled. Build the application first.");
+      console.log(`${collection} page caches are ready (${result.pages} pages).`);
+    }
   } finally {
     await fetch(`${base}/api/auth/logout`, {
       method: "POST",

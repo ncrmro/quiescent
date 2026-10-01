@@ -1,10 +1,5 @@
 import { isAssetFilename } from "./assets.ts";
-import {
-  type ImageReference,
-  mediaPattern,
-  type WritingDocument,
-  type WritingMark,
-} from "./model.ts";
+import type { ImageReference, WritingDocument, WritingMark } from "./model.ts";
 import { validateDocument } from "./validate.ts";
 
 const escapeHtml = (text: string) =>
@@ -16,10 +11,7 @@ export function imageReferences(body: WritingDocument): ImageReference[] {
   const result: ImageReference[] = [];
   function walk(node: WritingDocument) {
     if (node.type === "image") {
-      const match = mediaPattern.exec(String(node.attrs?.src));
-      if (match) result.push({ postId: match[1]!, assetId: match[2]! });
-      else if (isAssetFilename(node.attrs?.src))
-        result.push({ postId: "", assetId: node.attrs.src });
+      if (isAssetFilename(node.attrs?.src)) result.push({ assetId: node.attrs.src });
     }
     node.content?.forEach(walk);
   }
@@ -35,8 +27,7 @@ function marked(html: string, mark: WritingMark) {
 }
 function image(node: WritingDocument, mediaUrl: (reference: ImageReference) => string) {
   const attrs = node.attrs!;
-  const match = mediaPattern.exec(String(attrs.src));
-  const url = mediaUrl({ postId: match?.[1] ?? "", assetId: match?.[2] ?? String(attrs.src) });
+  const url = mediaUrl({ assetId: String(attrs.src) });
   if (
     !(url.startsWith("/") && !url.startsWith("//")) &&
     !/^https?:\/\//i.test(url) &&
@@ -49,8 +40,7 @@ function image(node: WritingDocument, mediaUrl: (reference: ImageReference) => s
 /** Browser-safe and Worker-safe rendering from the validated document model. */
 export function renderDocument(
   body: WritingDocument,
-  mediaUrl: (reference: ImageReference) => string = (ref) =>
-    ref.postId ? `/media/${ref.postId}/${ref.assetId}` : ref.assetId,
+  mediaUrl: (reference: ImageReference) => string = (ref) => ref.assetId,
 ): string {
   const tags: Record<string, string> = {
     paragraph: "p",

@@ -24,12 +24,17 @@ export interface MediaBucket {
   ): Promise<unknown>;
 }
 export interface MediaStorage {
-  prepare(postId: string, contentType: string, size: number): Promise<UploadTicket>;
-  confirm(postId: string, assetId: string, filename?: string): Promise<ConfirmedUpload>;
-  restore(postId: string, assetId: string, bytes: ArrayBuffer, contentType: string): Promise<void>;
-  read(postId: string, assetId: string): Promise<MediaObject | null>;
-  verify(postId: string, assetId: string): Promise<void>;
-  uploadLocal?(postId: string, assetId: string, request: Request): Promise<void>;
+  prepare(documentId: string, contentType: string, size: number): Promise<UploadTicket>;
+  confirm(documentId: string, assetId: string, filename?: string): Promise<ConfirmedUpload>;
+  restore(
+    documentId: string,
+    assetId: string,
+    bytes: ArrayBuffer,
+    contentType: string,
+  ): Promise<void>;
+  read(documentId: string, assetId: string): Promise<MediaObject | null>;
+  verify(documentId: string, assetId: string): Promise<void>;
+  uploadLocal?(documentId: string, assetId: string, request: Request): Promise<void>;
 }
 export class MediaError extends Error {
   constructor(
@@ -39,9 +44,9 @@ export class MediaError extends Error {
     super(message);
   }
 }
-function key(postId: string, assetId: string, staging = false) {
-  if (!ID.test(postId) || !ID.test(assetId)) throw new MediaError("Invalid image reference");
-  return `${staging ? "uploads" : "images"}/${postId}/${assetId}`;
+function key(documentId: string, assetId: string, staging = false) {
+  if (!ID.test(documentId) || !ID.test(assetId)) throw new MediaError("Invalid image reference");
+  return `${staging ? "uploads" : "images"}/${documentId}/${assetId}`;
 }
 function metadata(contentType: string, size: number) {
   if (!TYPES.has(contentType) || !Number.isSafeInteger(size) || size < 1 || size > MAX_IMAGE_SIZE)
@@ -102,31 +107,28 @@ function createMedia(
   return {
     prepare,
     ...(uploadLocal ? { uploadLocal } : {}),
-    async confirm(postId, assetId, filename) {
-      const object = await store.get(key(postId, assetId, true));
+    async confirm(documentId, assetId, filename) {
+      const object = await store.get(key(documentId, assetId, true));
       if (!object) throw new MediaError("Upload not found. Please upload the image again.", 404);
       metadata(object.contentType, object.size);
       const bytes = await bounded(object.body);
       validateBytes(bytes, object.contentType);
       // Public references are content addressed. A replayed upload URL cannot alter them.
       const permanentId = await digest(bytes);
-      await store.put(key(postId, permanentId), bytes, object.contentType);
-      if (filename) {
-        const name = uploadedFilename(filename, object.contentType, permanentId);
-        await store.put(key(postId, name), bytes, object.contentType);
-        return { src: name };
-      }
-      return { src: `/media/${postId}/${permanentId}` };
+      await store.put(key(documentId, permanentId), bytes, object.contentType);
+      const name = uploadedFilename(filename ?? "image", object.contentType, permanentId);
+      await store.put(key(documentId, name), bytes, object.contentType);
+      return { src: name };
     },
-    async restore(postId, assetId, bytes, type) {
+    async restore(documentId, assetId, bytes, type) {
       validateBytes(bytes, type);
-      await store.put(key(postId, assetId), bytes, type);
+      await store.put(key(documentId, assetId), bytes, type);
     },
-    read(postId, assetId) {
-      return store.get(key(postId, assetId));
+    read(documentId, assetId) {
+      return store.get(key(documentId, assetId));
     },
-    async verify(postId, assetId) {
-      const object = await store.get(key(postId, assetId));
+    async verify(documentId, assetId) {
+      const object = await store.get(key(documentId, assetId));
       if (!object)
         throw new MediaError("An image is missing. Upload it again before publishing.", 409);
       await object.body.cancel();
@@ -135,7 +137,7 @@ function createMedia(
   };
 }
 /** Local R2 emulation uses the same finalization flow, with a loopback upload endpoint. */
-export function localR2Media(bucket: MediaBucket, apiBase = "/api/writing"): MediaStorage {
+export function localR2Media(bucket: MediaBucket, apiBase = "/api/documents"): MediaStorage {
   const store: ObjectStore = {
     async get(k) {
       const o = await bucket.get(k);
@@ -150,22 +152,22 @@ export function localR2Media(bucket: MediaBucket, apiBase = "/api/writing"): Med
   };
   return createMedia(
     store,
-    async (postId, type, size) => {
+    async (documentId, type, size) => {
       metadata(type, size);
       const assetId = crypto.randomUUID();
-      key(postId, assetId);
+      key(documentId, assetId);
       return {
         assetId,
-        url: `${apiBase}/posts/${postId}/uploads/${assetId}`,
+        url: `${apiBase}/${documentId}/uploads/${assetId}`,
         headers: { "Content-Type": type },
       };
     },
-    async (postId, assetId, request) => {
+    async (documentId, assetId, request) => {
       if (!request.body) throw new MediaError("Image body missing");
       const bytes = await bounded(request.body);
       const type = request.headers.get("Content-Type") ?? "";
       validateBytes(bytes, type);
-      await store.put(key(postId, assetId, true), bytes, type);
+      await store.put(key(documentId, assetId, true), bytes, type);
     },
   );
 }
@@ -210,10 +212,10 @@ export function r2Media(options: {
       if (!response.ok) throw new MediaError("Could not finish saving the image. Try again.", 502);
     },
   };
-  return createMedia(store, async (postId, type, size) => {
+  return createMedia(store, async (documentId, type, size) => {
     metadata(type, size);
     const assetId = crypto.randomUUID();
-    const target = new URL(url(key(postId, assetId, true)));
+    const target = new URL(url(key(documentId, assetId, true)));
     target.searchParams.set("X-Amz-Expires", "300");
     const signed = await aws.sign(target, {
       method: "PUT",

@@ -1,8 +1,9 @@
 ---
 interface Props {
-  postId?: string;
+  documentId?: string;
+  collection?: "posts" | "recipes";
 }
-const { postId } = Astro.props;
+const { documentId, collection = "posts" } = Astro.props;
 ---
 
 <!doctype html>
@@ -15,18 +16,29 @@ const { postId } = Astro.props;
   <body>
     <header>
       <a href="/write">Quiescent</a><span>A place for your stories</span
-      ><a href="/read" target="_blank">Read stories ↗</a
+      ><a href="/" target="_blank">Read stories ↗</a
       ><button type="button" id="sign-out">Sign out</button>
     </header>
-    <div id="writing" data-post-id={postId}></div>
+    <div id="writing" data-document-id={documentId} data-collection={collection}></div>
     <script>
-    import { mountWritingApp } from "@quiescent/editor/writing";
+    import { mountDocumentApp } from "@quiescent/editor/writing";
+
+    import { documentPath, initialDocument } from "../writing/collections";
 
     const root = document.getElementById("writing")!;
-    mountWritingApp(root, {
-      ...(root.dataset.postId ? { initialPostId: root.dataset.postId } : {}),
-      onPostOpen: (id, slug) =>
-        window.history.replaceState(null, "", `/posts/${encodeURIComponent(slug ?? id)}/edit`),
+    const collection = root.dataset.collection === "recipes" ? "recipes" : "posts";
+    mountDocumentApp(root, {
+      apiBase: `/api/documents/${collection}`,
+      initialDocument: () => initialDocument(collection),
+      documentPath: (document) => documentPath(collection, document),
+      displayName: (document) => String(document.frontmatter.title ?? document.id),
+      imageFields: ["headerImage"],
+      label: collection === "posts" ? "post" : "recipe",
+      ...(root.dataset.documentId ? { initialDocumentId: root.dataset.documentId } : {}),
+      onDocumentOpen: (document) =>
+        window.history.replaceState(null, "", `${documentPath(collection, document)}/edit`),
+      onDelete: () =>
+        window.history.replaceState(null, "", collection === "posts" ? "/write" : "/recipes/new"),
     });
     document.getElementById("sign-out")?.addEventListener("click", async () => {
       if (!window.confirm("Sign out? Wait for your writing to show Saved first.")) return;

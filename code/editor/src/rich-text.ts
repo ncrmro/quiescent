@@ -43,7 +43,7 @@ export function createWritingEditor(options: WritingEditorOptions) {
     editorProps: {
       attributes: {
         role: "textbox",
-        "aria-label": "Post body",
+        "aria-label": "Document body",
         "aria-multiline": "true",
       },
     },

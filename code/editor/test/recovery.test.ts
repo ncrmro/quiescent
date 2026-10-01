@@ -1,17 +1,18 @@
 import { expect, test } from "bun:test";
-import { emptyDocument } from "@quiescent/server/content";
 import { findRecoveryRecords, removeRecoveredRecord } from "../src/recovery.ts";
 
 test("offers prior editing cycles newest first without deleting unselected records", () => {
   const record = (title: string, updatedAt: number) =>
     JSON.stringify({
-      post: {
-        title,
-        description: "",
-        slug: "unfinished",
-        tags: ["food"],
-        headerImage: "/media/post/header",
-        body: emptyDocument(),
+      document: {
+        frontmatter: {
+          title,
+          description: "",
+          slug: "unfinished",
+          tags: ["food"],
+          headerImage: "/media/post/header",
+        },
+        body: "Markdown",
       },
       updatedAt,
     });
@@ -31,8 +32,11 @@ test("offers prior editing cycles newest first without deleting unselected recor
     },
   };
   const candidates = findRecoveryRecords(storage, "post:");
-  expect(candidates.map((c) => c.post.title)).toEqual(["Unfinished old title", "Other writing"]);
-  expect(candidates[0]!.post).toMatchObject({
+  expect(candidates.map((c) => c.document.frontmatter.title)).toEqual([
+    "Unfinished old title",
+    "Other writing",
+  ]);
+  expect(candidates[0]!.document.frontmatter).toMatchObject({
     slug: "unfinished",
     tags: ["food"],
     headerImage: "/media/post/header",

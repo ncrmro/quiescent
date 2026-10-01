@@ -4,8 +4,11 @@ import { writingAuthor } from "./writing/auth";
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
-  const editor = pathname === "/write" || /^\/posts\/[^/]+\/edit\/?$/.test(pathname);
-  const author = editor || pathname.startsWith("/api/writing/");
+  const editor =
+    pathname === "/write" ||
+    pathname === "/recipes/new" ||
+    /^\/(posts|recipes)\/[^/]+\/edit\/?$/.test(pathname);
+  const author = editor || pathname.startsWith("/api/documents/");
   const privateRoute =
     author ||
     pathname === "/login" ||

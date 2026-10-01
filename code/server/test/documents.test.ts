@@ -110,67 +110,6 @@ test("Markdown codec keeps body verbatim and rejects malformed YAML and incompat
   ).toThrow(DocumentError);
 });
 
-test("existing JSON posts migrate only on mutation with metadata and body in the same commit", async () => {
-  const { forge, commits, service } = fixture();
-  const id = "11111111-1111-4111-8111-111111111111";
-  const legacy = {
-    id,
-    title: "Sunday lunch",
-    description: "A quiet afternoon",
-    slug: "sunday-lunch",
-    body: {
-      type: "doc",
-      content: [{ type: "paragraph", content: [{ type: "text", text: "Old body" }] }],
-    },
-    publishedAt: "2026-09-01T00:00:00Z",
-    publicationSource: "legacy",
-  };
-  const oldPath = `posts/${id}/post.json`;
-  await forge.commitFiles({
-    branch: "main",
-    expectedHeadSha: "root",
-    message: "Legacy post",
-    files: [{ path: oldPath, content: JSON.stringify(legacy) }],
-  });
-  const posts = service();
-  expect((await posts.getPublished(id))?.post.title).toBe(legacy.title);
-  const draft = await posts.getDraft(id);
-  const count = commits.size;
-  const saved = await posts.saveDraft({
-    id,
-    branch: draft.branch!,
-    expectedHeadSha: draft.headSha,
-    post: {
-      ...draft.post,
-      title: "A new lunch",
-      slug: "new-lunch",
-      tags: ["food", "weekends"],
-      headerImage: `/media/${id}/header`,
-      body: {
-        type: "doc",
-        content: [{ type: "paragraph", content: [{ type: "text", text: "New body" }] }],
-      },
-    },
-  });
-  expect(commits.size - count).toBe(1);
-  expect(commits.get(saved.headSha)!.files[oldPath]).toBeUndefined();
-  const md = commits.get(saved.headSha)!.files[`posts/2026-09-01-new-lunch/index.md`]!;
-  expect(md).toContain("title: A new lunch");
-  expect(md).toContain("slug: new-lunch");
-  expect(md).toContain("- weekends");
-  expect(md).toContain(`headerImage: /media/${id}/header`);
-  expect(md).toContain("New body");
-  expect((await posts.getPublished(id))?.post.title).toBe("Sunday lunch");
-  await posts.publish({ id, branch: saved.branch!, expectedHeadSha: saved.headSha });
-  expect(await forge.getFile(oldPath, "main")).toBeNull();
-  expect((await posts.getPublished(id))?.post).toMatchObject({
-    title: "A new lunch",
-    slug: "new-lunch",
-    tags: ["food", "weekends"],
-    headerImage: `/media/${id}/header`,
-  });
-});
-
 test("generic HTTP saves one document and returns validation fields without mutating Git", async () => {
   const { createDocumentHandler } = await import("../src/document-http.ts");
   const { store, branches } = setup();
@@ -222,7 +161,7 @@ test("readable folder collisions and reserved metadata cannot overwrite another 
     author,
     collection: "pages",
     schema: true,
-    directoryTemplate: "{slug}",
+    filename: (document) => String(document.frontmatter.slug),
   });
   const first = await store.createDocument({ frontmatter: { slug: "garden" }, body: "First" });
   const second = await store.createDocument({ frontmatter: { slug: "garden" }, body: "Second" });
@@ -239,13 +178,47 @@ test("readable folder collisions and reserved metadata cannot overwrite another 
     }),
   ).rejects.toMatchObject({ code: "invalid" });
   expect(f.commits.size).toBe(count);
-  expect(() =>
-    createDocumentStore({
-      forge: f.forge,
-      author,
-      collection: "pages",
-      schema: true,
-      directoryTemplate: "../{slug}",
-    }),
-  ).toThrow(DocumentError);
+  const unsafe = createDocumentStore({
+    forge: f.forge,
+    author,
+    collection: "pages",
+    schema: true,
+    filename: () => "../escape",
+  });
+  await expect(unsafe.createDocument({ frontmatter: {}, body: "" })).rejects.toThrow(DocumentError);
+});
+
+test("filename callbacks receive stable date-only creation metadata and rename atomically", async () => {
+  const f = fixture();
+  const store = createDocumentStore<{ slug: string }>({
+    forge: f.forge,
+    author,
+    collection: "posts",
+    schema: true,
+    filename: (document) => `${document.createdAt}-${document.frontmatter.slug}`,
+  });
+  const draft = await store.createDocument({ frontmatter: { slug: "garden" }, body: "Hello" });
+  expect(draft.document.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  const saved = await store.saveDraft({
+    ...selection(draft),
+    document: { frontmatter: { slug: "spring" }, body: "Updated" },
+  });
+  expect(saved.document.createdAt).toBe(draft.document.createdAt);
+  expect(
+    f.commits.get(saved.headSha)!.files[`posts/${draft.document.createdAt}-garden/index.md`],
+  ).toBeUndefined();
+  expect(
+    f.commits.get(saved.headSha)!.files[`posts/${draft.document.createdAt}-spring/index.md`],
+  ).toContain("Updated");
+});
+
+test("public reads never enumerate draft branches", async () => {
+  const { store, forge } = setup();
+  const draft = await store.createDocument(initial);
+  await store.publish(selection(draft));
+  forge.listBranches = async () => {
+    throw new Error("Public read scanned branches");
+  };
+  expect((await store.listPublished()).length).toBe(1);
+  expect((await store.getPublished(draft.document.id))?.document.body).toBe(initial.body);
 });

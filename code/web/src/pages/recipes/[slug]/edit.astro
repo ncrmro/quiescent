@@ -1,0 +1,14 @@
+---
+import WritingPage from "../../../components/WritingPage.astro";
+import { collectionApp } from "../../../writing/pages";
+
+const documents = await collectionApp(Astro.url.origin, "recipes").service.listDocuments();
+const document = documents.find(
+  (draft) =>
+    draft.document.frontmatter.slug === Astro.params.slug ||
+    draft.document.id === Astro.params.slug,
+);
+if (!document) return new Response("Not found", { status: 404 });
+---
+
+<WritingPage documentId={document.document.id} collection="recipes" />

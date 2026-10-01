@@ -19,7 +19,8 @@
     "lint": "biome check . --error-on-warnings && node scripts/check-file-size.mjs",
     "format": "biome check --write .",
     "check": "bun run lint && bun run build:packages && bun run typecheck && bun run test",
-    "types:cloudflare": "node code/web/node_modules/wrangler/bin/wrangler.js types code/web/src/cloudflare-bindings.d.ts --config code/web/wrangler.writing-test.jsonc --env-file /dev/null --include-runtime false --strict-vars false"
+    "types:cloudflare": "node code/web/node_modules/wrangler/bin/wrangler.js types code/web/src/cloudflare-bindings.d.ts --config code/web/wrangler.writing-test.jsonc --env-file /dev/null --include-runtime false --strict-vars false",
+    "test:packages": "bun run build:packages && node scripts/test-packages.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",

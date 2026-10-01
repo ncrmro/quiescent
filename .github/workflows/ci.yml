@@ -22,6 +22,7 @@ jobs:
       - run: bun run lint
       - run: bun run build:packages
       - run: bun run test
+      - run: node scripts/test-packages.mjs
       - run: bun run typecheck
       - run: bun run --filter '@quiescent/web' build
       - run: WRITING_RUNTIME=node bun run --filter '@quiescent/web' build

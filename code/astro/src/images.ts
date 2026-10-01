@@ -1,20 +1,14 @@
-import {
-  type createPublishingService,
-  type PostDraft,
-  postImageReferences,
-} from "@quiescent/server";
+import type { MediaStorage } from "@quiescent/server";
 import { documentMediaUrl } from "@quiescent/server/content";
+import type { DocumentDraft, Frontmatter } from "@quiescent/server/documents";
 import type { APIContext, ImageMetadata } from "astro";
 import { imageMetadata } from "astro/assets/utils";
 import type { RouteCache } from "./documents.ts";
-import { cachePublication } from "./index.ts";
-
-type Service = ReturnType<typeof createPublishingService>;
 export type DocumentImages = Record<string, ImageMetadata>;
 export interface ImageTransform {
   width: number;
   height: number;
-  format: "webp";
+  format: "webp" | "avif" | "png" | "jpeg";
   quality: number;
 }
 export type TransformImage = (
@@ -24,29 +18,22 @@ export type TransformImage = (
 ) => Promise<Response>;
 
 /** Read dimensions once per document render; filenames in Markdown remain unchanged. */
-export async function postImages(
-  draft: PostDraft,
-  service: Service,
-  headerOnly = false,
+export async function documentImages<T extends Frontmatter>(
+  draft: DocumentDraft<T>,
+  filenames: string[],
+  read: (id: string, filename: string) => ReturnType<MediaStorage["read"]>,
 ): Promise<DocumentImages> {
   const images: DocumentImages = {};
-  for (const ref of postImageReferences(draft.post)) {
-    if (
-      images[ref.assetId] ||
-      (headerOnly && ref.assetId !== draft.post.headerImage?.split("/").at(-1))
-    )
-      continue;
-    const object = await service.readMedia(ref.postId, ref.assetId);
+  for (const filename of new Set(filenames)) {
+    const object = await read(draft.document.id, filename);
     if (!object) continue;
     const metadata = await imageMetadata(
       new Uint8Array(await new Response(object.body).arrayBuffer()),
     );
-    const source = {
+    images[filename] = {
       ...metadata,
-      src: documentMediaUrl(ref.postId, ref.assetId, { revision: draft.headSha }),
+      src: documentMediaUrl(draft.document.id, filename, { revision: draft.headSha }),
     };
-    images[ref.assetId] = source;
-    images[`/media/${ref.postId}/${ref.assetId}`] = source;
   }
   return images;
 }
@@ -55,6 +42,7 @@ export async function postImages(
 export async function documentImageResponse(options: {
   request: Request;
   cache: RouteCache;
+  cacheImage: (cache: RouteCache, id: string) => void;
   logger: APIContext["logger"];
   source: (id: string, filename: string) => Promise<Response>;
   transform: TransformImage;
@@ -62,15 +50,16 @@ export async function documentImageResponse(options: {
   const params = new URL(options.request.url).searchParams;
   const href = params.get("href") ?? "";
   const match = /^\/media\/([a-zA-Z0-9-]+)\/([a-zA-Z0-9_.-]+)(?:\?v=[a-zA-Z0-9-]+)?$/.exec(href);
+  const format = params.get("f");
   const width = Number(params.get("w"));
   const height = Number(params.get("h"));
   const quality = Number(params.get("q") ?? 80);
   if (
     !match ||
-    params.get("f") !== "webp" ||
+    !["webp", "avif", "png", "jpeg"].includes(format ?? "") ||
     !Number.isInteger(width) ||
     width < 1 ||
-    width > 1440 ||
+    width > 8192 ||
     !Number.isInteger(height) ||
     height < 1 ||
     height > 8192 ||
@@ -83,7 +72,7 @@ export async function documentImageResponse(options: {
   if (!response.ok) return response;
   const transformed = await options.transform(
     response,
-    { width, height, format: "webp", quality },
+    { width, height, format: format as ImageTransform["format"], quality },
     options.logger,
   );
   const image = new Response(transformed.body, {
@@ -91,7 +80,7 @@ export async function documentImageResponse(options: {
     headers: transformed.headers,
   });
   if (image.ok) {
-    cachePublication(options.cache, match[1]!);
+    options.cacheImage(options.cache, match[1]!);
     image.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
   }
   return image;

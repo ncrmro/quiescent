@@ -10,7 +10,7 @@ on:
       paths:
         description: JSON array of package paths to publish
         required: true
-        default: '["code/git","code/server","code/editor","code/wiki"]'
+        default: '["code/git","code/server","code/editor","code/astro","code/wiki"]'
         type: string
 
 permissions:
@@ -43,9 +43,8 @@ jobs:
       # npm trusted publishing: bun publish exchanges the workflow's OIDC
       # token with the registry; no npm token is stored anywhere.
       id-token: write
-    strategy:
-      matrix:
-        path: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.paths || needs.release-please.outputs.paths_released) }}
+    env:
+      RELEASE_PATHS: ${{ github.event_name == 'workflow_dispatch' && inputs.paths || needs.release-please.outputs.paths_released }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -54,27 +53,13 @@ jobs:
         with:
           node-version: 24
       - run: npm install -g npm@latest
-      # Not frozen: release-please bumps package versions without
-      # regenerating bun.lock, so a frozen install can fail here.
-      - run: bun install
+      # Release PRs must include the matching lockfile; never resolve new versions during publishing.
+      - run: bun install --frozen-lockfile
       # quiescent-server depends on quiescent-git in-workspace; build
       # everything so cross-package type resolution works regardless of
       # which package is being published.
       - run: bun run build:packages
-      # npm (not bun) — the npm CLI implements trusted publishing (OIDC
-      # exchange + provenance); bun 1.3 does not and fails wanting a token.
-      #
-      # OIDC cannot create a package that does not exist yet: the trusted
-      # publisher is configured on the package's npm settings page, which
-      # requires the package to exist (npm/cli#8544). A brand-new package
-      # therefore needs one manual publish before this job can take over —
-      # fail with that instruction instead of a bare E404.
-      - name: Publish ${{ matrix.path }}
-        working-directory: ${{ matrix.path }}
-        run: |
-          name=$(node -p "require('./package.json').name")
-          if ! npm view "$name" version >/dev/null 2>&1; then
-            echo "::error::$name is not on npm yet, and OIDC trusted publishing cannot bootstrap a new package. Publish it once by hand (npm publish --access public), then add the trusted publisher at https://www.npmjs.com/package/$name/access and re-run this job."
-            exit 1
-          fi
-          npm publish --access public
+      - run: bun run check
+      - run: node scripts/test-packages.mjs
+      # Publish dependencies before dependents; retries skip versions already present.
+      - run: node scripts/publish-packages.mjs

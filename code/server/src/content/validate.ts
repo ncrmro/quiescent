@@ -1,5 +1,5 @@
 import { isAssetFilename } from "./assets.ts";
-import { mediaPattern, record, safeLink, type WritingDocument, type WritingMark } from "./model.ts";
+import { record, safeLink, type WritingDocument, type WritingMark } from "./model.ts";
 
 const blocks = new Set([
   "paragraph",
@@ -19,10 +19,7 @@ function supported(type: string, parent?: string) {
   return false;
 }
 function imageAttributes(attrs: Record<string, unknown>) {
-  if (
-    typeof attrs.src !== "string" ||
-    !(mediaPattern.test(attrs.src) || isAssetFilename(attrs.src))
-  )
+  if (typeof attrs.src !== "string" || !isAssetFilename(attrs.src))
     throw new Error("Invalid image reference");
   return {
     src: attrs.src,

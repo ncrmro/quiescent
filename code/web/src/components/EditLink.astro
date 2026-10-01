@@ -4,6 +4,7 @@ import { writingAuthor } from "../writing/auth";
 
 interface Props {
   slug: string;
+  collection: string;
 }
 Astro.cache.set(false);
 Astro.response.headers.set("Cache-Control", "private, no-store");
@@ -11,7 +12,7 @@ const canEdit = await writingAuthor(Astro.request, env);
 ---
 
 {canEdit && (
-  <a class="edit" href={`/posts/${encodeURIComponent(Astro.props.slug)}/edit`}>
+  <a class="edit" href={`/${Astro.props.collection}/${encodeURIComponent(Astro.props.slug)}/edit`}>
     Edit
   </a>
 )}

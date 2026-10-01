@@ -1,10 +1,8 @@
 ---
-import { env } from "quiescent:runtime";
-import { prepareReader } from "@quiescent/astro";
 import ReaderPage from "../components/ReaderPage.astro";
-import { writingApp } from "../writing/app";
+import { reader } from "../writing/reader";
 
-const data = await prepareReader(Astro, writingApp(env).service);
+const data = await reader(Astro, "posts");
 if (data instanceof Response) return data;
 ---
 

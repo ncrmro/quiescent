@@ -18,6 +18,6 @@ export const transformImage: import("@quiescent/astro/images").TransformImage = 
   if (!source.body) return new Response("Not found", { status: 404 });
   const result = await env.IMAGES.input(source.body)
     .transform({ width: options.width, height: options.height, fit: "scale-down" })
-    .output({ format: "image/webp", quality: options.quality });
+    .output({ format: `image/${options.format}`, quality: options.quality });
   return result.response();
 };

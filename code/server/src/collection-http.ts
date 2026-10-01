@@ -42,7 +42,11 @@ async function publishedResponse<T extends object>(
   try {
     await after(result);
     return json(result);
-  } catch {
+  } catch (error) {
+    console.warn(
+      "Publication cache refresh failed:",
+      error instanceof Error ? error.message : "Unknown cache error",
+    );
     const operation = deleted ? "Deleted" : "Published";
     return json({
       ...result,

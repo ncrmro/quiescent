@@ -10,10 +10,8 @@ export interface WritingDocument {
   content?: WritingDocument[];
 }
 export interface ImageReference {
-  postId: string;
   assetId: string;
 }
-export const mediaPattern = /^\/media\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)$/;
 export function emptyDocument(): WritingDocument {
   return { type: "doc", content: [{ type: "paragraph" }] };
 }

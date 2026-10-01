@@ -1,5 +1,5 @@
 import type { CommitFilesOptions, PublishingForge } from "@quiescent/git";
-import { createPublishingService } from "../src/publishing.ts";
+import { createDocumentStore } from "../src/document-store.ts";
 export function fixture() {
   type Commit = { files: Record<string, string>; parents: string[] };
   const commits = new Map<string, Commit>([["root", { files: {}, parents: [] }]]);
@@ -127,6 +127,11 @@ export function fixture() {
       losePrepareResponse = true;
     },
     service: () =>
-      createPublishingService({ forge, author: { name: "Writer", email: "writer@example.test" } }),
+      createDocumentStore<{ title: string; slug: string }>({
+        collection: "posts",
+        schema: true,
+        forge,
+        author: { name: "Writer", email: "writer@example.test" },
+      }),
   };
 }

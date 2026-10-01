@@ -1,34 +1,45 @@
-import { documentMediaUrl, renderDocument } from "@quiescent/server/content";
+import { fromMarkdown, renderDocument, toMarkdown } from "@quiescent/server/content";
 import type {
   ConfirmedUpload,
+  DocumentDraft,
+  DocumentRecord,
   MutationResponse,
-  PostDocument as Post,
-  PostDraft,
   UploadTicket,
 } from "@quiescent/server/contracts";
-import { createMetadataForm, type MetadataSchema } from "./metadata.ts";
+import { imageFields } from "./image-fields.ts";
+import { createMetadataForm, type MetadataControl, type MetadataSchema } from "./metadata.ts";
 import { findRecoveryRecords, type RecoveryRecord, removeRecoveredRecord } from "./recovery.ts";
 
-type Draft = PostDraft & { branch: string };
+type Draft = DocumentDraft & { branch: string };
 
 import { createWritingEditor } from "./rich-text.ts";
 
 export { createWritingEditor, type WritingEditorOptions } from "./rich-text.ts";
-export interface WritingAppOptions {
-  initialPostId?: string;
-  onPostOpen?: (id: string, slug?: string | null) => void;
+export interface DocumentAppOptions {
+  initialDocumentId?: string;
+  onDocumentOpen?: (document: DocumentRecord) => void;
+  initialDocument: () => { frontmatter: Record<string, unknown>; body: string };
+  label?: string;
+  displayName?: (document: DocumentRecord) => string;
+  imageFields?: string[];
+  fieldControls?: Record<string, MetadataControl>;
+  documentPath: (document: DocumentRecord) => string;
+  onDelete?: () => void;
   apiBase?: string;
-  readerBase?: string;
 }
 /** Reusable controller; hosts supply thin API routes and their preferred styling. */
-export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = {}) {
-  const api = options.apiBase ?? "/api/writing";
-  const reader = options.readerBase ?? "/read";
+export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions) {
+  const api = options.apiBase ?? "/api/documents";
+  const label = options.label ?? "document";
+  const displayName = options.displayName ?? ((value: DocumentRecord) => value.id);
+  const fields = options.imageFields ?? [];
   const mediaUrl = (src: string) =>
-    active ? documentMediaUrl(active.post.id, src, { apiBase: api, branch: active.branch }) : src;
+    active
+      ? `${api}/${active.document.id}/media/${encodeURIComponent(src)}?branch=${encodeURIComponent(active.branch)}`
+      : src;
   let active: Draft | undefined;
-  let publishedPost: { post: Post; headSha: string } | undefined;
-  const summaries = new Map<string, PostDraft>();
+  let publishedDocument: { document: DocumentRecord; headSha: string } | undefined;
+  const summaries = new Map<string, DocumentDraft>();
   let listLoaded = false;
   let editor: ReturnType<typeof createWritingEditor> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -38,20 +49,30 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
   let publishing = false;
   let navigating = false;
   let recoveryNeedsReview = false;
+  let metadataValid = true;
   let destroyed = false;
   root.innerHTML =
-    '<div class="writing-app"><aside><button type="button" data-new>New post</button><nav aria-label="Posts"></nav></aside><main><p role="status" aria-live="polite"></p><div data-fields hidden><div data-metadata></div><div data-header-tools><button type="button" data-header-upload>Add header image</button><button type="button" data-header-remove>Remove header image</button><input type="file" data-header-file accept="image/jpeg,image/png,image/webp" hidden><img data-header-preview alt="Header image preview" hidden></div><div data-editor></div><div class="writing-actions"><button type="button" data-save>Save now</button><button type="button" data-preview>Preview</button><button type="button" data-delete>Delete post</button><button type="button" data-publish>Publish</button></div><section data-preview-area hidden></section><p data-link></p></div></main></div>';
+    '<div class="writing-app"><aside><button type="button" data-new>New document</button><nav aria-label="Documents"></nav></aside><main><p role="status" aria-live="polite"></p><div data-fields hidden><div data-metadata></div><div data-header-tools></div><div data-editor></div><div class="writing-actions"><button type="button" data-save>Save now</button><button type="button" data-preview>Preview</button><button type="button" data-delete>Delete document</button><button type="button" data-publish>Publish</button></div><section data-preview-area hidden></section><p data-link></p></div></main></div>';
   const q = <T extends HTMLElement>(selector: string) => root.querySelector<T>(selector)!;
+  q("[data-new]").textContent = `New ${label}`;
+  q("[data-delete]").textContent = `Delete ${label}`;
+  q("nav").setAttribute("aria-label", `${label}s`);
+  let markdownMode = false;
+  const markdownInput = document.createElement("textarea");
+  markdownInput.setAttribute("aria-label", "Markdown body");
+  markdownInput.hidden = true;
+  q("[data-editor]").after(markdownInput);
+  markdownInput.addEventListener("input", () => changed());
   const status = (message: string) => {
     q("[role=status]").textContent = message;
   };
   let metadata: ReturnType<typeof createMetadataForm>;
-  let headerUpload: Promise<void> | undefined;
+  let images: ReturnType<typeof imageFields>;
   // Freeze the outgoing editor until its saves and the incoming load complete.
   // Ignoring additional clicks prevents a slow earlier response replacing newer work.
   const navigate = async (action: () => Promise<void>) => {
     if (publishing || navigating || destroyed) return;
-    await headerUpload;
+    await images?.wait();
     if (publishing || navigating || destroyed) return;
     navigating = true;
     root.querySelectorAll<HTMLButtonElement>("nav button, [data-new]").forEach((button) => {
@@ -98,9 +119,9 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
     if (active) {
       try {
         remembered = {
-          key: key(active.post.id, active.branch),
+          key: key(active.document.id, active.branch),
           raw: JSON.stringify({
-            post: active.post,
+            document: active.document,
             headSha: active.headSha,
             updatedAt: Date.now(),
           }),
@@ -123,7 +144,9 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
   }
   const flush = async (): Promise<void> => {
     clearTimeout(timer);
-    await headerUpload;
+    await images?.wait();
+    if (!metadataValid)
+      throw new Error("Enter valid JSON in structured metadata fields before saving.");
     if (recoveryNeedsReview)
       throw new Error("Review recovered writing and choose Save now before continuing.");
     if (saving) {
@@ -132,16 +155,16 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
     }
     if (!active || generation === savedGeneration) return;
     const draft = active;
-    const snapshot = structuredClone(draft.post);
+    const snapshot = structuredClone(draft.document);
     const version = generation;
     status("Saving…");
     saving = (async () => {
-      const updated = await request<Draft>(`/posts/${draft.post.id}`, {
+      const updated = await request<Draft>(`/${draft.document.id}`, {
         method: "PUT",
         body: JSON.stringify({
           branch: draft.branch,
           expectedHeadSha: draft.headSha,
-          post: snapshot,
+          document: snapshot,
         }),
       });
       draft.branch = updated.branch;
@@ -151,9 +174,9 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
       savedGeneration = version;
       if (generation === version) {
         clearRecovery();
-        draft.post = updated.post;
-        metadata.load(updated.post);
-        showHeader();
+        draft.document = updated.document;
+        metadata.load(updated.document.frontmatter);
+        images?.show();
         metadata.errors();
         status("Saved");
       } else remember();
@@ -167,8 +190,15 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
   };
   const changed = () => {
     if (!active) return;
-    Object.assign(active.post, metadata.read());
-    active.post.body = editor!.getDocument();
+    try {
+      Object.assign(active.document.frontmatter, metadata.read());
+      metadataValid = true;
+    } catch {
+      metadataValid = false;
+      status("Enter valid JSON in structured metadata fields before saving.");
+      return;
+    }
+    active.document.body = markdownMode ? markdownInput.value : toMarkdown(editor!.getDocument());
     generation++;
     remember();
     status(
@@ -190,30 +220,30 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
       const button = document.createElement("button");
       button.type = "button";
       button.disabled = navigating;
-      button.textContent = `${draft.post.title || "Untitled"} — ${{ draft: "Draft", published: "Published", "unpublished-changes": "Unpublished changes" }[draft.state]}`;
+      button.textContent = `${displayName(draft.document) || "Untitled"} — ${{ draft: "Draft", published: "Published", "unpublished-changes": "Unpublished changes" }[draft.state]}`;
       button.onclick = () => {
         void navigate(() =>
-          open(draft.post.id, draft.state === "published" ? undefined : draft.branch),
+          open(draft.document.id, draft.state === "published" ? undefined : draft.branch),
         ).catch((e) => status(e.message));
       };
       nav.append(button);
     }
   };
-  const updateList = (draft: PostDraft) => {
-    summaries.set(draft.post.id, structuredClone(draft));
+  const updateList = (draft: DocumentDraft) => {
+    summaries.set(draft.document.id, structuredClone(draft));
     renderList();
   };
   const list = async () => {
-    const drafts = await request<PostDraft[]>("/posts");
+    const drafts = await request<DocumentDraft[]>("");
     for (const draft of drafts)
-      if (!summaries.has(draft.post.id)) summaries.set(draft.post.id, draft);
+      if (!summaries.has(draft.document.id)) summaries.set(draft.document.id, draft);
     listLoaded = true;
     renderList();
     q<HTMLButtonElement>("[data-new]").disabled = navigating;
   };
   q<HTMLButtonElement>("[data-new]").disabled = true;
   const uploadImage = async (target: string, file: File) => {
-    const upload = await request<UploadTicket>(`/posts/${target}/uploads`, {
+    const upload = await request<UploadTicket>(`/${target}/uploads`, {
       method: "POST",
       body: JSON.stringify({ contentType: file.type, size: file.size }),
     });
@@ -224,73 +254,28 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
     });
     if (!response.ok) throw new Error("Upload failed");
     return (
-      await request<ConfirmedUpload>(`/posts/${target}/uploads/${upload.assetId}/confirm`, {
+      await request<ConfirmedUpload>(`/${target}/uploads/${upload.assetId}/confirm`, {
         method: "POST",
         body: JSON.stringify({ filename: file.name }),
       })
     ).src;
   };
-  const showHeader = () => {
-    const image = q<HTMLImageElement>("[data-header-preview]");
-    const src = active?.post.headerImage;
-    image.hidden = !src;
-    if (src) image.src = mediaUrl(src);
-    else image.removeAttribute("src");
-  };
-  q("[data-header-upload]").onclick = () => {
-    if (active && !publishing && !navigating && !headerUpload)
-      q<HTMLInputElement>("[data-header-file]").click();
-  };
-  q("[data-header-remove]").onclick = () => {
-    if (active && !publishing && !navigating && !headerUpload) {
-      metadata.field("headerImage")!.value = "";
-      changed();
-      showHeader();
-    }
-  };
-  q<HTMLInputElement>("[data-header-file]").onchange = () => {
-    const input = q<HTMLInputElement>("[data-header-file]");
-    const file = input.files?.[0];
-    if (!file || !active || publishing || navigating || headerUpload) return;
-    if (
-      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
-      file.size > 10 * 1024 * 1024
-    ) {
-      status("Choose a JPEG, PNG, or WebP image up to 10 MB.");
-      input.value = "";
-      return;
-    }
-    const id = active.post.id;
-    status("Uploading header image…");
-    headerUpload = uploadImage(id, file)
-      .then((src) => {
-        metadata.field("headerImage")!.value = src;
-        changed();
-        showHeader();
-      })
-      .catch((error) => {
-        status(`Header image upload failed: ${error.message}`);
-        throw error;
-      })
-      .finally(() => {
-        headerUpload = undefined;
-        input.value = "";
-      });
-    void headerUpload.catch(() => {});
-  };
   function restoreRecovery(draft: Draft) {
     try {
-      for (const candidate of findRecoveryRecords(localStorage, recoveryPrefix(draft.post.id))) {
+      for (const candidate of findRecoveryRecords(
+        localStorage,
+        recoveryPrefix(draft.document.id),
+      )) {
         const when = candidate.updatedAt
           ? new Date(candidate.updatedAt).toLocaleString()
           : "an earlier session";
         if (
           !window.confirm(
-            `Restore unsaved metadata and body “${candidate.post.title || "Untitled"}” from ${when} for review? Nothing will be saved until you choose Save now. Cancel keeps this copy and checks the next one.`,
+            `Restore unsaved metadata and body “${"document"}” from ${when} for review? Nothing will be saved until you choose Save now. Cancel keeps this copy and checks the next one.`,
           )
         )
           continue;
-        draft.post = { ...draft.post, ...candidate.post };
+        draft.document = { ...draft.document, ...candidate.document };
         selectedRecovery = candidate;
         generation++;
         recoveryNeedsReview = true;
@@ -305,12 +290,12 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
     await editor?.waitForUploads();
     await flush();
     const draft = await request<Draft>(
-      `/posts/${id}${branch ? `?branch=${encodeURIComponent(branch)}` : ""}`,
+      `/${id}${branch ? `?branch=${encodeURIComponent(branch)}` : ""}`,
     );
     if (destroyed) return;
     editor?.destroy();
     active = draft;
-    publishedPost = undefined;
+    publishedDocument = undefined;
     updateList(draft);
     generation = 0;
     savedGeneration = 0;
@@ -320,34 +305,46 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
     selectedRecovery = undefined;
     remembered = undefined;
     recovery = restoreRecovery(draft);
-    metadata.load(draft.post);
-    showHeader();
+    metadata.load(draft.document.frontmatter);
+    images?.show();
     q("[data-fields]").hidden = false;
     q("[data-preview-area]").hidden = true;
     q("[data-link]").replaceChildren();
-    editor = createWritingEditor({
-      parent: q("[data-editor]"),
-      document: draft.post.body,
-      onChange: changed,
-      onStatus: status,
-      mediaUrl,
-      uploadImage: (file) => uploadImage(draft.post.id, file),
-    });
+    markdownMode = false;
+    try {
+      markdownMode =
+        toMarkdown(fromMarkdown(draft.document.body)).trim() !== draft.document.body.trim();
+    } catch {
+      markdownMode = true;
+    }
+    markdownInput.value = draft.document.body;
+    markdownInput.hidden = !markdownMode;
+    q("[data-editor]").hidden = markdownMode;
+    editor = markdownMode
+      ? undefined
+      : createWritingEditor({
+          parent: q("[data-editor]"),
+          document: fromMarkdown(draft.document.body),
+          onChange: changed,
+          onStatus: status,
+          mediaUrl,
+          uploadImage: (file) => uploadImage(draft.document.id, file),
+        });
     q("[data-publish]").textContent =
-      draft.state === "published" || draft.post.publishedAt ? "Publish changes" : "Publish";
-    options.onPostOpen?.(draft.post.id, draft.post.slug);
+      draft.state === "published" || draft.document.publishedAt ? "Publish changes" : "Publish";
+    options.onDocumentOpen?.(draft.document);
     status(recovery ? "Recovered unsaved writing. Review and choose Save now." : "Saved");
   };
   q("[data-new]").onclick = () => {
     void navigate(async () => {
       await editor?.waitForUploads();
       await flush();
-      const draft = await request<Draft>("/posts", {
+      const draft = await request<Draft>("", {
         method: "POST",
-        body: "{}",
+        body: JSON.stringify(options.initialDocument()),
       });
       updateList(draft);
-      await open(draft.post.id, draft.branch);
+      await open(draft.document.id, draft.branch);
     }).catch((e) => status(e.message));
   };
   q("[data-save]").onclick = () => {
@@ -356,11 +353,12 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
     void flush().catch((e) => status(`Could not save: ${e.message}`));
   };
   q("[data-preview]").onclick = () => {
-    if (!editor) return;
+    if (!editor) {
+      status("Markdown mode preserves this document verbatim; preview after publishing.");
+      return;
+    }
     const preview = q("[data-preview-area]");
-    preview.innerHTML = renderDocument(editor.getDocument(), (ref) =>
-      mediaUrl(ref.postId ? `/media/${ref.postId}/${ref.assetId}` : ref.assetId),
-    );
+    preview.innerHTML = renderDocument(editor.getDocument(), (ref) => mediaUrl(ref.assetId));
     preview.hidden = !preview.hidden;
   };
   q("[data-publish]").onclick = () => {
@@ -373,24 +371,23 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
       await flush();
       const draft = active!;
       status("Publishing…");
-      const result = await request<MutationResponse<{ post: Post; publishedSha: string }>>(
-        `/posts/${draft.post.id}/publish`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            branch: draft.branch,
-            expectedHeadSha: draft.headSha,
-          }),
-        },
+      const result = await request<
+        MutationResponse<{ document: DocumentRecord; publishedSha: string }>
+      >(`/${draft.document.id}/publish`, {
+        method: "POST",
+        body: JSON.stringify({
+          branch: draft.branch,
+          expectedHeadSha: draft.headSha,
+        }),
+      });
+      const published = await request<{ document: DocumentRecord; headSha: string }>(
+        `/${draft.document.id}/published`,
       );
-      const published = await request<{ post: Post; headSha: string }>(
-        `/published/${draft.post.id}`,
-      );
-      if (JSON.stringify(published.post) !== JSON.stringify(result.post))
+      if (JSON.stringify(published.document) !== JSON.stringify(result.document))
         throw new Error("Publication could not yet be confirmed. Retry safely.");
       const link = document.createElement("a");
-      link.href = `${reader}/${draft.post.id}/${result.post.slug ?? ""}`;
-      link.textContent = "Read your post";
+      link.href = options.documentPath(result.document);
+      link.textContent = "Read document";
       link.target = "_blank";
       link.rel = "noopener";
       if (!result.cacheWarning) {
@@ -401,18 +398,23 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
         )
           throw new Error("The reader page has not confirmed this revision yet. Retry safely.");
       }
-      updateList({ ...draft, post: result.post, headSha: published.headSha, state: "published" });
-      publishedPost = published;
+      updateList({
+        ...draft,
+        document: result.document,
+        headSha: published.headSha,
+        state: "published",
+      });
+      publishedDocument = published;
       active = undefined;
       generation = savedGeneration = 0;
       const edit = document.createElement("button");
       edit.type = "button";
-      edit.textContent = "Edit post";
+      edit.textContent = "Edit document";
       edit.onclick = () => {
-        void navigate(() => open(draft.post.id)).catch((e) => status(e.message));
+        void navigate(() => open(draft.document.id)).catch((e) => status(e.message));
       };
       q("[data-link]").replaceChildren(link, edit);
-      options.onPostOpen?.(result.post.id, result.post.slug);
+      options.onDocumentOpen?.(result.document);
       status(result.cacheWarning ?? "Published");
     })()
       .catch((e) => status(`Could not publish: ${e.message}`))
@@ -423,38 +425,38 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
       });
   };
   q("[data-delete]").onclick = () => {
-    if (publishing || navigating || (!active && !publishedPost)) return;
+    if (publishing || navigating || (!active && !publishedDocument)) return;
     if (
       !window.confirm(
-        "Delete this post? It will disappear from your stories. Its history remains in GitHub.",
+        "Delete this document? It will disappear from the site. Its history remains in GitHub.",
       )
     )
       return;
     void navigate(async () => {
       await editor?.waitForUploads();
       await flush();
-      const target = active ?? publishedPost!;
-      const result = await request<MutationResponse<object>>(`/posts/${target.post.id}`, {
+      const target = active ?? publishedDocument!;
+      const result = await request<MutationResponse<object>>(`/${target.document.id}`, {
         method: "DELETE",
         body: JSON.stringify({ branch: active?.branch ?? null, expectedHeadSha: target.headSha }),
       });
-      summaries.delete(target.post.id);
+      summaries.delete(target.document.id);
       renderList();
       for (const k of Object.keys(localStorage))
-        if (k.startsWith(recoveryPrefix(target.post.id))) localStorage.removeItem(k);
+        if (k.startsWith(recoveryPrefix(target.document.id))) localStorage.removeItem(k);
       active = undefined;
-      publishedPost = undefined;
+      publishedDocument = undefined;
       editor?.destroy();
       editor = undefined;
       generation = savedGeneration = 0;
       q("[data-fields]").hidden = true;
       q("[data-link]").replaceChildren();
-      window.history.replaceState(null, "", "/write");
+      options.onDelete?.();
       status(result.cacheWarning ?? "Deleted");
     }).catch((e) => status(`Could not delete: ${e.message}`));
   };
   const beforeUnload = (event: BeforeUnloadEvent) => {
-    if (generation !== savedGeneration || publishing || headerUpload) {
+    if (generation !== savedGeneration || !metadataValid || publishing || images?.busy()) {
       event.preventDefault();
       event.returnValue = "";
     }
@@ -477,15 +479,28 @@ export function mountWritingApp(root: HTMLElement, options: WritingAppOptions = 
         schema,
         () => {
           changed();
-          showHeader();
+          images?.show();
         },
-        ["headerImage"],
+        fields,
+        options.fieldControls,
       );
-      if (options.initialPostId)
-        await Promise.all([navigate(() => open(options.initialPostId!)), list()]);
+      images = imageFields({
+        parent: q("[data-header-tools]"),
+        fields,
+        metadata: () => metadata,
+        activeId: () => active?.document.id,
+        enabled: () => Boolean(active) && !publishing && !navigating,
+        upload: uploadImage,
+        mediaUrl,
+        changed,
+        status,
+      });
+      q("[data-header-tools]").hidden = !fields.length;
+      if (options.initialDocumentId)
+        await Promise.all([navigate(() => open(options.initialDocumentId!)), list()]);
       else {
         await list();
-        status("Choose a post or start writing.");
+        status("Choose a document or start writing.");
       }
     })
     .catch((error) => status(`Could not load editor: ${error.message}`));

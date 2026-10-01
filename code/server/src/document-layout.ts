@@ -14,10 +14,9 @@ export interface LayoutOptions<T extends Frontmatter> {
   forge: PublishingForge;
   collection: string;
   schema: JSONSchema;
-  /** One folder segment. Supported placeholders: id, slug, createdAt:YYYY-MM-DD. */
-  directoryTemplate?: string;
+  /** Storage basename, independent of browser routes. Defaults to the document UUID. */
+  filename?: (document: DocumentRecord<T>) => string;
   assets?: DocumentAssets<T>;
-  legacy?: { filename: string; decode: (source: string, id: string) => StoredDocument<T> };
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const segment = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,219}$/;
@@ -25,16 +24,6 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
   const { forge, collection } = options;
   const codec = documentCodec<T>(options.schema);
   const raw = documentCodec(true);
-  const template = options.directoryTemplate ?? "{id}";
-  if (
-    !segment.test(
-      template
-        .replaceAll("{id}", "id")
-        .replaceAll("{slug}", "slug")
-        .replaceAll("{createdAt:YYYY-MM-DD}", "date"),
-    )
-  )
-    throw new DocumentError("Invalid document directory template", "invalid");
   function checkId(id: string) {
     if (!uuid.test(id)) throw new DocumentError("Invalid document identifier", "invalid");
     return id;
@@ -42,19 +31,9 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
   const statePath = (id: string) => `${collection}/.quiescent/${checkId(id)}.json`;
   const oldDirectory = (id: string) => `${collection}/${checkId(id)}`;
   function folder(document: DocumentRecord<T>) {
-    const slug = template.includes("{slug}")
-      ? (document.frontmatter.slug ?? document.id)
-      : document.id;
-    if (typeof slug !== "string" || !segment.test(slug))
-      throw new DocumentError("Invalid document slug", "invalid");
-    const name = template
-      .replaceAll("{id}", document.id)
-      .replaceAll("{slug}", slug)
-      .replaceAll(
-        "{createdAt:YYYY-MM-DD}",
-        (document.createdAt ?? document.publishedAt ?? new Date().toISOString()).slice(0, 10),
-      );
-    if (!segment.test(name)) throw new DocumentError("Invalid document directory", "invalid");
+    const name = options.filename ? options.filename(document) : document.id;
+    if (typeof name !== "string" || !segment.test(name))
+      throw new DocumentError("Invalid document directory", "invalid");
     return `${collection}/${name}`;
   }
   function parseState(source: string) {
@@ -81,32 +60,22 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
   function decode(source: string, id: string) {
     const value = raw.parse(source);
     const { id: storedId, createdAt, ...frontmatter } = value.frontmatter;
-    if (storedId !== undefined && storedId !== id)
-      throw new DocumentError("Document identifier mismatch", "invalid");
+    if (storedId !== id) throw new DocumentError("Document identifier mismatch", "invalid");
     if (
-      createdAt !== undefined &&
-      (typeof createdAt !== "string" || !Number.isFinite(Date.parse(createdAt)))
+      typeof createdAt !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(createdAt) ||
+      !Number.isFinite(Date.parse(createdAt)) ||
+      new Date(createdAt).toISOString().slice(0, 10) !== createdAt
     )
       throw new DocumentError("Invalid creation date", "invalid");
     const content = codec.validate({ frontmatter: frontmatter as T, body: value.body });
-    return { ...content, id, ...(typeof createdAt === "string" ? { createdAt } : {}) };
-  }
-  async function readLegacy(directory: string, id: string, ref: string) {
-    if (!options.legacy) return null;
-    const old = await forge.getFile(`${directory}/${options.legacy.filename}`, ref);
-    if (!old) return null;
-    const imported = options.legacy.decode(old.content, id);
-    codec.validate(imported);
-    return imported;
+    return { ...content, id, createdAt };
   }
   async function read(id: string, ref: string): Promise<StoredDocument<T> | null> {
     const { directory, state } = await location(id, ref);
     const file = await forge.getFile(`${directory}/index.md`, ref);
-    if (!file) return readLegacy(directory, id, ref);
-    const legacyState = state.directory
-      ? null
-      : await forge.getFile(`${directory}/.quiescent.json`, ref);
-    const workflow = legacyState ? parseState(legacyState.content) : state;
+    if (!file || !state.directory) return null;
+    const workflow = state;
     const document = decode(file.content, id);
     return {
       ...document,
@@ -123,23 +92,14 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
     });
   }
   async function ids(ref: string) {
-    const [current, old] = await Promise.all([
-      entries(`${collection}/.quiescent`, ref),
-      entries(collection, ref),
-    ]);
-    return [
-      ...new Set(
-        [...current.map((e) => e.name.replace(/\.json$/, "")), ...old.map((e) => e.name)].filter(
-          (id) => uuid.test(id),
-        ),
-      ),
-    ];
+    const current = await entries(`${collection}/.quiescent`, ref);
+    return current.map((entry) => entry.name.replace(/\.json$/, "")).filter((id) => uuid.test(id));
   }
   async function assertDestination(document: DocumentRecord<T>, ref: string) {
     const existing = await forge.getFile(`${folder(document)}/index.md`, ref);
     if (!existing) return;
     const id = raw.parse(existing.content).frontmatter.id;
-    if (id !== document.id && folder(document) !== oldDirectory(document.id))
+    if (id !== document.id)
       throw new DocumentError(
         "Another document already uses this folder. Choose a different slug.",
         "conflict",
@@ -173,19 +133,13 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
           "*.[pP][nN][gG] filter=lfs diff=lfs merge=lfs -text\n*.[jJ][pP][gG] filter=lfs diff=lfs merge=lfs -text\n*.[jJ][pP][eE][gG] filter=lfs diff=lfs merge=lfs -text\n*.[wW][eE][bB][pP] filter=lfs diff=lfs merge=lfs -text\n",
       });
     for (const entry of await entries(previous.directory, ref)) {
-      const remove =
-        previous.directory !== directory ||
-        entry.name === ".quiescent.json" ||
-        entry.name === options.legacy?.filename;
+      const remove = previous.directory !== directory;
       if (remove && allowedName(entry.name)) files.push({ path: entry.path, content: null });
     }
     return files;
   }
   function allowedName(name: string) {
-    return (
-      ["index.md", ".quiescent.json", ".gitattributes", options.legacy?.filename].includes(name) ||
-      isAssetFilename(name)
-    );
+    return ["index.md", ".gitattributes"].includes(name) || isAssetFilename(name);
   }
   async function assertScope(id: string, main: string, head: string) {
     const [before, after, comparison] = await Promise.all([

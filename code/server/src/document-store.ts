@@ -30,19 +30,17 @@ export interface DocumentStoreOptions<T extends Frontmatter> {
   collection: string;
   schema: JSONSchema;
   defaultBranch?: string;
-  directoryTemplate?: string;
+  filename?: (document: DocumentRecord<T>) => string;
   assets?: DocumentAssets<T>;
   beforePublish?: (document: DocumentRecord<T>) => void | Promise<void>;
-  /** Explicit import adapter for an earlier on-disk format; writes replace it atomically. */
-  legacy?: { filename: string; decode: (source: string, id: string) => StoredDocument<T> };
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+function publishedRecord<T extends Frontmatter>(document: StoredDocument<T> | null) {
+  return document?.publishedAt ? publicDocument(document) : null;
+}
 function publicDocument<T extends Frontmatter>(document: StoredDocument<T>): DocumentRecord<T> {
   const { publicationSource: _, deletedAt: __, ...value } = document;
   return value;
-}
-function creationDate(document: { createdAt?: string; publishedAt?: string }) {
-  return document.createdAt ?? document.publishedAt ?? new Date().toISOString();
 }
 /** Schema-validated Markdown documents; Git is the authority for every lifecycle operation. */
 export function createDocumentStore<T extends Frontmatter = Frontmatter>(
@@ -53,8 +51,6 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
   const collection = options.collection;
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(collection))
     throw new DocumentError("Invalid collection name", "invalid");
-  if (options.legacy && !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(options.legacy.filename))
-    throw new DocumentError("Invalid legacy filename", "invalid");
   const codec = documentCodec<T>(options.schema);
   const prefix = `quiescent/${collection}/`;
   const layout = documentLayout(options);
@@ -77,13 +73,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     document: StoredDocument<T>,
     message: string,
   ) {
-    const files = await layout.changes(
-      {
-        ...document,
-        createdAt: document.createdAt ?? document.publishedAt ?? new Date().toISOString(),
-      },
-      expectedHeadSha,
-    );
+    const files = await layout.changes(document, expectedHeadSha);
     return forge.commitFiles({ branch, expectedHeadSha, author, message, files });
   }
   async function getPublished(id: string): Promise<DocumentDraft<T> | null> {
@@ -151,8 +141,15 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
   async function start(document: DocumentRecord<T>): Promise<DocumentDraft<T>> {
     const sha = await forge.getBranchSha(main);
     const branch = `${prefix}${document.id}/${crypto.randomUUID()}`;
+    const files = await layout.changes(document, sha);
     await forge.createBranch(branch, sha);
-    const result = await commit(branch, sha, document, "Save document draft");
+    const result = await forge.commitFiles({
+      branch,
+      expectedHeadSha: sha,
+      author,
+      files,
+      message: "Save document draft",
+    });
     return {
       document: document,
       branch,
@@ -208,9 +205,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
   async function createDocument(input: DocumentInput<T>): Promise<DocumentDraft<T>> {
     const value = checked(input);
     const id = crypto.randomUUID();
-    if ("slug" in value.frontmatter && !value.frontmatter.slug)
-      value.frontmatter = { ...value.frontmatter, slug: id };
-    return start({ ...checked(value), id, createdAt: new Date().toISOString() });
+    return start({ ...checked(value), id, createdAt: new Date().toISOString().slice(0, 10) });
   }
   async function assertNotDeleted(id: string, mainSha?: string) {
     if ((await read(id, mainSha ?? (await forge.getBranchSha(main))))?.deletedAt)
@@ -265,7 +260,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     const document = {
       ...checked(input.document),
       id: input.id,
-      createdAt: creationDate(previous),
+      createdAt: previous.createdAt,
       ...(previous.publishedAt ? { publishedAt: previous.publishedAt } : {}),
     };
     const result = await commit(input.branch, head, document, "Save document draft");
@@ -301,6 +296,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     if (published && (await wasPublished(input, published, mainSha))) {
       return {
         document: publicDocument(published),
+        previous: publicDocument(published),
         headSha: head,
         publishedSha: mainSha,
         state: "published" as const,
@@ -331,6 +327,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
       throw new DocumentError("Publication could not be confirmed. Retry safely.", "conflict");
     return {
       document: publicDocument(visible),
+      previous: publishedRecord(published),
       headSha: head,
       publishedSha: result.sha,
       state: "published" as const,
@@ -348,6 +345,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
       return {
         id: input.id,
         document: publicDocument(current),
+        previous: publicDocument(current),
         headSha: mainSha,
         deleted: true as const,
       };
@@ -386,6 +384,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     return {
       id: input.id,
       document: publicDocument(previous),
+      previous: publishedRecord(current),
       headSha: result.sha,
       deleted: true as const,
     };

@@ -8,7 +8,7 @@ if (enabled && !process.env.BASE_URL) {
 /** Opt-in acceptance against real GitHub and R2. The caller owns the Worker lifecycle. */
 export default defineConfig({
   testDir: "./tests",
-  testMatch: ["writing-live.spec.ts", "media-live.spec.ts"],
+  testMatch: "documents-live.spec.ts",
   fullyParallel: false,
   workers: 1,
   retries: 0,

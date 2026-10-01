@@ -1,20 +1,19 @@
-import { env, transformImage } from "quiescent:runtime";
+import { transformImage } from "quiescent:runtime";
 import { documentImageResponse } from "@quiescent/astro/images";
-import { publishedMedia, writingErrorResponse } from "@quiescent/server";
+import { documentErrorResponse } from "@quiescent/server";
 import type { APIRoute } from "astro";
-import { writingApp } from "./app";
-export const prerender = false;
+import { publishedMedia } from "./media";
 export const GET: APIRoute = async ({ request, cache, logger }) => {
   try {
-    const { service, media } = writingApp(env);
     return await documentImageResponse({
       request,
       cache,
       logger,
-      source: (id, filename) => publishedMedia(service, media, id, filename),
+      source: (id, filename) => publishedMedia(id, filename, cache),
+      cacheImage: () => {},
       transform: transformImage,
     });
   } catch (error) {
-    return writingErrorResponse(error);
+    return documentErrorResponse(error);
   }
 };

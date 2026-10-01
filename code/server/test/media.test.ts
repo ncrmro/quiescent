@@ -37,7 +37,7 @@ describe("image storage", () => {
     await media.uploadLocal!("post", prepared.assetId, upload(png));
     const first = await media.confirm("post", prepared.assetId);
     const asset = first.src.split("/").at(-1)!;
-    expect(asset).toMatch(/^[a-f0-9]{64}$/);
+    expect(asset).toMatch(/^image-[a-f0-9]{12}\.png$/);
     await media.uploadLocal!("post", prepared.assetId, upload(new Uint8Array([...png, 2])));
     expect((await media.confirm("post", prepared.assetId)).src).not.toBe(first.src);
     expect(
@@ -110,8 +110,8 @@ describe("image storage", () => {
       }) as typeof fetch,
     });
     const result = await media.confirm("post", "staged");
-    expect(requests.map((r) => r.method)).toEqual(["GET", "PUT"]);
-    expect(new URL(requests[1]!.url).pathname).toBe(
+    expect(requests.map((r) => r.method)).toEqual(["GET", "PUT", "PUT"]);
+    expect(new URL(requests[2]!.url).pathname).toBe(
       `/writing-test/images/post/${result.src.split("/").at(-1)}`,
     );
     expect(requests[1]!.headers.get("Authorization")).toContain("AWS4-HMAC-SHA256");

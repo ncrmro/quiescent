@@ -60,16 +60,16 @@ may not exceed 1,000 lines. CI enforces these checks, generated Worker binding f
 and the browser workflow. Regenerate Worker bindings with `bun run types:cloudflare`
 after changing the Cloudflare configuration.
 
-## Removed interfaces and existing content
+## API boundary
 
-The old CodeMirror notes editor, OAuth/session APIs, KV draft/flush service,
-cron worker, and `/demo` routes have been removed. Consumers of those interfaces
-must move to the document API; this is a breaking change for the next release.
-Existing JSON posts remain readable through a small import adapter and convert
-atomically to Markdown when saved. No existing stories are bulk rewritten.
+Collections supply schemas, storage-name functions, URL callbacks, and presentation.
+The example has posts and recipes. `createdAt` is date-only (`YYYY-MM-DD`); storage
+names may include it while browser URLs use just the slug. Optional Astro rendering
+components can be replaced or configured independently of storage and publishing.
+Old post APIs and storage formats are removed without a compatibility layer.
 
-The standalone [wiki package](code/wiki/README.md) remains available, with its
-[content conventions](docs/conventions.md). It does not add a second editing workflow.
+The independent [wiki package](code/wiki/README.md) and its
+[conventions](docs/conventions.md) remain available.
 
 ## Releases
 

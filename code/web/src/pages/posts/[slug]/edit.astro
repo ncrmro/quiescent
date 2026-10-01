@@ -1,10 +1,14 @@
 ---
-import { env } from "quiescent:runtime";
 import WritingPage from "../../../components/WritingPage.astro";
-import { writingApp } from "../../../writing/app";
-export const prerender = false;
-const post = await writingApp(env).service.findPostForEditing(Astro.params.slug ?? "");
-if (!post) return new Response("Not found", { status: 404 });
+import { collectionApp } from "../../../writing/pages";
+
+const documents = await collectionApp(Astro.url.origin, "posts").service.listDocuments();
+const document = documents.find(
+  (draft) =>
+    draft.document.frontmatter.slug === Astro.params.slug ||
+    draft.document.id === Astro.params.slug,
+);
+if (!document) return new Response("Not found", { status: 404 });
 ---
 
-<WritingPage postId={post.post.id} />
+<WritingPage documentId={document.document.id} collection="posts" />

@@ -1,22 +1,45 @@
 ---
 import { env } from "quiescent:runtime";
-import { readerPath } from "@quiescent/astro";
 import DocumentBody from "@quiescent/astro/components/DocumentBody.astro";
 import DocumentImage from "@quiescent/astro/components/DocumentImage.astro";
-import { postImages } from "@quiescent/astro/images";
-import type { PostDraft } from "@quiescent/server";
+import { documentImages } from "@quiescent/astro/images";
+import type { DocumentDraft } from "@quiescent/server";
+import { fromMarkdown } from "@quiescent/server/content";
 import { writingApp } from "../writing/app";
+import { type Collection, documentPath, type ExampleMetadata } from "../writing/collections";
 import EditLink from "./EditLink.astro";
+import PlainImage from "./PlainImage.astro";
 
 interface Props {
-  post: PostDraft | null;
-  posts: PostDraft[];
+  collection: Collection;
+  post: DocumentDraft<ExampleMetadata> | null;
+  posts: DocumentDraft<ExampleMetadata>[];
 }
-const { post, posts } = Astro.props;
-const { service } = writingApp(env);
-const imageSets = new Map<string, Awaited<ReturnType<typeof postImages>>>();
-for (const draft of posts) imageSets.set(draft.post.id, await postImages(draft, service, !post));
-const images = post ? imageSets.get(post.post.id)! : {};
+const { post, posts, collection } = Astro.props;
+const { service } = writingApp(env, collection);
+const imageSets = new Map<string, Awaited<ReturnType<typeof documentImages>>>();
+for (const draft of posts)
+  imageSets.set(
+    draft.document.id,
+    await documentImages(
+      draft,
+      post
+        ? service.references(draft.document)
+        : draft.document.frontmatter.headerImage
+          ? [draft.document.frontmatter.headerImage]
+          : [],
+      service.readMedia,
+    ),
+  );
+let body: ReturnType<typeof fromMarkdown> | undefined;
+if (post) {
+  try {
+    body = fromMarkdown(post.document.body);
+  } catch {
+    /* Preserve unsupported Markdown as escaped source. */
+  }
+}
+const images = post ? imageSets.get(post.document.id)! : {};
 ---
 
 <!doctype html>
@@ -24,7 +47,7 @@ const images = post ? imageSets.get(post.post.id)! : {};
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width">
-    <title>{post?.post.title ?? "Stories"}</title>
+    <title>{post?.document.frontmatter.title ?? "Stories"}</title>
   </head>
   <body>
     <main>
@@ -32,41 +55,77 @@ const images = post ? imageSets.get(post.post.id)! : {};
   <>
     <nav>
       <a href="/">All stories</a>
-      <EditLink server:defer slug={post.post.slug ?? post.post.id} />
+      <EditLink
+        server:defer
+        collection={collection}
+        slug={post.document.frontmatter.slug ?? post.document.id}
+      />
     </nav>
-    <h1>{post.post.title}</h1>
-    {post.post.headerImage && images[post.post.headerImage] && (
-      <DocumentImage source={images[post.post.headerImage]!} alt="" class="header-image" priority />
+    <h1>{post.document.frontmatter.title}</h1>
+    {post.document.frontmatter.headerImage && images[post.document.frontmatter.headerImage] && (
+      <DocumentImage
+        source={images[post.document.frontmatter.headerImage]!}
+        alt=""
+        class="header-image"
+        priority
+      />
     )}
-    {post.post.tags?.length ? (
+    {post.document.frontmatter.tags?.length ? (
       <ul class="tags" aria-label="Tags">
-        {post.post.tags.map((tag) => (
+        {post.document.frontmatter.tags.map((tag) => (
           <li>{tag}</li>
         ))}
       </ul>
     ) : null}
-    <p>{post.post.description}</p>
-    <DocumentBody node={post.post.body} images={images} />
+    <p>{post.document.frontmatter.description}</p>
+    {collection === "recipes" && (
+      <section>
+        <p>Preparation: {String(post.document.frontmatter.preparationMinutes ?? 0)} minutes</p>
+        <h2>Ingredients</h2>
+        <pre>{JSON.stringify(post.document.frontmatter.ingredients ?? [], null, 2)}</pre>
+      </section>
+    )}
+    {body ? (
+      <DocumentBody
+        node={body}
+        images={images}
+        imageComponent={collection === "recipes" ? PlainImage : DocumentImage}
+      />
+    ) : (
+      <pre>{post.document.body}</pre>
+    )}
   </>
 ) : (
   <>
-    <h1>Stories</h1>
-    {posts.map(({ post }, index) => (
+    <h1>{collection === "posts" ? "Stories" : "Recipes"}</h1>
+    <nav>
+      <a href="/">Stories</a>
+      <a href="/recipes">Recipes</a>
+      <a href={collection === "posts" ? "/write" : "/recipes/new"}>Write</a>
+    </nav>
+    {posts.map(({ document }, index) => (
       <article>
         <h2>
-          <a href={readerPath(post)}>{post.title}</a>
+          <a href={documentPath(collection, document)}>{document.frontmatter.title}</a>
         </h2>
-        <p>{post.description}</p>
-        {post.headerImage && imageSets.get(post.id)?.[post.headerImage] && (
-          <DocumentImage
-            source={imageSets.get(post.id)![post.headerImage]!}
-            alt=""
-            class="header-image"
-            priority={index === 0}
-          />
-        )}
-        {post.tags?.length ? <p class="tags">{post.tags.join(" · ")}</p> : null}
-        <EditLink server:defer slug={post.slug ?? post.id} />
+        <p>{document.frontmatter.description}</p>
+        {document.frontmatter.headerImage &&
+          imageSets.get(document.id)?.[document.frontmatter.headerImage] && (
+            <DocumentImage
+              source={imageSets.get(document.id)![document.frontmatter.headerImage]!}
+              alt=""
+              class="header-image"
+              priority={index === 0}
+            />
+          )}
+        {document.frontmatter.tags?.length ? (
+          <p class="tags">{document.frontmatter.tags.join(" · ")}</p>
+        ) : null}
+        <EditLink
+          server:defer
+          collection={collection}
+          slug={document.frontmatter.slug ?? document.id}
+        />
       </article>
     ))}
   </>

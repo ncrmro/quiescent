@@ -26,9 +26,7 @@ export function documentMediaUrl(
   options: { apiBase?: string; branch?: string; revision?: string } = {},
 ) {
   const base = options.apiBase ?? "";
-  const path = src.startsWith("/media/")
-    ? src
-    : `/media/${encodeURIComponent(id)}/${encodeURIComponent(src)}`;
+  const path = `/media/${encodeURIComponent(id)}/${encodeURIComponent(src)}`;
   const query = new URLSearchParams();
   if (options.branch) query.set("branch", options.branch);
   if (options.revision) query.set("v", options.revision);
