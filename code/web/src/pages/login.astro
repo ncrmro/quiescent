@@ -1,10 +1,13 @@
 ---
+import ThemeControl from "../components/ThemeControl.astro";
+import ThemeHead from "../components/ThemeHead.astro";
 export const prerender = false;
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
+    <ThemeHead />
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width">
     <title>Sign in · Quiescent</title>
@@ -12,6 +15,7 @@ export const prerender = false;
   <body>
     <main>
       <a href="/">Quiescent</a>
+      <ThemeControl />
       <h1>A place for your stories</h1>
       <form>
         <label for="password">Password</label>
@@ -55,8 +59,8 @@ export const prerender = false;
     </script>
     <style>
     body {
-      background: #faf9f6;
-      color: #293530;
+      background: var(--page);
+      color: var(--text);
       font:
         17px / 1.6 system-ui,
         sans-serif;
@@ -68,7 +72,7 @@ export const prerender = false;
       padding: 1.5rem;
     }
     a {
-      color: #315c4c;
+      color: var(--accent);
       font:
         700 1.6rem Georgia,
         serif;
@@ -88,17 +92,19 @@ export const prerender = false;
       box-sizing: border-box;
     }
     input {
+      background: var(--surface);
+      color: var(--text);
       font: inherit;
       padding: 0.65rem;
-      border: 1px solid #bac7be;
+      border: 1px solid var(--border);
       border-radius: 6px;
       margin: 0.4rem 0 1rem;
     }
     button {
       font: inherit;
       padding: 0.6rem;
-      background: #315c4c;
-      color: white;
+      background: var(--accent);
+      color: var(--on-accent);
       border: 0;
       border-radius: 6px;
       cursor: pointer;

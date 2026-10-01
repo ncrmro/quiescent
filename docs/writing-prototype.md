@@ -156,3 +156,5 @@ and real post/recipe publish/rename/delete lifecycles on Node and Cloudflare. Li
 checks proved draft-only tags are excluded and publication/deletion update cached
 suggestions. Final mobile smoke verified existing/new tags and that partial typing
 is not saved. Worker version: `0c403b92-72ac-4d8c-8b67-0781207d20a5`.
+
+The example uses a shared palette in `code/web/src/styles/theme.css`. Reader, editor, login, tags, and navigation follow the device color scheme by default. The Theme selector offers System, Light, and Dark; overrides stay on the device in local storage and apply before first paint, so cached public pages remain shared across readers. Theme components belong to the example app.

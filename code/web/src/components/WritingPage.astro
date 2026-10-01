@@ -1,5 +1,6 @@
 ---
 import SiteNav from "./SiteNav.astro";
+import ThemeHead from "./ThemeHead.astro";
 import "../writing/tag-picker.css";
 
 interface Props {
@@ -12,6 +13,7 @@ const { documentId, collection = "posts" } = Astro.props;
 <!doctype html>
 <html lang="en">
   <head>
+    <ThemeHead />
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width">
     <title>Write · Quiescent</title>
@@ -70,26 +72,26 @@ const { documentId, collection = "posts" } = Astro.props;
 
       & {
         margin: 0;
-        background: #faf9f6;
-        color: #293530;
+        background: var(--page);
+        color: var(--text);
         font:
           16px / 1.6 system-ui,
           sans-serif;
       }
       a {
-        color: #315c4c;
+        color: var(--accent);
       }
       button {
         cursor: pointer;
-        border: 1px solid #bac7be;
-        background: #fff;
+        border: 1px solid var(--border);
+        background: var(--surface);
         border-radius: 6px;
         padding: 0.5rem 0.8rem;
         color: inherit;
         font: inherit;
       }
       button:hover {
-        background: #eaf0e8;
+        background: var(--hover);
       }
       button:disabled {
         opacity: 0.55;
@@ -111,7 +113,7 @@ const { documentId, collection = "posts" } = Astro.props;
         min-height: 3.2em;
       }
       .writing-app aside {
-        border-right: 1px solid #ddd;
+        border-right: 1px solid var(--border);
         padding-right: 1rem;
       }
       .writing-app nav {
@@ -127,12 +129,12 @@ const { documentId, collection = "posts" } = Astro.props;
       }
       [role="status"] {
         min-height: 1.6em;
-        color: #526956;
+        color: var(--muted);
       }
       label {
         display: block;
         margin-bottom: 1rem;
-        color: #59655d;
+        color: var(--muted);
       }
       input,
       textarea,
@@ -141,10 +143,10 @@ const { documentId, collection = "posts" } = Astro.props;
         width: 100%;
         background: transparent;
         border: 0;
-        border-bottom: 1px solid #cad1c8;
+        border-bottom: 1px solid var(--border);
         padding: 0.5rem 0;
         font: inherit;
-        color: #293530;
+        color: var(--text);
       }
       [data-header-preview] {
         max-width: 100%;
@@ -161,10 +163,10 @@ const { documentId, collection = "posts" } = Astro.props;
         margin: -0.75rem 0 1rem;
       }
       small[role="alert"] {
-        color: #a12e26;
+        color: var(--error);
       }
       input[aria-invalid="true"] {
-        border-color: #a12e26;
+        border-color: var(--error);
       }
       [data-title] {
         font:
@@ -195,18 +197,18 @@ const { documentId, collection = "posts" } = Astro.props;
         border-radius: 8px;
       }
       .tiptap .ProseMirror-selectednode {
-        outline: 2px solid #315c4c;
+        outline: 2px solid var(--accent);
       }
       .writing-actions {
         display: flex;
         gap: 0.6rem;
-        border-top: 1px solid #ddd;
+        border-top: 1px solid var(--border);
         padding-top: 1rem;
       }
       [data-publish] {
         margin-left: auto;
-        background: #315c4c;
-        color: #fff;
+        background: var(--accent);
+        color: var(--on-accent);
       }
       [data-preview-area] {
         font:
@@ -214,11 +216,11 @@ const { documentId, collection = "posts" } = Astro.props;
           serif;
         margin-top: 2rem;
         padding: 1.5rem;
-        border: 1px solid #cad1c8;
+        border: 1px solid var(--border);
         border-radius: 8px;
       }
       blockquote {
-        border-left: 3px solid #b4c4b4;
+        border-left: 3px solid var(--border);
         padding-left: 1rem;
       }
       @media (max-width: 700px) {

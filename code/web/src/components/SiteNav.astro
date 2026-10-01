@@ -1,4 +1,6 @@
 ---
+import ThemeControl from "./ThemeControl.astro";
+
 interface Props {
   editing?: boolean;
   collection?: "posts" | "recipes";
@@ -19,6 +21,7 @@ const links = [
 <header class="site-navbar">
   <a class="brand" href="/">Quiescent</a>
   <nav class="desktop-links" aria-label="Main navigation">
+    <ThemeControl />
     {links.map((link) => (
   <a href={link.href} data-new-document={link.collection}>
     {link.label}
@@ -44,6 +47,7 @@ const links = [
   <dialog id="mobile-navigation" class="mobile-menu" aria-label="Navigation">
     <button type="button" class="menu-close" aria-label="Close navigation">Close ×</button>
     <nav aria-label="Mobile navigation">
+      <ThemeControl />
       {links.map((link) => (
   <a href={link.href} data-new-document={link.collection}>
     {link.label}
@@ -95,7 +99,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-sign-out]").forEach((button)
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--border);
   font:
     16px / 1.6 system-ui,
     sans-serif;
@@ -108,7 +112,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-sign-out]").forEach((button)
 }
 a,
 button {
-  color: #315c4c;
+  color: var(--accent);
 }
 .desktop-links {
   display: flex;
@@ -116,8 +120,8 @@ button {
   align-items: center;
 }
 button {
-  background: #fff;
-  border: 1px solid #bac7be;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.5rem 0.8rem;
   font: inherit;
@@ -136,11 +140,11 @@ button {
   box-sizing: border-box;
   padding: 1.5rem;
   border: 0;
-  background: #faf9f6;
-  color: #293530;
+  background: var(--page);
+  color: var(--text);
 }
 .mobile-menu::backdrop {
-  background: rgb(0 0 0 / 40%);
+  background: var(--backdrop);
 }
 .mobile-menu nav {
   display: flex;

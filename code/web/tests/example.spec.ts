@@ -185,3 +185,28 @@ for (const collection of ["posts", "recipes"] as const) {
     ).toEqual([]);
   });
 }
+
+test("theme follows the system and remembers an override on mobile", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/login");
+  const theme = page.getByRole("combobox", { name: "Theme", exact: true });
+  await expect(theme).toHaveValue("system");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(23, 28, 25)");
+  await theme.selectOption("light");
+  await page.reload();
+  await expect(theme).toHaveValue("light");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(250, 249, 246)");
+  await page.getByLabel("Password", { exact: true }).fill("quiescent-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/write$/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  const mobileTheme = page.getByRole("dialog").getByRole("combobox", { name: "Theme" });
+  await expect(mobileTheme).toHaveValue("light");
+  await mobileTheme.selectOption("dark");
+  await expect(page.getByRole("dialog")).toHaveCSS("background-color", "rgb(23, 28, 25)");
+  await mobileTheme.selectOption("system");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(250, 249, 246)");
+  expect(await page.evaluate(() => localStorage.getItem("quiescent-theme"))).toBeNull();
+});

@@ -15,7 +15,7 @@
   padding: 0.3rem 0.8rem;
 }
 .tag-field .tag-chips button {
-  background: #eaf0e8;
+  background: var(--hover);
 }
 .tag-field > small {
   display: block;

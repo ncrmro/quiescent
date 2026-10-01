@@ -10,6 +10,7 @@ import { type Collection, documentPath, type ExampleMetadata } from "../writing/
 import EditLink from "./EditLink.astro";
 import PlainImage from "./PlainImage.astro";
 import SiteNav from "./SiteNav.astro";
+import ThemeHead from "./ThemeHead.astro";
 
 interface Props {
   collection: Collection;
@@ -46,6 +47,7 @@ const images = post ? imageSets.get(post.document.id)! : {};
 <!doctype html>
 <html lang="en">
   <head>
+    <ThemeHead />
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width">
     <title>{post?.document.frontmatter.title ?? "Stories"}</title>
@@ -136,15 +138,15 @@ body.reader-page {
     font:
       19px / 1.7 Georgia,
       serif;
-    color: #293530;
-    background: #faf9f6;
+    color: var(--text);
+    background: var(--page);
   }
   h1,
   h2 {
     line-height: 1.2;
   }
   a {
-    color: #315c4c;
+    color: var(--accent);
   }
   nav {
     display: flex;
@@ -154,7 +156,7 @@ body.reader-page {
   .edit {
     display: inline-block;
     padding: 0.25rem 0.85rem;
-    border: 1px solid #bac7be;
+    border: 1px solid var(--border);
     border-radius: 6px;
     text-decoration: none;
     font:
@@ -177,10 +179,10 @@ body.reader-page {
     list-style: none;
     padding: 0;
     font: 14px system-ui;
-    color: #59655d;
+    color: var(--muted);
   }
   blockquote {
-    border-left: 3px solid #b4c4b4;
+    border-left: 3px solid var(--border);
     padding-left: 1em;
   }
 }

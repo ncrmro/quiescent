@@ -1,11 +1,13 @@
 ---
 import SiteNav from "../../components/SiteNav.astro";
+import ThemeHead from "../../components/ThemeHead.astro";
 export const prerender = false;
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
+    <ThemeHead />
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width">
     <title>Documents · Quiescent</title>
@@ -36,8 +38,8 @@ export const prerender = false;
     <style>
     :global(body) {
       margin: 0;
-      background: #faf9f6;
-      color: #293530;
+      background: var(--page);
+      color: var(--text);
       font:
         16px / 1.6 system-ui,
         sans-serif;
@@ -51,7 +53,7 @@ export const prerender = false;
       margin-block: 2rem;
     }
     a {
-      color: #315c4c;
+      color: var(--accent);
     }
     ul {
       padding-left: 1.2rem;
