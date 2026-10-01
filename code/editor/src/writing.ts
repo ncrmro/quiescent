@@ -17,6 +17,10 @@ import { createWritingEditor } from "./rich-text.ts";
 
 export { createWritingEditor, type WritingEditorOptions } from "./rich-text.ts";
 export interface DocumentAppOptions {
+  /** Arrange the mounted controls before opening a document. Keep them inside root. */
+  layout?: (root: HTMLElement) => undefined | (() => void);
+  configureToolbar?: import("./rich-text.ts").WritingEditorOptions["configureToolbar"];
+  formatStatus?: (message: string) => string;
   deriveMetadata?: (
     current: Record<string, unknown>,
     previous: Record<string, unknown>,
@@ -62,6 +66,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   let metadataValid = true;
   let localStorageFailed = false;
   let destroyed = false;
+  let disposeLayout: undefined | (() => void);
   root.innerHTML =
     '<div class="writing-app"><aside><button type="button" data-new>New document</button><nav aria-label="Documents"></nav></aside><main><p role="status" aria-live="polite"></p><div data-fields hidden><div data-metadata></div><div data-header-tools></div><div data-editor></div><div class="writing-actions"><button type="button" data-save>Save now</button><button type="button" data-preview>Preview</button><button type="button" data-delete>Delete document</button><button type="button" data-publish>Publish</button></div><section data-preview-area hidden></section><p data-link></p></div></main></div>';
   const q = <T extends HTMLElement>(selector: string) => root.querySelector<T>(selector)!;
@@ -76,7 +81,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   q("[data-editor]").after(markdownInput);
   markdownInput.addEventListener("input", () => changed());
   const status = (message: string) => {
-    q("[role=status]").textContent = message;
+    q("[role=status]").textContent = options.formatStatus?.(message) ?? message;
   };
   let metadata: ReturnType<typeof createMetadataForm>;
   let images: ReturnType<typeof imageFields>;
@@ -236,13 +241,18 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     return true;
   }
   function applyDerivation() {
-    if (!derivationTimer) return;
     clearTimeout(derivationTimer);
     derivationTimer = undefined;
     if (!active || !metadataValid) return;
-    const derived = options.deriveMetadata?.(metadata.read(), active.document.frontmatter) ?? {};
-    if (!Object.keys(derived).length) return;
-    metadata.patch(derived);
+    const current = metadata.read();
+    const derived = options.deriveMetadata?.(current, active.document.frontmatter) ?? {};
+    const changes = Object.fromEntries(
+      Object.entries(derived).filter(
+        ([key, value]) => JSON.stringify(current[key]) !== JSON.stringify(value),
+      ),
+    );
+    if (!Object.keys(changes).length) return;
+    metadata.patch(changes);
     changed();
   }
   function metadataChanged() {
@@ -369,6 +379,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       ? undefined
       : createWritingEditor({
           parent: q("[data-editor]"),
+          ...(options.configureToolbar ? { configureToolbar: options.configureToolbar } : {}),
           document: fromMarkdown(draft.document.body),
           onChange: changed,
           onStatus: status,
@@ -597,6 +608,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
         status,
       });
       q("[data-header-tools]").hidden = !fields.length;
+      disposeLayout = options.layout?.(root);
       if (options.initialDocumentId) await navigate(() => open(options.initialDocumentId!));
       else if (options.startNew) await navigate(createLocal);
       else status("Choose a document or start writing.");
@@ -611,6 +623,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       editor?.destroy();
       window.removeEventListener("beforeunload", beforeUnload);
       root.removeEventListener("keydown", shortcut);
+      disposeLayout?.();
       root.replaceChildren();
     },
   };

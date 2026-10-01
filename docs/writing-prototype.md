@@ -158,3 +158,27 @@ suggestions. Final mobile smoke verified existing/new tags and that partial typi
 is not saved. Worker version: `0c403b92-72ac-4d8c-8b67-0781207d20a5`.
 
 The example uses a shared palette in `code/web/src/styles/theme.css`. Reader, editor, login, tags, and navigation follow the device color scheme by default. The Theme selector offers System, Light, and Dark; overrides stay on the device in local storage and apply before first paint, so cached public pages remain shared across readers. Theme components belong to the example app.
+
+## Mobile writing layout
+
+The example editor opens with title and body, a compact header, and one formatting
+row. Post/recipe details open in a native dialog sheet; slug, description, tags,
+cover image, and recipe fields remain part of the same atomic save. Suggestions
+appear while editing tags. Images expose replace/remove controls only when present.
+The first Save persists the local UUID draft and updates the URL without remounting;
+afterward autosave continues and the header offers Publish. Publishing opens a
+review sheet; Preview and Delete are in the options menu. Validation opens the
+details sheet when a hidden field needs attention.
+
+The toolbar preserves the text selection for formatting and uses the visual
+viewport to follow keyboard resizing. Browser emulation verifies layout and
+interaction, but actual iOS/Android keyboard behavior still needs device acceptance.
+
+Mobile acceptance: strict checks and 81 unit tests pass; four browser tests cover
+posts/recipes, formatting selection, atomic save/publish, validation sheets,
+wrapping titles, theme preference, and restored drafts with a missing slug.
+Packed consumer checks pass. Live Node and Cloudflare checks place the empty body
+at 172px (previously 975px) in a 390×844 viewport and verify 320px/short-viewport
+layouts. A disposable Cloudflare post completed first save, confirmed publication,
+and deletion through the UI; its reader returned 404 after cleanup. Worker version:
+`65918197-1fbe-472b-aeec-ce83ce642b9e`.

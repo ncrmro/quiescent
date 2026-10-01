@@ -20,11 +20,14 @@ export function createMetadataForm(
   const properties = typeof schema === "boolean" ? {} : (schema.properties ?? {});
   for (const [name, property] of Object.entries(properties)) {
     if (property === false) continue;
+    const container = document.createElement("div");
+    container.dataset.metadataField = name;
+    parent.append(container);
     fields.set(
       name,
-      controls[name]?.(parent, name, onChange) ??
+      controls[name]?.(container, name, onChange) ??
         createField(
-          parent,
+          container,
           name,
           property === true ? {} : property,
           imageFields.includes(name),

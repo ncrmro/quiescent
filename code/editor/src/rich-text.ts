@@ -4,6 +4,8 @@ import Image from "@tiptap/extension-image";
 import StarterKit from "@tiptap/starter-kit";
 export interface WritingEditorOptions {
   parent: HTMLElement;
+  /** Hosts may move command buttons within this toolbar; editor behavior is retained. */
+  configureToolbar?: (toolbar: HTMLElement) => undefined | (() => void);
   document: WritingDocument;
   onChange: (document: WritingDocument) => void;
   uploadImage: (file: File) => Promise<string>;
@@ -54,6 +56,10 @@ export function createWritingEditor(options: WritingEditorOptions) {
     b.type = "button";
     b.className = "format-button";
     b.textContent = label;
+    b.dataset.command = label.toLowerCase().replaceAll(" ", "-");
+    b.setAttribute("aria-label", label);
+    // Keep the editing selection and keyboard when tapping a formatting action.
+    b.addEventListener("pointerdown", (event) => event.preventDefault());
     b.addEventListener("click", action);
     toolbar.append(b);
     return b;
@@ -85,14 +91,22 @@ export function createWritingEditor(options: WritingEditorOptions) {
   let editable = true;
   let disposed = false;
   const imageButton = add("Add image", () => file.click());
-  add("Image description", () => {
+  const descriptionButton = add("Image description", () => {
     if (!editor.isActive("image")) return options.onStatus?.("Select an image first.");
     const alt = window.prompt("Describe this image", editor.getAttributes("image").alt ?? "");
     if (alt !== null) editor.chain().focus().updateAttributes("image", { alt }).run();
   });
-  add("Remove image", () => {
+  const removeButton = add("Remove image", () => {
     if (editor.isActive("image")) editor.chain().focus().deleteSelection().run();
   });
+  const showImageActions = () => {
+    descriptionButton.hidden = !editor.isActive("image");
+    removeButton.hidden = !editor.isActive("image");
+  };
+  editor.on("selectionUpdate", showImageActions);
+  editor.on("update", showImageActions);
+  showImageActions();
+  const disposeToolbar = options.configureToolbar?.(toolbar);
   file.addEventListener("change", () => {
     const chosen = file.files?.[0];
     if (!chosen || !editable || uploads.size) {
@@ -154,6 +168,7 @@ export function createWritingEditor(options: WritingEditorOptions) {
     },
     destroy: () => {
       disposed = true;
+      disposeToolbar?.();
       editor.destroy();
       toolbar.remove();
       surface.remove();

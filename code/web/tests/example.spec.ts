@@ -1,49 +1,54 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { createDocumentHandler } from "../../server/src/document-http.ts";
 import { createDocumentStore } from "../../server/src/document-store.ts";
 import { localR2Media } from "../../server/src/media.ts";
 import { fixture } from "../../server/test/forge-fixture.ts";
-import { collectionSchema } from "../src/writing/collections.ts";
+import { type Collection, collectionSchema } from "../src/writing/collections.ts";
+
+async function mockDocuments(page: Page, collection: Collection) {
+  const backend = fixture();
+  const service = createDocumentStore({
+    forge: backend.forge,
+    author: { name: "Writer", email: "test@example.test" },
+    collection,
+    schema: collectionSchema(collection),
+  });
+  const handler = createDocumentHandler({
+    store: service,
+    apiBase: `/api/documents/${collection}`,
+    authorize: () => true,
+    media: localR2Media({
+      get: async () => null,
+      put: async () => {
+        throw new Error("This scenario does not upload media");
+      },
+    }),
+  });
+  await page.route(new RegExp(`/api/documents/${collection}(?:/|$)`), async (route) => {
+    const incoming = route.request();
+    const body = incoming.postData();
+    const response = await handler(
+      new Request(incoming.url(), {
+        method: incoming.method(),
+        headers: incoming.headers(),
+        ...(body ? { body } : {}),
+      }),
+    );
+    await route.fulfill({
+      status: response.status,
+      headers: Object.fromEntries(response.headers),
+      body: await response.text(),
+    });
+  });
+  await page.route(`/api/tags/${collection}`, (route) =>
+    route.fulfill({ json: ["weekend", "family", "gardening"] }),
+  );
+  return { backend, service };
+}
 
 for (const collection of ["posts", "recipes"] as const) {
   test(`${collection} atomically saves metadata and Markdown`, async ({ page }) => {
-    const backend = fixture();
-    const service = createDocumentStore({
-      forge: backend.forge,
-      author: { name: "Writer", email: "test@example.test" },
-      collection,
-      schema: collectionSchema(collection),
-    });
-    const handler = createDocumentHandler({
-      store: service,
-      apiBase: `/api/documents/${collection}`,
-      authorize: () => true,
-      media: localR2Media({
-        get: async () => null,
-        put: async () => {
-          throw new Error("This scenario does not upload media");
-        },
-      }),
-    });
-    await page.route(new RegExp(`/api/documents/${collection}(?:/|$)`), async (route) => {
-      const incoming = route.request();
-      const body = incoming.postData();
-      const response = await handler(
-        new Request(incoming.url(), {
-          method: incoming.method(),
-          headers: incoming.headers(),
-          ...(body ? { body } : {}),
-        }),
-      );
-      await route.fulfill({
-        status: response.status,
-        headers: Object.fromEntries(response.headers),
-        body: await response.text(),
-      });
-    });
-    await page.route(`/api/tags/${collection}`, (route) =>
-      route.fulfill({ json: ["weekend", "family", "gardening"] }),
-    );
+    const { backend, service } = await mockDocuments(page, collection);
     await page.goto("/write");
     await expect(page).toHaveURL(/\/login$/);
     await page.getByLabel("Password", { exact: true }).fill("quiescent-demo");
@@ -68,8 +73,12 @@ for (const collection of ["posts", "recipes"] as const) {
       })
       .click();
     await expect(page).toHaveURL(new RegExp(`/${collection}/new$`));
-    await expect(page.getByRole("status")).toContainText("Saved on this device");
+    await expect(page.getByRole("status")).toContainText("Saved locally");
     expect(await service.listDocuments()).toEqual([]);
+    await expect(page.getByRole("textbox", { name: "Document body" })).toBeVisible();
+    expect(
+      (await page.getByRole("textbox", { name: "Document body" }).boundingBox())!.y,
+    ).toBeLessThan(220);
     const localId = await page.evaluate(() => {
       const key = Object.keys(localStorage).find((key) => key.startsWith("quiescent-local:"))!;
       return JSON.parse(localStorage.getItem(key)!).id as string;
@@ -81,10 +90,24 @@ for (const collection of ["posts", "recipes"] as const) {
     await page.getByLabel("Title", { exact: true }).fill("A quiet afternoon");
     await page.waitForTimeout(600);
     await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("cafe-family-weekend");
+    await page
+      .getByRole("button", {
+        name: collection === "posts" ? "Post details" : "Recipe details",
+        exact: true,
+      })
+      .click();
+    await expect(page.locator("[data-header-preview]")).toBeHidden();
     await page.getByLabel("Slug", { exact: true }).fill("quiet-afternoon");
+    await page.getByRole("button", { name: "Done", exact: true }).click();
     await page.getByLabel("Title", { exact: true }).fill("A quiet afternoon!");
     await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("quiet-afternoon");
     await page.getByLabel("Title", { exact: true }).fill("A quiet afternoon");
+    await page
+      .getByRole("button", {
+        name: collection === "posts" ? "Post details" : "Recipe details",
+        exact: true,
+      })
+      .click();
     await page.getByLabel("Tags", { exact: true }).fill("wee");
     await page.getByRole("button", { name: "Add tag weekend", exact: true }).click();
     await expect(page.getByRole("button", { name: "Remove tag weekend" })).toBeVisible();
@@ -101,7 +124,16 @@ for (const collection of ["posts", "recipes"] as const) {
       await page
         .getByLabel("Ingredients", { exact: true })
         .fill(JSON.stringify([{ name: "Tomato", quantity: "2" }]));
+    await page.getByRole("button", { name: "Done", exact: true }).click();
     await page.getByRole("textbox", { name: "Document body" }).fill("We walked beside the river.");
+    await page.getByRole("textbox", { name: "Document body" }).press("ControlOrMeta+a");
+    await page.getByRole("button", { name: "Bold", exact: true }).click();
+    await expect(page.locator(".tiptap strong")).toHaveText("We walked beside the river.");
+    await page.getByRole("button", { name: "Bold", exact: true }).click();
+    await page.getByRole("button", { name: "More formatting", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Numbered list", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Remove image", exact: true })).toHaveCount(0);
+    await page.keyboard.press("Escape");
     await page.waitForTimeout(1000);
     expect(await service.listDocuments()).toEqual([]);
     await page.reload();
@@ -112,18 +144,24 @@ for (const collection of ["posts", "recipes"] as const) {
     );
     const editor = await page.getByRole("textbox", { name: "Document body" }).elementHandle();
     const geometry = () =>
-      page.locator("[data-fields]").evaluate((element) => {
+      page.locator("[data-editor-content]").evaluate((element) => {
         const rect = element.getBoundingClientRect();
         return { x: rect.x + scrollX, y: rect.y + scrollY, width: rect.width, height: rect.height };
       });
     const beforeSave = await geometry();
-    await page.getByRole("button", { name: "Save now", exact: true }).click();
+    await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.getByRole("status")).toHaveText("Saved");
     await expect(page).toHaveURL(new RegExp(`/${collection}/${localId}/edit$`));
     expect(await editor!.evaluate((element) => element.isConnected)).toBe(true);
     expect(await geometry()).toEqual(beforeSave);
     const saved = (await service.listDocuments())[0]!;
     expect(saved.document.frontmatter.tags).toEqual(["weekend", "family"]);
+    await page
+      .getByRole("button", {
+        name: collection === "posts" ? "Post details" : "Recipe details",
+        exact: true,
+      })
+      .click();
     await page.getByLabel("Tags", { exact: true }).fill("unfinished");
     await page.waitForTimeout(1000);
     expect((await service.getDraft(saved.document.id)).document.frontmatter.tags).toEqual([
@@ -149,25 +187,69 @@ for (const collection of ["posts", "recipes"] as const) {
     expect(markdown).toContain("slug: quiet-afternoon");
     expect(markdown).toContain("- family");
     expect(markdown).toContain("We walked beside the river.");
+    await page
+      .getByRole("button", {
+        name: collection === "posts" ? "Post details" : "Recipe details",
+        exact: true,
+      })
+      .click();
     await page.getByLabel("Slug", { exact: true }).fill("invalid slug!");
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await page.getByRole("button", { name: "Editor options", exact: true }).click();
     await page.getByRole("button", { name: "Save now", exact: true }).click();
     await expect(page.getByLabel("Slug", { exact: true })).toHaveAttribute("aria-invalid", "true");
     expect((await service.getDraft(saved.document.id)).headSha).toBe(head);
     await page.getByLabel("Slug", { exact: true }).fill("quiet-afternoon");
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await page.getByRole("button", { name: "Editor options", exact: true }).click();
     await page.getByRole("button", { name: "Save now", exact: true }).click();
     await expect(page.getByRole("status")).toHaveText("Saved");
+    await page.getByRole("button", { name: "Editor options", exact: true }).click();
     await page.getByRole("button", { name: "Preview", exact: true }).click();
     await expect(page.locator("[data-preview-area]")).toContainText("We walked beside the river.");
+    await page.getByRole("button", { name: "Back to writing", exact: true }).click();
+    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Ready to publish?" })).toBeVisible();
+    await expect(page.locator("[data-review-title]")).toHaveText("A quiet afternoon");
+    expect(await service.getPublished(saved.document.id)).toBeNull();
+    await page.route(`/${collection}/quiet-afternoon`, (route) =>
+      route.fulfill({
+        body: "Published",
+        headers: { "X-Quiescent-Revision": backend.branches.get("main")! },
+      }),
+    );
+    await page
+      .getByRole("dialog", { name: "Ready to publish?" })
+      .getByRole("button", { name: "Publish", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toHaveText("Published");
+    expect((await service.getPublished(saved.document.id))!.document.frontmatter.tags).toEqual([
+      "weekend",
+      "family",
+    ]);
+    await page.getByRole("button", { name: "Edit document", exact: true }).click();
+    await expect(page.getByRole("status")).toHaveText("Saved");
+    await expect(page.getByRole("textbox", { name: "Document body" })).toHaveText(
+      "We walked beside the river.",
+    );
     const branchesBefore = [...backend.branches.keys()];
-    if (collection === "recipes")
-      await page.getByRole("button", { name: "Open navigation" }).click();
+    await page.getByRole("button", { name: "Editor options", exact: true }).click();
     await page
       .getByRole("link", {
         name: collection === "posts" ? "New post" : "New recipe",
         exact: true,
       })
       .click();
-    await expect(page.getByRole("status")).toContainText("Saved on this device");
+    await expect(page.getByRole("status")).toContainText("Saved locally");
+    const longTitle =
+      "A long story title about a quiet afternoon spent walking through the garden and watching the birds";
+    await page.getByLabel("Title", { exact: true }).fill(longTitle);
+    expect(
+      await page
+        .getByLabel("Title", { exact: true })
+        .evaluate((input) => input.scrollHeight <= input.clientHeight),
+    ).toBe(true);
+    await page.getByRole("button", { name: "Editor options", exact: true }).click();
     page.once("dialog", (dialog) => dialog.accept());
     await page
       .getByRole("button", {
@@ -209,4 +291,28 @@ test("theme follows the system and remembers an override on mobile", async ({ pa
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(250, 249, 246)");
   expect(await page.evaluate(() => localStorage.getItem("quiescent-theme"))).toBeNull();
+});
+
+test("a restored local draft derives its missing slug on first save", async ({ page }) => {
+  const { service } = await mockDocuments(page, "posts");
+  await page.goto("/login");
+  await page.getByLabel("Password", { exact: true }).fill("quiescent-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/write$/);
+  await page.goto("/posts/new");
+  await expect(page.getByRole("status")).toHaveText("Saved locally");
+  // Restore the state left when a tab closes before title derivation runs.
+  await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((key) => key.startsWith("quiescent-local:"))!;
+    const draft = JSON.parse(localStorage.getItem(key)!);
+    draft.frontmatter.title = "A restored story";
+    draft.frontmatter.slug = "";
+    localStorage.setItem(key, JSON.stringify(draft));
+  });
+  await page.reload();
+  await expect(page.getByLabel("Title", { exact: true })).toHaveValue("A restored story");
+  await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  expect((await service.listDocuments())[0]!.document.frontmatter.slug).toBe("a-restored-story");
 });

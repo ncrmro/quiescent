@@ -25,3 +25,7 @@
   opacity: 0.5;
   pointer-events: none;
 }
+
+.tag-field:not(:focus-within) > :is(.tag-suggestions, small:not([role="alert"]), button) {
+  display: none;
+}

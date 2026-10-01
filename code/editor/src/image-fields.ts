@@ -12,10 +12,17 @@ export function imageFields(options: {
 }) {
   let pending: Promise<void> | undefined;
   const images = new Map<string, HTMLImageElement>();
+  const buttons = new Map<
+    string,
+    { add: HTMLButtonElement; remove: HTMLButtonElement; label: string }
+  >();
   function show() {
     for (const [field, image] of images) {
       const src = options.metadata().field(field)?.value;
       image.hidden = !src;
+      const controls = buttons.get(field)!;
+      controls.remove.hidden = !src;
+      controls.add.textContent = `${src ? "Replace" : "Add"} ${controls.label}`;
       if (src) image.src = options.mediaUrl(src);
       else image.removeAttribute("src");
     }
@@ -38,6 +45,7 @@ export function imageFields(options: {
     image.hidden = true;
     image.dataset.headerPreview = "";
     images.set(field, image);
+    buttons.set(field, { add, remove, label });
     group.append(add, remove, input, image);
     options.parent.append(group);
     add.onclick = () => {

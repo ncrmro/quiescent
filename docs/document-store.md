@@ -88,6 +88,15 @@ fields and string lists; structured arrays/objects use JSON input. Unrendered fi
 survive saves. Metadata and body share one save and one recovery record. Markdown
 that cannot round-trip through the visual editor opens in a Markdown text area.
 
+Hosts may use `layout(root)` to arrange the mounted controls before a document opens,
+`configureToolbar(toolbar)` to arrange command buttons, and `formatStatus(message)`
+to customize status wording. Layout and toolbar hooks can return cleanup functions.
+Keep mounted controls inside `root` and retain their `data-*` attributes and handlers;
+metadata fields have `data-metadata-field` containers, and toolbar buttons have
+`data-command` identifiers. Presentation changes still use the same document state,
+validation, recovery, and atomic save. Blog-specific sheets and labels belong to the
+example app, rather than the document store.
+
 Optional `DocumentBody` and `DocumentImage` exports are under
 `@quiescent/astro/components/*`. Override `imageComponent` on the body renderer or
 use the document/media APIs directly. The metadata map is optional: `resolveImage(filename)`
