@@ -35,6 +35,9 @@ export interface DocumentStoreOptions<T extends Frontmatter> {
   beforePublish?: (document: DocumentRecord<T>) => void | Promise<void>;
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+function validUuid(id: unknown): id is string {
+  return typeof id === "string" && uuid.test(id);
+}
 function publishedRecord<T extends Frontmatter>(document: StoredDocument<T> | null) {
   return document?.publishedAt ? publicDocument(document) : null;
 }
@@ -138,9 +141,12 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     return result;
   }
 
-  async function start(document: DocumentRecord<T>): Promise<DocumentDraft<T>> {
+  async function start(
+    document: DocumentRecord<T>,
+    cycle: string = crypto.randomUUID(),
+  ): Promise<DocumentDraft<T>> {
     const sha = await forge.getBranchSha(main);
-    const branch = `${prefix}${document.id}/${crypto.randomUUID()}`;
+    const branch = `${prefix}${document.id}/${cycle}`;
     const files = await layout.changes(document, sha);
     await forge.createBranch(branch, sha);
     const result = await forge.commitFiles({
@@ -202,10 +208,23 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     }
     return getDraft(published.document.id, branch);
   }
-  async function createDocument(input: DocumentInput<T>): Promise<DocumentDraft<T>> {
+  async function createDocument(
+    input: DocumentInput<T> & { id?: string },
+  ): Promise<DocumentDraft<T>> {
     const value = checked(input);
-    const id = crypto.randomUUID();
-    return start({ ...checked(value), id, createdAt: new Date().toISOString().slice(0, 10) });
+    const id = input.id ?? crypto.randomUUID();
+    if (!validUuid(id)) throw new DocumentError("Invalid document UUID", "invalid");
+    if (input.id) {
+      if (await read(id, await forge.getBranchSha(main)))
+        throw new DocumentError("Document already exists", "conflict");
+      const existing = (await activeDrafts(id))[0];
+      if (existing) {
+        if (JSON.stringify(checked(existing.document)) !== JSON.stringify(value))
+          throw new DocumentError("Document already exists with different content", "conflict");
+        return existing;
+      }
+    }
+    return start({ ...value, id, createdAt: new Date().toISOString().slice(0, 10) }, id);
   }
   async function assertNotDeleted(id: string, mainSha?: string) {
     if ((await read(id, mainSha ?? (await forge.getBranchSha(main))))?.deletedAt)

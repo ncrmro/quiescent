@@ -53,7 +53,12 @@ for (const collection of ["posts", "recipes"] as const) {
         exact: true,
       })
       .click();
-    await expect(page.getByRole("status")).toHaveText("Saved");
+    await expect(page.getByRole("status")).toContainText("Saved on this device");
+    expect(await service.listDocuments()).toEqual([]);
+    const localId = await page.evaluate(() => {
+      const key = Object.keys(localStorage).find((key) => key.startsWith("quiescent-local:"))!;
+      return JSON.parse(localStorage.getItem(key)!).id as string;
+    });
     await page.getByLabel("Title", { exact: true }).fill("A quiet afternoon");
     await page.getByLabel("Slug", { exact: true }).fill("quiet-afternoon");
     await page.getByLabel("Tags", { exact: true }).fill("weekend, family");
@@ -62,11 +67,25 @@ for (const collection of ["posts", "recipes"] as const) {
         .getByLabel("Ingredients", { exact: true })
         .fill(JSON.stringify([{ name: "Tomato", quantity: "2" }]));
     await page.getByRole("textbox", { name: "Document body" }).fill("We walked beside the river.");
+    await page.waitForTimeout(1000);
+    expect(await service.listDocuments()).toEqual([]);
+    await page.reload();
+    await page.getByRole("button", { name: /Local · A quiet afternoon/ }).click();
+    await expect(page.getByLabel("Title", { exact: true })).toHaveValue("A quiet afternoon");
+    await expect(page.getByRole("textbox", { name: "Document body" })).toHaveText(
+      "We walked beside the river.",
+    );
     await page.getByRole("button", { name: "Save now", exact: true }).click();
     await expect(page.getByRole("status")).toHaveText("Saved");
     const saved = (await service.listDocuments())[0]!;
     if (collection === "recipes")
       expect(saved.document.frontmatter.ingredients).toEqual([{ name: "Tomato", quantity: "2" }]);
+    expect(saved.document.id).toBe(localId);
+    expect(
+      await page.evaluate(() =>
+        Object.keys(localStorage).filter((key) => key.startsWith("quiescent-local:")),
+      ),
+    ).toEqual([]);
     const head = saved.headSha;
     const { directory } = await service.location(saved.document.id, head);
     const markdown = backend.commits.get(head)!.files[`${directory}/index.md`];
@@ -83,5 +102,27 @@ for (const collection of ["posts", "recipes"] as const) {
     await expect(page.getByRole("status")).toHaveText("Saved");
     await page.getByRole("button", { name: "Preview", exact: true }).click();
     await expect(page.locator("[data-preview-area]")).toContainText("We walked beside the river.");
+    const branchesBefore = [...backend.branches.keys()];
+    await page
+      .getByRole("button", {
+        name: collection === "posts" ? "New post" : "New recipe",
+        exact: true,
+      })
+      .click();
+    await expect(page.getByRole("status")).toContainText("Saved on this device");
+    page.once("dialog", (dialog) => dialog.accept());
+    await page
+      .getByRole("button", {
+        name: collection === "posts" ? "Delete post" : "Delete recipe",
+        exact: true,
+      })
+      .click();
+    await expect(page.getByRole("status")).toHaveText("Deleted");
+    expect([...backend.branches.keys()]).toEqual(branchesBefore);
+    expect(
+      await page.evaluate(() =>
+        Object.keys(localStorage).filter((key) => key.startsWith("quiescent-local:")),
+      ),
+    ).toEqual([]);
   });
 }

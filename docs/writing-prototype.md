@@ -91,3 +91,18 @@ repositories contain the post at
 `posts/2026-10-01-a-slow-morning-in-the-garden/index.md`, the recipe at
 `recipes/a-simple-garden-salad/index.md`, and adjacent Git LFS image pointers.
 Their front matter records `createdAt: 2026-10-01`; browser slugs contain no date.
+
+## Browser-local drafts
+
+New post and New recipe allocate a UUID and store metadata and body in localStorage.
+Typing and navigating between these drafts do not write to GitHub. Reload the editor
+and select a Local entry to resume it. Save now (or Publish) creates the first Git
+branch with the same UUID; subsequent edits autosave normally. Local entries are
+removed after a successful first save. Deleting a local draft makes no Git request.
+Images require the first save before uploading. Unsaved local drafts are specific
+to this browser and origin; they are not available on another device.
+
+Validated with 81 unit tests, strict type/lint checks, and post/recipe browser tests
+covering reload, first save, and local deletion. Live workstation and Cloudflare
+checks confirmed zero create requests before Save now and the same UUID after
+saving. Cloudflare version: `811ad2a5-49cf-42f0-8985-0a8ba8130601`.

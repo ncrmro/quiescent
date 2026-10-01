@@ -37,6 +37,8 @@ const { documentId, collection = "posts" } = Astro.props;
       ...(root.dataset.documentId ? { initialDocumentId: root.dataset.documentId } : {}),
       onDocumentOpen: (document) =>
         window.history.replaceState(null, "", `${documentPath(collection, document)}/edit`),
+      onLocalDocumentOpen: () =>
+        window.history.replaceState(null, "", collection === "posts" ? "/write" : "/recipes/new"),
       onDelete: () =>
         window.history.replaceState(null, "", collection === "posts" ? "/write" : "/recipes/new"),
     });

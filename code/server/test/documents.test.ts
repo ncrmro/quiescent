@@ -222,3 +222,22 @@ test("public reads never enumerate draft branches", async () => {
   expect((await store.listPublished()).length).toBe(1);
   expect((await store.getPublished(draft.document.id))?.document.body).toBe(initial.body);
 });
+
+test("first save retains a client UUID and retries without overwriting drafts", async () => {
+  const { store, branches, commits } = setup();
+  const id = "2f5ef988-a169-4a8d-9ffb-3522d3fb032c";
+  const draft = await store.createDocument({ ...initial, id });
+  expect(draft.document.id).toBe(id);
+  const count = commits.size;
+  expect(await store.createDocument({ ...initial, id })).toEqual(draft);
+  expect(commits.size).toBe(count);
+  expect([...branches.keys()].filter((branch) => branch.includes(id))).toHaveLength(1);
+  await expect(store.createDocument({ ...initial, id, body: "Overwrite" })).rejects.toThrow(
+    "different content",
+  );
+  await expect(store.createDocument({ ...initial, id: "../bad" })).rejects.toThrow(
+    "Invalid document UUID",
+  );
+  await store.publish(selection(draft));
+  await expect(store.createDocument({ ...initial, id })).rejects.toThrow("already exists");
+});

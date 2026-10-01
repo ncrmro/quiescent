@@ -7,6 +7,7 @@ import type {
   UploadTicket,
 } from "@quiescent/server/contracts";
 import { imageFields } from "./image-fields.ts";
+import { documentUuid, localDrafts } from "./local-drafts.ts";
 import { createMetadataForm, type MetadataControl, type MetadataSchema } from "./metadata.ts";
 import { findRecoveryRecords, type RecoveryRecord, removeRecoveredRecord } from "./recovery.ts";
 
@@ -17,6 +18,7 @@ import { createWritingEditor } from "./rich-text.ts";
 export { createWritingEditor, type WritingEditorOptions } from "./rich-text.ts";
 export interface DocumentAppOptions {
   initialDocumentId?: string;
+  onLocalDocumentOpen?: (document: DocumentRecord) => void;
   onDocumentOpen?: (document: DocumentRecord) => void;
   initialDocument: () => { frontmatter: Record<string, unknown>; body: string };
   label?: string;
@@ -30,6 +32,7 @@ export interface DocumentAppOptions {
 /** Reusable controller; hosts supply thin API routes and their preferred styling. */
 export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions) {
   const api = options.apiBase ?? "/api/documents";
+  const local = localDrafts(api);
   const label = options.label ?? "document";
   const displayName = options.displayName ?? ((value: DocumentRecord) => value.id);
   const fields = options.imageFields ?? [];
@@ -50,6 +53,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   let navigating = false;
   let recoveryNeedsReview = false;
   let metadataValid = true;
+  let localStorageFailed = false;
   let destroyed = false;
   root.innerHTML =
     '<div class="writing-app"><aside><button type="button" data-new>New document</button><nav aria-label="Documents"></nav></aside><main><p role="status" aria-live="polite"></p><div data-fields hidden><div data-metadata></div><div data-header-tools></div><div data-editor></div><div class="writing-actions"><button type="button" data-save>Save now</button><button type="button" data-preview>Preview</button><button type="button" data-delete>Delete document</button><button type="button" data-publish>Publish</button></div><section data-preview-area hidden></section><p data-link></p></div></main></div>';
@@ -117,6 +121,16 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   let remembered: { key: string; raw: string } | undefined;
   const remember = () => {
     if (active) {
+      if (!active.branch) {
+        try {
+          local.save(active.document);
+          localStorageFailed = false;
+        } catch {
+          localStorageFailed = true;
+        }
+        updateList(active);
+        return;
+      }
       try {
         remembered = {
           key: key(active.document.id, active.branch),
@@ -142,7 +156,11 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       /* Saved on GitHub; retain browser recovery if cleanup fails. */
     }
   }
-  const flush = async (): Promise<void> => {
+  function needsSave(create: boolean) {
+    if (!active) return false;
+    return active.branch ? generation !== savedGeneration : create;
+  }
+  const flush = async (create = false): Promise<void> => {
     clearTimeout(timer);
     await images?.wait();
     if (!metadataValid)
@@ -151,22 +169,30 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       throw new Error("Review recovered writing and choose Save now before continuing.");
     if (saving) {
       await saving;
-      return flush();
+      return flush(create);
     }
-    if (!active || generation === savedGeneration) return;
-    const draft = active;
+    if (!needsSave(create)) return;
+    const draft = active!;
     const snapshot = structuredClone(draft.document);
     const version = generation;
     status("Saving…");
     saving = (async () => {
-      const updated = await request<Draft>(`/${draft.document.id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          branch: draft.branch,
-          expectedHeadSha: draft.headSha,
-          document: snapshot,
-        }),
-      });
+      const wasLocal = !draft.branch;
+      const updated = wasLocal
+        ? await request<Draft>("", { method: "POST", body: JSON.stringify(snapshot) })
+        : await request<Draft>(`/${draft.document.id}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              branch: draft.branch,
+              expectedHeadSha: draft.headSha,
+              document: snapshot,
+            }),
+          });
+      if (wasLocal) {
+        localStorageFailed = false;
+        local.remove(draft.document.id);
+        options.onDocumentOpen?.(updated.document);
+      }
       draft.branch = updated.branch;
       draft.headSha = updated.headSha;
       draft.state = updated.state;
@@ -188,6 +214,18 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     }
     if (generation !== savedGeneration) await flush();
   };
+  function scheduleAutosave(draft: Draft): boolean {
+    status(
+      recoveryNeedsReview
+        ? "Recovered writing: choose Save now after reviewing."
+        : "Unsaved changes",
+    );
+    if (recoveryNeedsReview || !draft.branch) {
+      if (!draft.branch) status("Saved on this device — choose Save now to save to GitHub.");
+      return false;
+    }
+    return true;
+  }
   const changed = () => {
     if (!active) return;
     try {
@@ -201,12 +239,13 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     active.document.body = markdownMode ? markdownInput.value : toMarkdown(editor!.getDocument());
     generation++;
     remember();
-    status(
-      recoveryNeedsReview
-        ? "Recovered writing: choose Save now after reviewing."
-        : "Unsaved changes",
-    );
-    if (recoveryNeedsReview) return;
+    if (localStorageFailed) {
+      status(
+        "Could not save on this device. Keep this page open and choose Save now to save to GitHub.",
+      );
+      return;
+    }
+    if (!scheduleAutosave(active)) return;
     clearTimeout(timer);
     timer = setTimeout(() => {
       void flush().catch((e) => status(`Could not save: ${e.message}`));
@@ -220,7 +259,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       const button = document.createElement("button");
       button.type = "button";
       button.disabled = navigating;
-      button.textContent = `${displayName(draft.document) || "Untitled"} — ${{ draft: "Draft", published: "Published", "unpublished-changes": "Unpublished changes" }[draft.state]}`;
+      button.textContent = `${draft.branch === "" ? "Local · " : ""}${displayName(draft.document) || "Untitled"} — ${{ draft: "Draft", published: "Published", "unpublished-changes": "Unpublished changes" }[draft.state]}`;
       button.onclick = () => {
         void navigate(() =>
           open(draft.document.id, draft.state === "published" ? undefined : draft.branch),
@@ -237,12 +276,15 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     const drafts = await request<DocumentDraft[]>("");
     for (const draft of drafts)
       if (!summaries.has(draft.document.id)) summaries.set(draft.document.id, draft);
+    for (const draft of local.list())
+      if (!summaries.has(draft.document.id)) summaries.set(draft.document.id, draft);
     listLoaded = true;
     renderList();
     q<HTMLButtonElement>("[data-new]").disabled = navigating;
   };
   q<HTMLButtonElement>("[data-new]").disabled = true;
   const uploadImage = async (target: string, file: File) => {
+    if (!active?.branch) throw new Error("Choose Save now before uploading images.");
     const upload = await request<UploadTicket>(`/${target}/uploads`, {
       method: "POST",
       body: JSON.stringify({ contentType: file.type, size: file.size }),
@@ -286,30 +328,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     }
     return false;
   }
-  const open = async (id: string, branch?: string | null) => {
-    await editor?.waitForUploads();
-    await flush();
-    const draft = await request<Draft>(
-      `/${id}${branch ? `?branch=${encodeURIComponent(branch)}` : ""}`,
-    );
-    if (destroyed) return;
-    editor?.destroy();
-    active = draft;
-    publishedDocument = undefined;
-    updateList(draft);
-    generation = 0;
-    savedGeneration = 0;
-    let recovery = false;
-    recoveryNeedsReview = false;
-    metadata.disable(false);
-    selectedRecovery = undefined;
-    remembered = undefined;
-    recovery = restoreRecovery(draft);
-    metadata.load(draft.document.frontmatter);
-    images?.show();
-    q("[data-fields]").hidden = false;
-    q("[data-preview-area]").hidden = true;
-    q("[data-link]").replaceChildren();
+  function loadBody(draft: Draft) {
     markdownMode = false;
     try {
       markdownMode =
@@ -330,19 +349,64 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
           mediaUrl,
           uploadImage: (file) => uploadImage(draft.document.id, file),
         });
+  }
+  function opened(draft: Draft, recovery: boolean) {
     q("[data-publish]").textContent =
       draft.state === "published" || draft.document.publishedAt ? "Publish changes" : "Publish";
-    options.onDocumentOpen?.(draft.document);
-    status(recovery ? "Recovered unsaved writing. Review and choose Save now." : "Saved");
+    if (draft.branch) options.onDocumentOpen?.(draft.document);
+    else options.onLocalDocumentOpen?.(draft.document);
+    status(
+      !draft.branch
+        ? "Saved on this device — choose Save now to save to GitHub."
+        : recovery
+          ? "Recovered unsaved writing. Review and choose Save now."
+          : "Saved",
+    );
+  }
+  const open = async (id: string, branch?: string | null) => {
+    await editor?.waitForUploads();
+    await flush();
+    const cached = summaries.get(id);
+    const draft =
+      cached && cached.branch === ""
+        ? (structuredClone(cached) as Draft)
+        : await request<Draft>(`/${id}${branch ? `?branch=${encodeURIComponent(branch)}` : ""}`);
+    if (destroyed) return;
+    editor?.destroy();
+    active = draft;
+    publishedDocument = undefined;
+    updateList(draft);
+    generation = 0;
+    savedGeneration = 0;
+    let recovery = false;
+    recoveryNeedsReview = false;
+    metadata.disable(false);
+    selectedRecovery = undefined;
+    remembered = undefined;
+    recovery = draft.branch ? restoreRecovery(draft) : false;
+    metadata.load(draft.document.frontmatter);
+    images?.show();
+    q("[data-fields]").hidden = false;
+    q("[data-preview-area]").hidden = true;
+    q("[data-link]").replaceChildren();
+    loadBody(draft);
+    opened(draft, recovery);
   };
   q("[data-new]").onclick = () => {
     void navigate(async () => {
       await editor?.waitForUploads();
       await flush();
-      const draft = await request<Draft>("", {
-        method: "POST",
-        body: JSON.stringify(options.initialDocument()),
-      });
+      const draft: Draft = {
+        document: {
+          ...options.initialDocument(),
+          id: documentUuid(),
+          createdAt: new Date().toISOString().slice(0, 10),
+        },
+        branch: "",
+        headSha: "",
+        state: "draft",
+      };
+      local.save(draft.document);
       updateList(draft);
       await open(draft.document.id, draft.branch);
     }).catch((e) => status(e.message));
@@ -350,7 +414,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   q("[data-save]").onclick = () => {
     if (publishing || navigating) return;
     recoveryNeedsReview = false;
-    void flush().catch((e) => status(`Could not save: ${e.message}`));
+    void flush(true).catch((e) => status(`Could not save: ${e.message}`));
   };
   q("[data-preview]").onclick = () => {
     if (!editor) {
@@ -368,7 +432,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     editor?.setEditable(false);
     void (async () => {
       await editor?.waitForUploads();
-      await flush();
+      await flush(true);
       const draft = active!;
       status("Publishing…");
       const result = await request<
@@ -424,6 +488,16 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
         editor?.setEditable(Boolean(active));
       });
   };
+  async function deleteTarget(target: { document: DocumentRecord; headSha: string }) {
+    if (active && !active.branch) {
+      local.remove(target.document.id);
+      return {} as MutationResponse<object>;
+    }
+    return request<MutationResponse<object>>(`/${target.document.id}`, {
+      method: "DELETE",
+      body: JSON.stringify({ branch: active?.branch ?? null, expectedHeadSha: target.headSha }),
+    });
+  }
   q("[data-delete]").onclick = () => {
     if (publishing || navigating || (!active && !publishedDocument)) return;
     if (
@@ -436,10 +510,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       await editor?.waitForUploads();
       await flush();
       const target = active ?? publishedDocument!;
-      const result = await request<MutationResponse<object>>(`/${target.document.id}`, {
-        method: "DELETE",
-        body: JSON.stringify({ branch: active?.branch ?? null, expectedHeadSha: target.headSha }),
-      });
+      const result = await deleteTarget(target);
       summaries.delete(target.document.id);
       renderList();
       for (const k of Object.keys(localStorage))
@@ -456,7 +527,13 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     }).catch((e) => status(`Could not delete: ${e.message}`));
   };
   const beforeUnload = (event: BeforeUnloadEvent) => {
-    if (generation !== savedGeneration || !metadataValid || publishing || images?.busy()) {
+    if (
+      localStorageFailed ||
+      (active?.branch && generation !== savedGeneration) ||
+      !metadataValid ||
+      publishing ||
+      images?.busy()
+    ) {
       event.preventDefault();
       event.returnValue = "";
     }
@@ -466,7 +543,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       event.preventDefault();
       if (publishing || navigating) return;
       recoveryNeedsReview = false;
-      void flush().catch((e) => status(`Could not save: ${e.message}`));
+      void flush(true).catch((e) => status(`Could not save: ${e.message}`));
     }
   };
   root.addEventListener("keydown", shortcut);
