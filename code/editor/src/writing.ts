@@ -17,6 +17,10 @@ import { createWritingEditor } from "./rich-text.ts";
 
 export { createWritingEditor, type WritingEditorOptions } from "./rich-text.ts";
 export interface DocumentAppOptions {
+  deriveMetadata?: (
+    current: Record<string, unknown>,
+    previous: Record<string, unknown>,
+  ) => Record<string, unknown>;
   initialDocumentId?: string;
   startNew?: boolean;
   navigation?: boolean;
@@ -232,7 +236,10 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   const changed = () => {
     if (!active) return;
     try {
-      Object.assign(active.document.frontmatter, metadata.read());
+      const current = metadata.read();
+      const derived = options.deriveMetadata?.(current, active.document.frontmatter) ?? {};
+      metadata.patch(derived);
+      Object.assign(active.document.frontmatter, current, derived);
       metadataValid = true;
     } catch {
       metadataValid = false;

@@ -47,8 +47,18 @@ for (const collection of ["posts", "recipes"] as const) {
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(/\/write$/);
     await expect(page.getByRole("textbox", { name: "Document body" })).toHaveCount(0);
-    if (collection === "recipes") await page.setViewportSize({ width: 390, height: 844 });
+    if (collection === "recipes") {
+      await page.setViewportSize({ width: 390, height: 844 });
+      const toggle = page.getByRole("button", { name: "Open navigation" });
+      await toggle.click();
+      await expect(page.getByRole("dialog", { name: "Navigation" })).toBeVisible();
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      await page.keyboard.press("Escape");
+      await expect(toggle).toHaveAttribute("aria-expanded", "false");
+      await expect(toggle).toBeFocused();
+    }
     await page
+      .locator(`[data-collection="${collection}"]`)
       .getByRole("link", {
         name: collection === "posts" ? "New post" : "New recipe",
         exact: true,
@@ -61,8 +71,15 @@ for (const collection of ["posts", "recipes"] as const) {
       const key = Object.keys(localStorage).find((key) => key.startsWith("quiescent-local:"))!;
       return JSON.parse(localStorage.getItem(key)!).id as string;
     });
+    await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("draft");
+    await page.getByLabel("Title", { exact: true }).fill("Café & Family Weekend!");
+    await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("cafe-family-weekend");
     await page.getByLabel("Title", { exact: true }).fill("A quiet afternoon");
+    await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("a-quiet-afternoon");
     await page.getByLabel("Slug", { exact: true }).fill("quiet-afternoon");
+    await page.getByLabel("Title", { exact: true }).fill("A quiet afternoon!");
+    await expect(page.getByLabel("Slug", { exact: true })).toHaveValue("quiet-afternoon");
+    await page.getByLabel("Title", { exact: true }).fill("A quiet afternoon");
     await page.getByLabel("Tags", { exact: true }).fill("weekend, family");
     if (collection === "recipes")
       await page
@@ -117,6 +134,8 @@ for (const collection of ["posts", "recipes"] as const) {
     await page.getByRole("button", { name: "Preview", exact: true }).click();
     await expect(page.locator("[data-preview-area]")).toContainText("We walked beside the river.");
     const branchesBefore = [...backend.branches.keys()];
+    if (collection === "recipes")
+      await page.getByRole("button", { name: "Open navigation" }).click();
     await page
       .getByRole("link", {
         name: collection === "posts" ? "New post" : "New recipe",

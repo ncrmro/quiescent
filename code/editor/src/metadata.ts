@@ -39,6 +39,12 @@ export function createMetadataForm(
         ...Object.fromEntries([...fields].map(([name, field]) => [name, readField(field)])),
       };
     },
+    patch(value: Record<string, unknown>) {
+      for (const [name, next] of Object.entries(value)) {
+        const field = fields.get(name);
+        if (field) loadField(field, next);
+      }
+    },
     load(value: object) {
       original = structuredClone(value) as Record<string, unknown>;
       const values: Record<string, unknown> = { ...value };

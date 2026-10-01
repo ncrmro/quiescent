@@ -121,3 +121,16 @@ identical before and after first save and the original editor element stays moun
 All 81 unit tests and strict checks pass. Live Node and Cloudflare checks verified
 local reload, UUID-preserving first save, edit-URL reload, and existing public readers
 and image rendering. Worker version: `a1f6cfba-0607-4138-aaf8-4a7969214e07`.
+
+## Slugs and mobile navigation
+
+New documents start with `draft` as the slug. The example derives a normalized slug
+from the title while the slug remains automatic; a manually chosen slug is retained.
+Quiescent exposes a generic metadata-derivation callback so this policy stays in the
+example. A shared navigation bar uses a native modal dialog as a mobile sidebar,
+with a hamburger button, Escape dismissal, and focus returned to the button.
+
+Validated with 81 unit tests, strict checks, and desktop/mobile browser coverage for
+slug defaults, accent normalization, manual overrides, menu dismissal/focus, and
+first-save layout stability. Both live deployments passed mobile slug/save checks
+and reader/image smoke tests. Worker version: `1fa9342e-8cc2-4505-997c-3fff24a4f1fe`.

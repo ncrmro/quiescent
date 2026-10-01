@@ -47,7 +47,7 @@ export function initialDocument(collection: Collection) {
     frontmatter: {
       title: "",
       description: "",
-      slug: `draft-${Date.now()}`,
+      slug: "draft",
       tags: [],
       headerImage: null,
       ...(collection === "recipes" ? { ingredients: [], preparationMinutes: 0 } : {}),
@@ -59,3 +59,19 @@ export const documentPath = (collection: Collection, document: DocumentRecord) =
   `/${collection}/${encodeURIComponent(String(document.frontmatter.slug))}`;
 export const indexPaths = (collection: Collection) =>
   collection === "posts" ? ["/"] : ["/recipes"];
+
+/** The example chooses title-based slugs; the editor remains schema agnostic. */
+export function titleSlug(title: unknown): string {
+  const slug = String(title ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug === "new" ? "new-document" : slug || "draft";
+}
+export function deriveSlug(current: Record<string, unknown>, previous: Record<string, unknown>) {
+  if (current.title === previous.title || current.slug !== previous.slug) return {};
+  if (previous.slug !== titleSlug(previous.title)) return {};
+  return { slug: titleSlug(current.title) };
+}

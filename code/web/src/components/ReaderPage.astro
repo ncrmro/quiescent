@@ -9,6 +9,7 @@ import { writingApp } from "../writing/app";
 import { type Collection, documentPath, type ExampleMetadata } from "../writing/collections";
 import EditLink from "./EditLink.astro";
 import PlainImage from "./PlainImage.astro";
+import SiteNav from "./SiteNav.astro";
 
 interface Props {
   collection: Collection;
@@ -50,6 +51,7 @@ const images = post ? imageSets.get(post.document.id)! : {};
     <title>{post?.document.frontmatter.title ?? "Stories"}</title>
   </head>
   <body class="reader-page">
+    <SiteNav collection={collection} />
     <main>
       {post ? (
   <>
@@ -94,13 +96,6 @@ const images = post ? imageSets.get(post.document.id)! : {};
 ) : (
   <>
     <h1>{collection === "posts" ? "Stories" : "Recipes"}</h1>
-    <nav>
-      <a href="/">Stories</a>
-      <a href="/recipes">Recipes</a>
-      <a href={`/${collection}/new`} data-new-document={collection}>
-        New {collection === "posts" ? "post" : "recipe"}
-      </a>
-    </nav>
     {posts.map(({ document }, index) => (
       <article>
         <h2>

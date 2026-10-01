@@ -1,4 +1,6 @@
 ---
+import SiteNav from "./SiteNav.astro";
+
 interface Props {
   documentId?: string;
   collection?: "posts" | "recipes";
@@ -14,18 +16,12 @@ const { documentId, collection = "posts" } = Astro.props;
     <title>Write · Quiescent</title>
   </head>
   <body class="writing-page">
-    <header>
-      <a href="/write">Quiescent</a><span>A place for your stories</span
-      ><a href={`/${collection}/new`} data-new-document={collection}
-        >New {collection === "posts" ? "post" : "recipe"}</a
-      ><a href="/" target="_blank">Read stories ↗</a
-      ><button type="button" id="sign-out">Sign out</button>
-    </header>
+    <SiteNav editing collection={collection} />
     <div id="writing" data-document-id={documentId} data-collection={collection}></div>
     <script>
     import { localDrafts } from "@quiescent/editor/local-drafts";
     import { mountDocumentApp } from "@quiescent/editor/writing";
-    import { documentPath, initialDocument } from "../writing/collections";
+    import { deriveSlug, documentPath, initialDocument } from "../writing/collections";
     import { wireNewLinks } from "../writing/navigation";
 
     wireNewLinks();
@@ -40,6 +36,7 @@ const { documentId, collection = "posts" } = Astro.props;
       const initialId = root.dataset.documentId ?? resumed?.document.id;
       mountDocumentApp(root, {
         navigation: false,
+        deriveMetadata: deriveSlug,
         startNew: !initialId,
         apiBase: `/api/documents/${collection}`,
         initialDocument: () => initialDocument(collection),
@@ -60,11 +57,6 @@ const { documentId, collection = "posts" } = Astro.props;
           window.location.assign("/write");
         },
       });
-      document.getElementById("sign-out")?.addEventListener("click", async () => {
-        if (!window.confirm("Sign out? Wait for your writing to show Saved first.")) return;
-        const response = await fetch("/api/auth/logout", { method: "POST" });
-        if (response.ok) window.location.assign("/login");
-      });
     }
     </script>
     <style is:global>
@@ -80,23 +72,6 @@ const { documentId, collection = "posts" } = Astro.props;
         font:
           16px / 1.6 system-ui,
           sans-serif;
-      }
-      header {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 2rem;
-        align-items: center;
-        padding: 1.5rem 3rem;
-        border-bottom: 1px solid #ddd;
-      }
-      header a:first-child {
-        font:
-          700 1.5rem Georgia,
-          serif;
-      }
-      header span {
-        flex: 1;
-        color: #69736b;
       }
       a {
         color: #315c4c;
@@ -244,13 +219,6 @@ const { documentId, collection = "posts" } = Astro.props;
         padding-left: 1rem;
       }
       @media (max-width: 700px) {
-        header {
-          padding: 1rem;
-          gap: 1rem;
-        }
-        header span {
-          display: none;
-        }
         .writing-app {
           grid-template-columns: 1fr;
           padding: 1rem;
