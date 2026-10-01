@@ -94,6 +94,15 @@ body.writing-page {
     background: var(--page);
     border-bottom: 1px solid var(--border);
   }
+  [data-formatting-slot] {
+    display: contents;
+  }
+  .finish-writing {
+    display: none;
+  }
+  [data-editor-notice] {
+    display: none;
+  }
   .editor-header > a {
     text-decoration: none;
     font-size: 0.875rem;

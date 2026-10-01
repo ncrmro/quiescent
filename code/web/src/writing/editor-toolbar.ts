@@ -1,12 +1,13 @@
+import { mobileToolbar } from "./mobile-toolbar";
+
 /** A single row of common actions. Extra commands stay in a native popover. */
 export function editorToolbar(toolbar: HTMLElement) {
-  const primary = ["add-image", "bold", "italic", "link", "bullets"];
+  const primary = ["add-image", "bold", "italic", "link"];
   const labels: Record<string, string> = {
     "add-image": "+",
     bold: "B",
     italic: "I",
     link: "Link",
-    bullets: "List",
   };
   const commands = Array.from(toolbar.querySelectorAll<HTMLButtonElement>("[data-command]"));
   const more = document.createElement("button");
@@ -33,18 +34,23 @@ export function editorToolbar(toolbar: HTMLElement) {
   }
   toolbar.appendChild(more);
   toolbar.appendChild(menu);
+  const disposeMobile = mobileToolbar(toolbar, menu);
   // The browser visual viewport follows the on-screen keyboard and browser chrome.
   const viewport = window.visualViewport;
+  const shell = document.getElementById("editor-shell")!;
   const position = () => {
     const inset = viewport
       ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
       : 0;
     toolbar.style.setProperty("--keyboard-inset", `${inset}px`);
+    shell.style.setProperty("--viewport-top", `${viewport?.offsetTop ?? 0}px`);
   };
   viewport?.addEventListener("resize", position);
   viewport?.addEventListener("scroll", position);
   position();
   return () => {
+    disposeMobile();
+    shell.style.removeProperty("--viewport-top");
     viewport?.removeEventListener("resize", position);
     viewport?.removeEventListener("scroll", position);
   };

@@ -127,7 +127,22 @@ for (const collection of ["posts", "recipes"] as const) {
         .getByLabel("Ingredients", { exact: true })
         .fill(JSON.stringify([{ name: "Tomato", quantity: "2" }]));
     await page.getByRole("button", { name: "Done", exact: true }).click();
+    const headerBefore = await page.locator(".editor-header").boundingBox();
+    const bodyBefore = await page.getByRole("textbox", { name: "Document body" }).boundingBox();
     await page.getByRole("textbox", { name: "Document body" }).fill("We walked beside the river.");
+    if (collection === "recipes") {
+      await expect(page.getByRole("button", { name: "Finish writing", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+      expect((await page.locator(".editor-header").boundingBox())!.height).toBe(48);
+      expect((await page.locator(".editor-header").boundingBox())!.height).toBe(
+        headerBefore!.height,
+      );
+      expect((await page.getByRole("textbox", { name: "Document body" }).boundingBox())!.y).toBe(
+        bodyBefore!.y,
+      );
+      const toolbar = (await page.locator(".writing-toolbar").boundingBox())!;
+      expect(toolbar.y + toolbar.height).toBeLessThanOrEqual(48);
+    }
     await page.getByRole("textbox", { name: "Document body" }).press("ControlOrMeta+a");
     await page.getByRole("button", { name: "Bold", exact: true }).click();
     await expect(page.locator(".tiptap strong")).toHaveText("We walked beside the river.");
@@ -136,6 +151,13 @@ for (const collection of ["posts", "recipes"] as const) {
     await expect(page.getByRole("button", { name: "Numbered list", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Remove image", exact: true })).toHaveCount(0);
     await page.keyboard.press("Escape");
+    if (collection === "recipes") {
+      await page.getByRole("button", { name: "Finish writing", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Bold", exact: true })).toHaveCount(0);
+      await page.getByLabel("Title", { exact: true }).focus();
+      await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
+    }
     await page.waitForTimeout(1000);
     expect(await service.listDocuments()).toEqual([]);
     await page.reload();

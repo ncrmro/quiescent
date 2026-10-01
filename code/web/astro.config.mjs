@@ -7,6 +7,7 @@ import { defineConfig, memoryCache } from "astro/config";
 
 const selfHosted = process.env.WRITING_RUNTIME === "node";
 export default defineConfig({
+  devToolbar: { enabled: !process.env.E2E_PORT },
   session: false,
   image: {
     endpoint: { route: "/_image", entrypoint: "./src/writing/image-endpoint.ts" },

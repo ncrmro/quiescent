@@ -182,3 +182,9 @@ at 172px (previously 975px) in a 390×844 viewport and verify 320px/short-viewpo
 layouts. A disposable Cloudflare post completed first save, confirmed publication,
 and deletion through the UI; its reader returned 404 after cleanup. Worker version:
 `65918197-1fbe-472b-aeec-ce83ce642b9e`.
+
+On mobile, document actions and body formatting share a single 48px top bar.
+Body focus shows finish-writing, image, bold, italic, link, and more formatting;
+finishing restores document actions. Title and metadata keep document controls.
+The save status becomes an accessible compact indicator while typing, with full
+notices visible when attention is needed. Desktop retains its formatting toolbar.

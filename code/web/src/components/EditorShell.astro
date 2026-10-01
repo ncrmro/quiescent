@@ -10,17 +10,20 @@ const label = collection === "posts" ? "Post" : "Recipe";
 
 <section id="editor-shell" aria-label="Document editor">
   <header class="editor-header">
-    <a href="/write" aria-label="Back to documents">‹ Documents</a>
+    <a data-document-control href="/write" aria-label="Back to documents">‹ Documents</a>
     <div data-save-status></div>
-    <button type="button" data-primary disabled>Save</button>
+    <button type="button" data-primary data-document-control disabled>Save</button>
     <button
       type="button"
+      data-document-control
       data-open="editor-menu"
       aria-label="Editor options"
       aria-haspopup="dialog"
     >
       ⋯
     </button>
+    <div data-formatting-slot></div>
+    <p data-editor-notice aria-hidden="true" hidden></p>
   </header>
   <div data-editor-content>
     <div data-title-slot></div>

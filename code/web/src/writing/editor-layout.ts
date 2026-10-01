@@ -103,6 +103,26 @@ export function editorLayout(root: HTMLElement) {
 
 export function editorStatus(root: HTMLElement, message: string) {
   const busy = message === "Saving…" || message === "Publishing…";
+  const routine =
+    busy ||
+    ["Saved", "Published", "Unsaved changes", "Uploading image…", "Image uploaded."].includes(
+      message,
+    ) ||
+    message.startsWith("Saved on this device");
+  const notice = root.querySelector<HTMLElement>("[data-editor-notice]");
+  if (notice) {
+    notice.hidden = routine;
+    notice.textContent = message;
+  }
+  const status = root.querySelector<HTMLElement>("[data-save-status]");
+  if (status) {
+    status.dataset.state = !routine
+      ? "notice"
+      : busy || message === "Unsaved changes" || message === "Uploading image…"
+        ? "busy"
+        : "saved";
+    status.title = message;
+  }
   const primary = root.querySelector<HTMLButtonElement>("[data-primary]");
   if (primary) primary.disabled = busy;
   if (root.querySelector("[data-link] a")) {
