@@ -133,7 +133,7 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
       files.push({
         path: `${directory}/.gitattributes`,
         content:
-          "*.[pP][nN][gG] filter=lfs diff=lfs merge=lfs -text\n*.[jJ][pP][gG] filter=lfs diff=lfs merge=lfs -text\n*.[jJ][pP][eE][gG] filter=lfs diff=lfs merge=lfs -text\n*.[wW][eE][bB][pP] filter=lfs diff=lfs merge=lfs -text\n",
+          "*.[pP][nN][gG] filter=lfs diff=lfs merge=lfs -text\n*.[jJ][pP][gG] filter=lfs diff=lfs merge=lfs -text\n*.[jJ][pP][eE][gG] filter=lfs diff=lfs merge=lfs -text\n*.[wW][eE][bB][pP] filter=lfs diff=lfs merge=lfs -text\n*.[gG][iI][fF] filter=lfs diff=lfs merge=lfs -text\n",
       });
     for (const entry of await entries(previous.directory, ref)) {
       const remove = previous.directory !== directory;

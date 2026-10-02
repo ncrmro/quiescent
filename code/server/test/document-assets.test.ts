@@ -148,3 +148,42 @@ test("failed LFS upload leaves the draft revision and Markdown untouched", async
   expect(commits.size).toBe(count);
   expect(branches.get(draft.branch!)).toBe(draft.headSha);
 });
+
+test("renaming preserves and hydrates an original no longer referenced by the document", async () => {
+  const { service, media, commits, delivered } = setup();
+  const draft = await service.createDocument({
+    frontmatter: { title: "Original", slug: "original", headerImage: null },
+    body: "",
+  });
+  await media.restore(
+    draft.document.id,
+    "archive.gif",
+    new TextEncoder().encode("GIF89a").buffer,
+    "image/gif",
+  );
+  const saved = await service.saveDraft({
+    ...selection(draft),
+    document: {
+      ...draft.document,
+      frontmatter: { ...draft.document.frontmatter, headerImage: "archive.gif" },
+    },
+  });
+  const old = await service.location(saved.document.id, saved.headSha);
+  const pointer = commits.get(saved.headSha)!.files[`${old.directory}/archive.gif`];
+  delivered.clear();
+  const renamed = await service.saveDraft({
+    ...selection(saved),
+    document: {
+      ...saved.document,
+      frontmatter: { ...saved.document.frontmatter, slug: "renamed", headerImage: null },
+    },
+  });
+  const current = await service.location(renamed.document.id, renamed.headSha);
+  const files = commits.get(renamed.headSha)!.files;
+  expect(files[`${current.directory}/archive.gif`]).toBe(pointer);
+  expect(files[`${old.directory}/archive.gif`]).toBeUndefined();
+  expect(files[`${current.directory}/.gitattributes`]).toContain("*.[gG][iI][fF] filter=lfs");
+  expect(delivered.size).toBe(1);
+  await service.publish(selection(renamed));
+  expect(await service.readMedia(renamed.document.id, "archive.gif")).toBeNull();
+});

@@ -3,7 +3,9 @@ import { uploadedFilename } from "./content/assets.ts";
 import type { ConfirmedUpload, UploadTicket } from "./contracts.ts";
 
 export const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
-const TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+/** Existing Git LFS originals may exceed the browser upload limit. */
+export const MAX_STORED_IMAGE_SIZE = 32 * 1024 * 1024;
+const TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,159}$/;
 export interface MediaObject {
   body: ReadableStream<Uint8Array>;
@@ -48,9 +50,9 @@ function key(documentId: string, assetId: string, staging = false) {
   if (!ID.test(documentId) || !ID.test(assetId)) throw new MediaError("Invalid image reference");
   return `${staging ? "uploads" : "images"}/${documentId}/${assetId}`;
 }
-function metadata(contentType: string, size: number) {
-  if (!TYPES.has(contentType) || !Number.isSafeInteger(size) || size < 1 || size > MAX_IMAGE_SIZE)
-    throw new MediaError("Choose a JPEG, PNG, or WebP image up to 10 MB.");
+function metadata(contentType: string, size: number, limit = MAX_IMAGE_SIZE) {
+  if (!TYPES.has(contentType) || !Number.isSafeInteger(size) || size < 1 || size > limit)
+    throw new MediaError(`Choose a JPEG, PNG, WebP, or GIF image up to ${limit / 1024 / 1024} MB.`);
 }
 async function bounded(body: ReadableStream<Uint8Array>): Promise<ArrayBuffer> {
   const reader = body.getReader();
@@ -78,16 +80,18 @@ async function bounded(body: ReadableStream<Uint8Array>): Promise<ArrayBuffer> {
   }
   return bytes.buffer;
 }
-function validateBytes(bytes: ArrayBuffer, type: string) {
-  metadata(type, bytes.byteLength);
+function validateBytes(bytes: ArrayBuffer, type: string, limit = MAX_IMAGE_SIZE) {
+  metadata(type, bytes.byteLength, limit);
   const b = new Uint8Array(bytes);
   const ok =
-    type === "image/jpeg"
-      ? b[0] === 255 && b[1] === 216 && b[2] === 255
-      : type === "image/png"
-        ? [137, 80, 78, 71, 13, 10, 26, 10].every((v, i) => b[i] === v)
-        : new TextDecoder().decode(b.slice(0, 4)) === "RIFF" &&
-          new TextDecoder().decode(b.slice(8, 12)) === "WEBP";
+    type === "image/gif"
+      ? ["GIF87a", "GIF89a"].includes(new TextDecoder().decode(b.slice(0, 6)))
+      : type === "image/jpeg"
+        ? b[0] === 255 && b[1] === 216 && b[2] === 255
+        : type === "image/png"
+          ? [137, 80, 78, 71, 13, 10, 26, 10].every((v, i) => b[i] === v)
+          : new TextDecoder().decode(b.slice(0, 4)) === "RIFF" &&
+            new TextDecoder().decode(b.slice(8, 12)) === "WEBP";
   if (!ok) throw new MediaError("The file does not match its image type.");
 }
 async function digest(bytes: ArrayBuffer) {
@@ -121,7 +125,7 @@ function createMedia(
       return { src: name };
     },
     async restore(documentId, assetId, bytes, type) {
-      validateBytes(bytes, type);
+      validateBytes(bytes, type, MAX_STORED_IMAGE_SIZE);
       await store.put(key(documentId, assetId), bytes, type);
     },
     read(documentId, assetId) {
@@ -132,7 +136,7 @@ function createMedia(
       if (!object)
         throw new MediaError("An image is missing. Upload it again before publishing.", 409);
       await object.body.cancel();
-      metadata(object.contentType, object.size);
+      metadata(object.contentType, object.size, MAX_STORED_IMAGE_SIZE);
     },
   };
 }
@@ -143,7 +147,7 @@ export function localR2Media(bucket: MediaBucket, apiBase = "/api/documents"): M
       const o = await bucket.get(k);
       if (!o) return null;
       const type = o.httpMetadata?.contentType ?? "";
-      metadata(type, o.size);
+      metadata(type, o.size, k.startsWith("uploads/") ? MAX_IMAGE_SIZE : MAX_STORED_IMAGE_SIZE);
       return { body: new Response(await o.arrayBuffer()).body!, size: o.size, contentType: type };
     },
     async put(k, b, t) {

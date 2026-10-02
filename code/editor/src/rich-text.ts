@@ -84,7 +84,7 @@ export function createWritingEditor(options: WritingEditorOptions) {
   add("Redo", () => editor.chain().focus().redo().run());
   const file = document.createElement("input");
   file.type = "file";
-  file.accept = "image/jpeg,image/png,image/webp";
+  file.accept = "image/jpeg,image/png,image/webp,image/gif";
   file.hidden = true;
   toolbar.append(file);
   const uploads = new Set<Promise<void>>();
@@ -114,10 +114,10 @@ export function createWritingEditor(options: WritingEditorOptions) {
       return;
     }
     if (
-      !["image/jpeg", "image/png", "image/webp"].includes(chosen.type) ||
+      !["image/jpeg", "image/png", "image/webp", "image/gif"].includes(chosen.type) ||
       chosen.size > 10 * 1024 * 1024
     ) {
-      options.onStatus?.("Choose a JPEG, PNG, or WebP image up to 10 MB.");
+      options.onStatus?.("Choose a JPEG, PNG, WebP, or GIF image up to 10 MB.");
       file.value = "";
       return;
     }

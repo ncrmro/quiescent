@@ -118,3 +118,31 @@ describe("image storage", () => {
     expect(new Uint8Array(await requests[1]!.arrayBuffer())).toEqual(png);
   });
 });
+
+// Imported originals retain their bytes; the larger restore allowance is not an upload bypass.
+test("GIF originals restore losslessly above the upload limit", async () => {
+  const { storage } = bucket();
+  const media = localR2Media(storage);
+  const bytes = new Uint8Array(MAX_IMAGE_SIZE + 1);
+  bytes.set(new TextEncoder().encode("GIF89a"));
+  await media.restore("post", "animation.gif", bytes.buffer, "image/gif");
+  await media.verify("post", "animation.gif");
+  expect(
+    new Uint8Array(
+      await new Response((await media.read("post", "animation.gif"))!.body).arrayBuffer(),
+    ),
+  ).toEqual(bytes);
+  await expect(media.prepare("post", "image/gif", bytes.length)).rejects.toMatchObject({
+    status: 400,
+  });
+  await expect(media.restore("post", "spoof.gif", png.buffer, "image/gif")).rejects.toMatchObject({
+    status: 400,
+  });
+  const ticket = await media.prepare("post", "image/gif", 6);
+  await media.uploadLocal!(
+    "post",
+    ticket.assetId,
+    upload(new TextEncoder().encode("GIF87a"), "image/gif"),
+  );
+  expect((await media.confirm("post", ticket.assetId, "animation.gif")).src).toMatch(/\.gif$/);
+});

@@ -38,7 +38,7 @@ export function imageFields(options: {
     remove.textContent = `Remove ${label}`;
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "image/jpeg,image/png,image/webp";
+    input.accept = "image/jpeg,image/png,image/webp,image/gif";
     input.hidden = true;
     const image = document.createElement("img");
     image.alt = `${field} preview`;

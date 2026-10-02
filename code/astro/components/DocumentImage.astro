@@ -30,7 +30,9 @@ const {
 } = Astro.props;
 ---
 
-{source ? (
+{source?.format === "gif" ? (
+  <img src={source.src} width={source.width} height={source.height} alt={alt} title={title} class={className} loading={priority ? "eager" : "lazy"} />
+) : source ? (
   <Image
     src={source}
     alt={alt}

@@ -27,7 +27,20 @@ export function createDocumentMedia<T extends Frontmatter>(options: {
   return {
     async prepare(document: DocumentRecord<T>, context: { directory: string; ref: string }) {
       const result: Record<string, string> = {};
-      for (const name of new Set(options.references(document))) {
+      // Retain every original, even if it is currently absent from the body/header.
+      // Folder renames must move those pointers instead of deleting the archive.
+      const entries = await forge
+        .listDir(context.directory, context.ref)
+        .catch((error: unknown) => {
+          if (error && typeof error === "object" && "status" in error && error.status === 404)
+            return [];
+          throw error;
+        });
+      const names = new Set([
+        ...entries.map((entry) => entry.name).filter(isAssetFilename),
+        ...options.references(document),
+      ]);
+      for (const name of names) {
         if (!isAssetFilename(name))
           throw new MediaError("Images must use a filename within this document.");
         const existing = await forge.getFile(`${context.directory}/${name}`, context.ref);
