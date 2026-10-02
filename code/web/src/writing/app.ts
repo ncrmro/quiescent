@@ -1,16 +1,21 @@
 import { hostedMedia } from "quiescent:runtime";
 import { createForge, createLfsClient, requirePublishingForge } from "@quiescent/git";
 import {
+  configuredCollection,
   createDocumentService,
   DocumentError,
+  defineDocumentConfig,
   localR2Media,
   type MediaStorage,
   r2Media,
   WritingConfigurationError,
 } from "@quiescent/server";
 import { markdownImages } from "@quiescent/server/content";
-import { type Collection, collectionSchema, type ExampleMetadata } from "./collections";
+import configuration from "../../quiescent.config.json" with { type: "json" };
+import type { Collection, ExampleMetadata } from "./collections";
 import type { WritingEnv } from "./config";
+
+const documentConfig = defineDocumentConfig(configuration);
 
 export { writingAuthor } from "./auth";
 export type { WritingEnv } from "./config";
@@ -42,13 +47,13 @@ function configuredMedia(env: WritingEnv): MediaStorage {
 export function writingApp(env: WritingEnv, collection: Collection = "posts") {
   if (!env.SERVICE_TOKEN)
     throw new WritingConfigurationError("Set SERVICE_TOKEN to connect the writing repository.");
-  if (!env.WRITING_REPO_OWNER || !env.WRITING_REPO_NAME)
-    throw new WritingConfigurationError("Writing repository is not configured.");
+  const owner = env.WRITING_REPO_OWNER ?? documentConfig.repository.owner;
+  const repo = env.WRITING_REPO_NAME ?? documentConfig.repository.name;
   const forge = requirePublishingForge(
     createForge({
-      kind: "github",
-      owner: env.WRITING_REPO_OWNER,
-      repo: env.WRITING_REPO_NAME,
+      kind: documentConfig.repository.provider,
+      owner,
+      repo,
       token: env.SERVICE_TOKEN,
     }),
   );
@@ -63,12 +68,7 @@ export function writingApp(env: WritingEnv, collection: Collection = "posts") {
     },
   };
   const service = createDocumentService<ExampleMetadata>({
-    collection,
-    schema: collectionSchema(collection),
-    filename: (document) =>
-      collection === "posts"
-        ? `${document.createdAt}-${document.frontmatter.slug}`
-        : document.frontmatter.slug,
+    ...configuredCollection<ExampleMetadata>(documentConfig, collection),
     references: (document) => [
       ...markdownImages(document.body),
       ...(document.frontmatter.headerImage ? [document.frontmatter.headerImage] : []),
@@ -88,8 +88,8 @@ export function writingApp(env: WritingEnv, collection: Collection = "posts") {
     forge,
     media,
     lfs: createLfsClient({
-      endpoint: `https://github.com/${env.WRITING_REPO_OWNER}/${env.WRITING_REPO_NAME}.git/info/lfs`,
-      authorization: `Basic ${btoa(`${env.WRITING_REPO_OWNER}:${env.SERVICE_TOKEN}`)}`,
+      endpoint: `https://github.com/${owner}/${repo}.git/info/lfs`,
+      authorization: `Basic ${btoa(`${owner}:${env.SERVICE_TOKEN}`)}`,
     }),
     author: {
       name: env.WRITING_AUTHOR_NAME ?? "Example writer",

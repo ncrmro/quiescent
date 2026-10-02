@@ -7,6 +7,12 @@ request. Image filenames resolve within each document; Git LFS keeps the durable
 bytes while R2 or local files serve them. Posts demonstrate the workflow with title, slug, tags, header image,
 and a formatted body editor.
 
+Define repository settings, collection directories, naming templates, and inline
+metadata schemas in [`quiescent.config.json`](code/web/quiescent.config.json).
+The example uses that file for both its editor schemas and document storage.
+See [declarative configuration](docs/document-store.md#declarative-configuration)
+for defaults and code overrides.
+
 Start with [the writing example](docs/writing-prototype.md) or the
 [document API](docs/document-store.md). The same Astro example runs on self-hosted
 Node and Cloudflare Workers. It needs a GitHub repository token and image storage;

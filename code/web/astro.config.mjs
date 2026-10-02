@@ -3,7 +3,12 @@ import { fileURLToPath } from "node:url";
 import cloudflare from "@astrojs/cloudflare";
 import { cacheCloudflare } from "@astrojs/cloudflare/cache";
 import node from "@astrojs/node";
+import { defineDocumentConfig } from "@quiescent/server/documents";
 import { defineConfig, memoryCache } from "astro/config";
+import configuration from "./quiescent.config.json" with { type: "json" };
+
+// Fail the build before shipping an invalid document configuration.
+defineDocumentConfig(configuration);
 
 const selfHosted = process.env.WRITING_RUNTIME === "node";
 export default defineConfig({

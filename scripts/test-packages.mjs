@@ -35,12 +35,14 @@ for (const name of packages) {
 }
 writeFileSync(
   join(directory, "check.ts"),
-  `import { createDocumentStore, type DocumentRecord } from '@quiescent/server/documents';
+  `import { createDocumentStore, defineDocumentConfig, configuredCollection, type DocumentRecord } from '@quiescent/server/documents';
 import { astroDocuments } from '@quiescent/astro';
 import { mountDocumentApp } from '@quiescent/editor';
 import { documentImages } from '@quiescent/astro/images';
 import { createForge } from '@quiescent/git';
 const name = (document: DocumentRecord) => document.createdAt + '-' + document.id;
+const config = defineDocumentConfig({repository:{provider:"github",owner:"writer",name:"content"},collections:{posts:{schema:true}}});
+console.log(configuredCollection(config, "posts"));
 console.log(createDocumentStore, astroDocuments, mountDocumentApp, documentImages, createForge, name);
 `,
 );
@@ -64,7 +66,7 @@ execFileSync(
   [
     "--input-type=module",
     "-e",
-    "import { documentCodec } from '@quiescent/server/documents'; const c=documentCodec(true); if(c.parse(c.stringify({frontmatter:{name:'Recipe'},body:'Mix'})).body!=='Mix') throw Error('roundtrip');",
+    "import schema from '@quiescent/server/config.schema.json' with {type:'json'}; if(schema.title!=='Quiescent configuration') throw Error('missing config schema'); import { documentCodec } from '@quiescent/server/documents'; const c=documentCodec(true); if(c.parse(c.stringify({frontmatter:{name:'Recipe'},body:'Mix'})).body!=='Mix') throw Error('roundtrip');",
   ],
   { cwd: directory, stdio: "inherit" },
 );

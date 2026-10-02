@@ -7,6 +7,7 @@ import {
 } from "./document-codec.ts";
 import { DocumentError } from "./document-error.ts";
 import { type DocumentAssets, documentLayout } from "./document-layout.ts";
+import { draftBranches } from "./document-naming.ts";
 
 export type { DocumentInput, Frontmatter, JSONSchema } from "./document-codec.ts";
 export { DocumentError } from "./document-error.ts";
@@ -30,6 +31,8 @@ export interface DocumentStoreOptions<T extends Frontmatter> {
   collection: string;
   schema: JSONSchema;
   defaultBranch?: string;
+  directory?: string;
+  draftBranch?: string;
   filename?: (document: DocumentRecord<T>) => string;
   assets?: DocumentAssets<T>;
   beforePublish?: (document: DocumentRecord<T>) => void | Promise<void>;
@@ -55,14 +58,13 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(collection))
     throw new DocumentError("Invalid collection name", "invalid");
   const codec = documentCodec<T>(options.schema);
-  const prefix = `quiescent/${collection}/`;
+  const branches = draftBranches(collection, options.draftBranch);
   const layout = documentLayout(options);
   const path = layout.checkId;
   const read = layout.read;
   function checkBranch(id: string, branch: string) {
     path(id);
-    if (!branch.startsWith(`${prefix}${id}/`) || !uuid.test(branch.slice(`${prefix}${id}/`.length)))
-      throw new DocumentError("Invalid draft", "invalid");
+    if (branches.id(branch) !== id) throw new DocumentError("Invalid draft", "invalid");
   }
   function checked(input: DocumentInput<T>): DocumentInput<T> {
     const value = codec.validate(input);
@@ -107,7 +109,8 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     );
   }
   async function loadActiveDraft(name: string, sha: string, mainSha: string) {
-    const documentId = name.slice(prefix.length).split("/")[0]!;
+    const documentId = branches.id(name);
+    if (!documentId) return null;
     try {
       checkBranch(documentId, name);
     } catch {
@@ -127,12 +130,15 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
   }
   async function activeDrafts(id?: string): Promise<DocumentDraft<T>[]> {
     const mainSha = await forge.getBranchSha(main);
-    const branches = await forge.listBranches(id ? `${prefix}${id}/` : prefix);
+    const candidates = (await forge.listBranches(branches.listPrefix(id))).filter((branch) => {
+      const documentId = branches.id(branch.name);
+      return documentId && (!id || documentId === id);
+    });
     const result: DocumentDraft<T>[] = [];
     // Limit GitHub concurrency while avoiding one network waterfall per historical branch.
-    for (let offset = 0; offset < branches.length; offset += 6) {
+    for (let offset = 0; offset < candidates.length; offset += 6) {
       const batch = await Promise.all(
-        branches
+        candidates
           .slice(offset, offset + 6)
           .map(({ name, sha }) => loadActiveDraft(name, sha, mainSha)),
       );
@@ -146,7 +152,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     cycle: string = crypto.randomUUID(),
   ): Promise<DocumentDraft<T>> {
     const sha = await forge.getBranchSha(main);
-    const branch = `${prefix}${document.id}/${cycle}`;
+    const branch = branches.name(document.id, cycle);
     const files = await layout.changes(document, sha);
     await forge.createBranch(branch, sha);
     const result = await forge.commitFiles({
@@ -191,7 +197,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
     const cycle = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
-    const branch = `${prefix}${published.document.id}/${cycle}`;
+    const branch = branches.name(published.document.id, cycle);
     await ensureBranch(branch, published.headSha);
     const head = await forge.getBranchSha(branch);
     const current = await read(published.document.id, head);

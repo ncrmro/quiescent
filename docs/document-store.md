@@ -6,6 +6,85 @@ Metadata and body are saved in one commit. The canonical API input is
 `publishedAt`. `createdAt` is a required calendar-date string (`YYYY-MM-DD`), assigned
 from UTC at creation and retained thereafter. Publication time remains a timestamp.
 
+## Declarative configuration
+
+Start with `quiescent.config.json`. Each collection contains its own inline JSON
+Schema; the same schema validates saves and supplies the example editor fields.
+The complete example is [`code/web/quiescent.config.json`](../code/web/quiescent.config.json).
+
+```json
+{
+  "$schema": "./node_modules/@quiescent/server/dist/config.schema.json",
+  "repository": {
+    "provider": "github",
+    "owner": "writer",
+    "name": "content",
+    "publishedBranch": "main"
+  },
+  "collections": {
+    "posts": {
+      "directory": "content/posts",
+      "filename": "{createdAt}-{slug}",
+      "draftBranch": "quiescent/{collection}/{id}/{cycle}",
+      "schema": {
+        "type": "object",
+        "required": ["title", "slug"],
+        "properties": {
+          "title": { "type": "string" },
+          "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}
+```
+
+```ts
+import configuration from './quiescent.config.json';
+import { defineDocumentConfig, configuredCollection, createDocumentStore } from '@quiescent/server/documents';
+
+const config = defineDocumentConfig(configuration);
+const documents = createDocumentStore({
+  ...configuredCollection(config, 'posts'),
+  forge,
+  author,
+});
+```
+
+`defineDocumentConfig` validates configuration keys, directories and naming templates.
+The application supplies the authenticated forge using `config.repository`; tokens
+never belong in this file. JSON imports bundle the data into Node and Worker builds
+without runtime filesystem access. The Astro example also validates configuration
+in `astro.config.mjs`, so invalid configuration fails the build.
+
+- Collection identity is separate from its directory. Nested repository-relative
+  directories such as `content/posts` are supported; overlapping collection directories
+  and traversal paths are rejected. The default directory is the collection name.
+- `filename` names the document folder, with `index.md` inside. Its default is `{id}`.
+  Templates accept `{id}`, `{createdAt}` (YYYY-MM-DD), and string metadata fields such
+  as `{slug}`. Missing values, unsafe rendered basenames and collisions reject saves.
+- `draftBranch` defaults to `quiescent/{collection}/{id}/{cycle}`. Custom templates
+  must contain `{id}` and `{cycle}` exactly once; `{collection}` is also available.
+  Branches use immutable identity, so changing a slug does not change an active branch.
+- `publishedBranch` defaults to `main`. Browser routes remain an application choice.
+- Schemas are inline JSON Schema; local `$defs`/`$ref` work within each schema. Loading
+  external schema files or URLs is not part of this configuration API.
+- Code can override the resolved options, including the existing `filename(document)`
+  callback. Media adapters, asset-reference extraction and lifecycle hooks remain code.
+
+The example retains `posts/` and `recipes/` so existing content stays readable. Its
+repository owner/name can be overridden by `WRITING_REPO_OWNER`/`WRITING_REPO_NAME`
+for isolated previews; otherwise the JSON values apply. Post schemas, recipe schemas,
+folder naming and branch naming all come from JSON. Slug derivation, initial empty
+editor values, rendering and publication rules remain example UI/application code.
+
+Changing a collection directory or draft branch template on an existing repository
+requires migrating existing paths/branches; it does not automatically relocate them.
+Changing a filename template moves each document folder on its next save.
+
+## Programmatic configuration
+
 ```ts
 import { createDocumentStore } from '@quiescent/server/documents';
 

@@ -29,7 +29,8 @@
     "./contracts": {
       "types": "./dist/contracts.d.ts",
       "default": "./dist/contracts.js"
-    }
+    },
+    "./config.schema.json": "./dist/config.schema.json"
   },
   "types": "./dist/index.d.ts",
   "files": [

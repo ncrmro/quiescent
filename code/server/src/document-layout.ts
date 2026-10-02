@@ -3,6 +3,7 @@ import { isAssetFilename } from "./content/assets.ts";
 import type { DocumentRecord, StoredDocument } from "./contracts.ts";
 import { documentCodec, type Frontmatter, type JSONSchema } from "./document-codec.ts";
 import { DocumentError } from "./document-error.ts";
+import { documentDirectory } from "./document-naming.ts";
 
 export interface DocumentAssets<T extends Frontmatter> {
   prepare(
@@ -13,6 +14,7 @@ export interface DocumentAssets<T extends Frontmatter> {
 export interface LayoutOptions<T extends Frontmatter> {
   forge: PublishingForge;
   collection: string;
+  directory?: string;
   schema: JSONSchema;
   /** Storage basename, independent of browser routes. Defaults to the document UUID. */
   filename?: (document: DocumentRecord<T>) => string;
@@ -21,7 +23,8 @@ export interface LayoutOptions<T extends Frontmatter> {
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const segment = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,219}$/;
 export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>) {
-  const { forge, collection } = options;
+  const { forge } = options;
+  const collection = documentDirectory(options.directory ?? options.collection);
   const codec = documentCodec<T>(options.schema);
   const raw = documentCodec(true);
   function checkId(id: string) {
