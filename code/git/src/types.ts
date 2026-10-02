@@ -100,6 +100,8 @@ export interface ForgeClient {
 
 /** Optional publishing capability; adapters must implement this explicitly. */
 export interface PublishingForge extends ForgeClient {
+  /** Read text files at immutable commits in input order; null denotes an absent file. */
+  getFiles?(files: Array<{ path: string; ref: string }>): Promise<Array<FileContent | null>>;
   listBranches(prefix: string): Promise<Array<{ name: string; sha: string }>>;
   /** Complete file scope, including rename sources. Rejects potentially truncated results. */
   compareCommits(baseSha: string, headSha: string): Promise<CommitComparison>;

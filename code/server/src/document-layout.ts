@@ -54,7 +54,10 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
   async function location(id: string, ref: string) {
     const file = await forge.getFile(statePath(id), ref);
     if (!file) return { directory: oldDirectory(id), state: {} as Record<string, string> };
-    const state = parseState(file.content);
+    return parseLocation(file.content);
+  }
+  function parseLocation(content: string) {
+    const state = parseState(content);
     const name = state.directory?.slice(collection.length + 1);
     if (!state.directory?.startsWith(`${collection}/`) || !name || !segment.test(name))
       throw new DocumentError("Invalid document location", "invalid");
@@ -74,17 +77,56 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
     const content = codec.validate({ frontmatter: frontmatter as T, body: value.body });
     return { ...content, id, createdAt };
   }
+  async function readMany(
+    requests: Array<{ id: string; ref: string }>,
+    authoritativeRef?: string,
+  ): Promise<Array<StoredDocument<T> | null>> {
+    const getFiles = (files: Array<{ path: string; ref: string }>) =>
+      forge.getFiles
+        ? forge.getFiles(files)
+        : Promise.all(files.map(({ path, ref }) => forge.getFile(path, ref)));
+    const states = await getFiles(requests.map(({ id, ref }) => ({ path: statePath(id), ref })));
+    const locations = states.map((file) => (file ? parseLocation(file.content) : null));
+    // Main's tombstones exclude every revision before Markdown schema validation.
+    const deleted = new Set(
+      requests.flatMap(({ id, ref }, i) =>
+        ref === authoritativeRef && locations[i]?.state.deletedAt ? [id] : [],
+      ),
+    );
+    for (let i = 0; i < requests.length; i++) {
+      if (deleted.has(requests[i]!.id)) locations[i] = null;
+    }
+
+    const present = requests.flatMap(({ ref }, i) =>
+      locations[i] ? [{ path: `${locations[i]!.directory}/index.md`, ref }] : [],
+    );
+    const files = await getFiles(present);
+    let index = 0;
+    return requests.map(({ id }, i) => {
+      const location = locations[i];
+      if (!location) return null;
+      const file = files[index++];
+      if (!file) return null;
+      const workflow = location.state;
+      return {
+        ...decode(file.content, id),
+        ...(workflow.publishedAt ? { publishedAt: workflow.publishedAt } : {}),
+        ...(workflow.publicationSource ? { publicationSource: workflow.publicationSource } : {}),
+        ...(workflow.deletedAt ? { deletedAt: workflow.deletedAt } : {}),
+      };
+    });
+  }
   async function read(id: string, ref: string): Promise<StoredDocument<T> | null> {
+    // Single-document lifecycle operations retain the adapter's direct read path.
     const { directory, state } = await location(id, ref);
+    if (!state.directory) return null;
     const file = await forge.getFile(`${directory}/index.md`, ref);
-    if (!file || !state.directory) return null;
-    const workflow = state;
-    const document = decode(file.content, id);
+    if (!file) return null;
     return {
-      ...document,
-      ...(workflow.publishedAt ? { publishedAt: workflow.publishedAt } : {}),
-      ...(workflow.publicationSource ? { publicationSource: workflow.publicationSource } : {}),
-      ...(workflow.deletedAt ? { deletedAt: workflow.deletedAt } : {}),
+      ...decode(file.content, id),
+      ...(state.publishedAt ? { publishedAt: state.publishedAt } : {}),
+      ...(state.publicationSource ? { publicationSource: state.publicationSource } : {}),
+      ...(state.deletedAt ? { deletedAt: state.deletedAt } : {}),
     };
   }
   async function entries(path: string, ref: string) {
@@ -167,5 +209,5 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
         "invalid",
       );
   }
-  return { read, changes, ids, location, assertScope, assertDestination, checkId };
+  return { read, readMany, changes, ids, location, assertScope, assertDestination, checkId };
 }

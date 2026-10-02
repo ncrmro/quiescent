@@ -22,7 +22,7 @@ export function createDocumentService<T extends Frontmatter>(
     references: options.references,
     media: options.media,
     async readMedia(id: string, filename: string, branch?: string) {
-      const draft = branch ? await store.getDraft(id, branch) : await store.getPublished(id);
+      const draft = branch ? await store.readDraft(id, branch) : await store.getPublished(id);
       if (!draft || !options.references(draft.document).includes(filename)) return null;
       const context = await store.location(id, draft.headSha);
       return assets.read(id, filename, { ...context, ref: draft.headSha });

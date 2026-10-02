@@ -28,6 +28,8 @@ export class GitHubForge implements PublishingForge {
   readonly kind = "github" as const;
   private readonly http: HttpClient;
   private readonly repoPath: string;
+  private readonly owner: string;
+  private readonly repository: string;
 
   constructor(config: ForgeConfig) {
     this.http = createHttpClient({
@@ -39,6 +41,8 @@ export class GitHubForge implements PublishingForge {
       },
       ...(config.fetch ? { fetch: config.fetch } : {}),
     });
+    this.owner = config.owner;
+    this.repository = config.repo;
     this.repoPath = `/repos/${config.owner}/${config.repo}`;
   }
 
@@ -91,6 +95,63 @@ export class GitHubForge implements PublishingForge {
       throw new ForgeError(`${path} is not a file`, 422, path);
     }
     return { path: entry.path, sha: entry.sha, content: decodeBase64(entry.content) };
+  }
+
+  async getFiles(files: Array<{ path: string; ref: string }>): Promise<Array<FileContent | null>> {
+    if (files.some(({ ref }) => !/^[a-f0-9]{40}$/i.test(ref)))
+      throw new ForgeError("Batch reads require immutable commit SHAs", 422, this.repoPath);
+    const result: Array<FileContent | null> = [];
+    // At most three 30-object requests at once, with input ordering preserved.
+    for (let offset = 0; offset < files.length; offset += 90) {
+      const chunks = [0, 30, 60]
+        .map((start) => files.slice(offset + start, offset + start + 30))
+        .filter((chunk) => chunk.length);
+      result.push(...(await Promise.all(chunks.map((chunk) => this.readBatch(chunk)))).flat());
+    }
+    return result;
+  }
+  private async readBatch(
+    batch: Array<{ path: string; ref: string }>,
+  ): Promise<Array<FileContent | null>> {
+    const fields = batch
+      .map(
+        (_, i) =>
+          `f${i}: object(expression: $e${i}) { __typename ... on Blob { oid text isTruncated } }`,
+      )
+      .join("\n");
+    const variables = Object.fromEntries(
+      batch.map((file, i) => [`e${i}`, `${file.ref}:${file.path}`]),
+    );
+    const response = await this.http.json<{
+      errors?: unknown[];
+      data?: {
+        repository: Record<
+          string,
+          { __typename: string; oid: string; text: string | null; isTruncated: boolean } | null
+        > | null;
+      };
+    }>("/graphql", {
+      method: "POST",
+      body: JSON.stringify({
+        query: `query($owner: String!, $repo: String!, ${batch.map((_, i) => `$e${i}: String!`).join(", ")}) { repository(owner: $owner, name: $repo) { ${fields} } }`,
+        variables: { owner: this.owner, repo: this.repository, ...variables },
+      }),
+    });
+    if (response.errors?.length || !response.data?.repository)
+      throw new ForgeError("GitHub batch read failed", 502, this.repoPath);
+    return Promise.all(
+      batch.map(async (file, i) => {
+        const blob = response.data!.repository![`f${i}`];
+        if (blob === undefined)
+          throw new ForgeError("Incomplete GitHub batch response", 502, this.repoPath);
+        if (!blob) return null;
+        if (blob.__typename !== "Blob")
+          throw new ForgeError(`${file.path} is not a file`, 422, file.path);
+        return blob.isTruncated || blob.text === null
+          ? this.getFile(file.path, file.ref)
+          : { path: file.path, sha: blob.oid, content: blob.text };
+      }),
+    );
   }
 
   /** Contents can lag a newly written commit. Keep reads pinned to that exact Git object. */

@@ -187,3 +187,34 @@ test("renaming preserves and hydrates an original no longer referenced by the do
   await service.publish(selection(renamed));
   expect(await service.readMedia(renamed.document.id, "archive.gif")).toBeNull();
 });
+
+test("private media GET serves staged uploads without creating branches and rejects retired drafts", async () => {
+  const { createDocumentHandler } = await import("../src/document-http.ts");
+  const { service, media, commits, branches } = setup();
+  const draft = await service.createDocument({
+    frontmatter: { title: "Garden", slug: "garden", headerImage: null },
+    body: "",
+  });
+  await media.restore(draft.document.id, "garden.png", png, "image/png");
+  const handler = createDocumentHandler({
+    store: service,
+    media,
+    readMedia: service.readMedia,
+    authorize: () => true,
+  });
+  const url = `https://test/api/documents/${draft.document.id}/media/garden.png`;
+  const count = commits.size;
+  expect((await handler(new Request(url))).status).toBe(200);
+  expect(commits.size).toBe(count);
+  const published = await service.publish(selection(draft));
+  const after = commits.size;
+  const branchCount = branches.size;
+  expect((await handler(new Request(url))).status).toBe(200);
+  expect(
+    (await handler(new Request(`${url}?branch=${encodeURIComponent(draft.branch!)}`))).status,
+  ).toBe(404);
+  expect(await service.readMedia(draft.document.id, "garden.png", draft.branch!)).toBeNull();
+  expect(commits.size).toBe(after);
+  expect(branches.size).toBe(branchCount);
+  expect(published.state).toBe("published");
+});

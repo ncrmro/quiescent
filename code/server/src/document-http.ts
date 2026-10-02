@@ -38,6 +38,10 @@ export function createDocumentHandler<T extends Frontmatter>(options: DocumentHa
       await options.afterPublication?.(result.document, true, result.previous);
     },
   });
+  async function selectMedia(id: string, branch?: string) {
+    const draft = await store.readDraft(id, branch);
+    return draft ?? (!branch ? await store.getPublished(id) : null);
+  }
   async function readRoute(request: Request, parts: string[]) {
     const [id, action, ...rest] = parts;
     if (id && action === "published" && !rest.length && request.method === "GET") {
@@ -51,7 +55,9 @@ export function createDocumentHandler<T extends Frontmatter>(options: DocumentHa
       request.method === "GET" &&
       options.media
     ) {
-      await store.getDraft(id, new URL(request.url).searchParams.get("branch") ?? undefined);
+      const branch = new URL(request.url).searchParams.get("branch") ?? undefined;
+      const selected = await selectMedia(id, branch);
+      if (!selected) return json({ error: "Not found" }, 404);
       return mediaResponse(
         (await options.readMedia?.(
           id,

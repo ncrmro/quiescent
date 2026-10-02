@@ -91,18 +91,16 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
   async function listPublished(): Promise<DocumentDraft<T>[]> {
     const headSha = await forge.getBranchSha(main);
     const ids = await layout.ids(headSha);
-    const documents = await Promise.all(
-      ids.map(async (id) => {
-        const document = await read(id, headSha);
-        return document?.publishedAt && !document.deletedAt
+    const documents = (await layout.readMany(ids.map((id) => ({ id, ref: headSha })))).map(
+      (document) =>
+        document?.publishedAt && !document.deletedAt
           ? {
               document: publicDocument(document),
               branch: null,
               headSha,
               state: "published" as const,
             }
-          : null;
-      }),
+          : null,
     );
     return documents.filter(
       (p): p is DocumentDraft<T> & { state: "published"; branch: null } => p !== null,
@@ -414,10 +412,73 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
       deleted: true as const,
     };
   }
+  /** Select an existing live draft only. Unlike getDraft this never starts an editing cycle. */
+  async function readDraft(id: string, branch?: string): Promise<DocumentDraft<T> | null> {
+    path(id);
+    if (!branch) return (await activeDrafts(id))[0] ?? null;
+    checkBranch(id, branch);
+    const mainSha = await forge.getBranchSha(main);
+    let headSha: string;
+    try {
+      headSha = await forge.getBranchSha(branch);
+    } catch (error) {
+      if (error && typeof error === "object" && "status" in error && error.status === 404)
+        return null;
+      throw error;
+    }
+    return loadActiveDraft(branch, headSha, mainSha);
+  }
   async function listDocuments(): Promise<DocumentDraft<T>[]> {
-    const [drafts, published] = await Promise.all([activeDrafts(), listPublished()]);
-    const ids = new Set(drafts.map((d) => d.document.id));
-    return [...drafts, ...published.filter((p) => !ids.has(p.document.id))];
+    const [mainSha, branchesAtHead] = await Promise.all([
+      forge.getBranchSha(main),
+      forge.listBranches(branches.listPrefix()),
+    ]);
+    const candidates: Array<{ name: string; sha: string }> = [];
+    const valid = branchesAtHead.filter(({ name }) => branches.id(name));
+    // Retained merged branches may have an obsolete schema: filter before decoding them.
+    for (let offset = 0; offset < valid.length; offset += 6) {
+      const batch = valid.slice(offset, offset + 6);
+      const merged = await Promise.all(batch.map(({ sha }) => forge.isAncestor(sha, mainSha)));
+      candidates.push(...batch.filter((_, i) => !merged[i]));
+    }
+    const mainIds = await layout.ids(mainSha);
+    const ids = [...new Set([...mainIds, ...candidates.map(({ name }) => branches.id(name)!)])];
+    const records = await layout.readMany(
+      [
+        ...ids.map((id) => ({ id, ref: mainSha })),
+        ...candidates.map(({ name, sha }) => ({ id: branches.id(name)!, ref: sha })),
+      ],
+      mainSha,
+    );
+    const mainRecords = new Map(ids.map((id, i) => [id, records[i]]));
+    const drafts: DocumentDraft<T>[] = candidates.flatMap(({ name, sha }, i) => {
+      const document = records[ids.length + i];
+      return document && !document.deletedAt
+        ? [
+            {
+              document: publicDocument(document),
+              branch: name,
+              headSha: sha,
+              state: document.publishedAt ? ("unpublished-changes" as const) : ("draft" as const),
+            },
+          ]
+        : [];
+    });
+    const draftIds = new Set(drafts.map((draft) => draft.document.id));
+    const published = ids.flatMap((id) => {
+      const document = mainRecords.get(id);
+      return document?.publishedAt && !document.deletedAt && !draftIds.has(id)
+        ? [
+            {
+              document: publicDocument(document),
+              branch: null,
+              headSha: mainSha,
+              state: "published" as const,
+            },
+          ]
+        : [];
+    });
+    return [...drafts, ...published];
   }
   return {
     collection,
@@ -425,6 +486,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     schema: options.schema,
     createDocument,
     getDraft,
+    readDraft,
     saveDraft,
     publish,
     deleteDocument,
