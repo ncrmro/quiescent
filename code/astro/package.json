@@ -1,6 +1,6 @@
 {
   "name": "@quiescent/astro",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "description": "Astro route helpers, page caching, and publication warming for Quiescent",
   "license": "MIT",
@@ -27,7 +27,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@quiescent/server": "^0.2.0"
+    "@quiescent/server": "^0.3.0"
   },
   "peerDependencies": {
     "astro": "^7.3.5"
