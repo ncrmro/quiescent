@@ -1,3 +1,4 @@
+import type { EditorPhase } from "./host.ts";
 import type { createMetadataForm } from "./metadata.ts";
 export function imageFields(options: {
   parent: HTMLElement;
@@ -8,7 +9,7 @@ export function imageFields(options: {
   upload: (id: string, file: File) => Promise<string>;
   mediaUrl: (src: string) => string;
   changed: () => void;
-  status: (text: string) => void;
+  status: (text: string, phase?: EditorPhase) => void;
 }) {
   let pending: Promise<void> | undefined;
   const images = new Map<string, HTMLImageElement>();
@@ -61,7 +62,7 @@ export function imageFields(options: {
       const id = options.activeId();
       const file = input.files?.[0];
       if (!id || !file || !options.enabled() || pending) return;
-      options.status("Uploading image…");
+      options.status("Uploading image…", "uploading");
       pending = options
         .upload(id, file)
         .then((src) => {
@@ -70,7 +71,7 @@ export function imageFields(options: {
           show();
         })
         .catch((error: Error) => {
-          options.status(`Image upload failed: ${error.message}`);
+          options.status(`Image upload failed: ${error.message}`, "notice");
           throw error;
         })
         .finally(() => {

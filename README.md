@@ -17,7 +17,9 @@ Start with [the writing example](docs/writing-prototype.md) or the
 [document API](docs/document-store.md). The same Astro example runs on self-hosted
 Node and Cloudflare Workers. It needs a GitHub repository token and image storage;
 Cloudflare uses D1 for a disposable document cache. Node uses a persistent local SQLite
-file through the same schema and queries. Git and LFS remain authoritative; no auth database or deferred
+file through the same schema and queries. The Node example installs the optional
+`@libsql/client` peer explicitly; Worker-only hosts do not need it. Scalar indexes
+are installed during setup, not on reads. Git and LFS remain authoritative; no auth database or deferred
 Git writes are involved. See [document caching](docs/document-cache.md).
 
 ## Packages
@@ -31,12 +33,17 @@ Git writes are involved. See [document caching](docs/document-cache.md).
 | `@quiescent/wiki` | Independent read-only wiki rendering, search, tags, graph; not part of the writing example |
 | `@quiescent/web` | Private reference app: presentation, fixed example password, runtime configuration |
 
+`@quiescent/git` provides GitHub document publication and LFS. Its Gitea, Forgejo,
+and Codeberg adapters provide low-level file/ref operations only;
+`requirePublishingForge` rejects them for document publication. Repository user,
+permission, fork, and pull-request helpers are not part of this API.
+
 Server code does not depend on the editor or Astro. Browser-safe document codecs
 are exported from `@quiescent/server/content`; shared document, draft, upload,
 and response types come from `@quiescent/server/contracts`. Posts and arbitrary
 collections use one store and one CRUD dispatcher.
 
-Public pages read only `main`. Astro caches complete HTML for up to one hour, bounded by data freshness. Publish
+Public pages read only the configured publication branch (`main` by default). Astro caches complete HTML for up to one hour, bounded by data freshness. Publish
 and delete invalidate affected pages and warm them before responding. Private
 saves update the editor directly. Node startup and Cloudflare deployment warm
 pages before the example is ready. See the writing guide for provider limits.
@@ -75,6 +82,8 @@ The example has posts and recipes. `createdAt` is date-only (`YYYY-MM-DD`); stor
 names may include it while browser URLs use just the slug. Optional Astro rendering
 components can be replaced or configured independently of storage and publishing.
 Old post APIs and storage formats are removed without a compatibility layer.
+Editor chrome, mobile sheets, tag pickers, and themes remain app-owned. This cleanup
+does not extract a component package or add a shared editor shell.
 
 The independent [wiki package](code/wiki/README.md) and its
 [conventions](docs/conventions.md) remain available.

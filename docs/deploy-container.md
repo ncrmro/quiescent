@@ -12,7 +12,9 @@ R2 on Node as well as Cloudflare. Direct browser uploads require exact-origin
 bucket CORS. Keep the bucket private.
 
 Install and retain the production dependencies alongside the Node build, including
-`sharp`, `@quiescent/server`, and their platform-specific optional binaries.
+`sharp`, `@quiescent/server`, and `@libsql/client`, plus their platform-specific
+optional binaries. The SQLite client is an optional server peer; this Node app
+installs it explicitly.
 The SQLite cache subpath stays external so its packaged SQL schema remains available. Astro uses Sharp for runtime
 responsive WebP images; it is intentionally external to the JavaScript bundle.
 
@@ -26,6 +28,8 @@ No external database service, OAuth service, cron flush, or KV draft storage is
 required. The example creates `.writing-cache.sqlite` locally; set
 `WRITING_CACHE_URL=file:/data/documents.sqlite` to place it on a persistent volume.
 The cache is disposable and uses the same schema and query implementation as D1.
+The Node runtime passes configured scalar indexes to `sqliteDocumentCache` at
+initialization. Schema/index setup runs once; normal reads perform no DDL.
 See [document caching](document-cache.md).
 
 See [the complete workflow and validation commands](writing-prototype.md).

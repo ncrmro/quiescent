@@ -106,7 +106,7 @@ export function documentCacheView(scope: string, collection: string, view: "publ
 export function cacheScope(key: string): {
   scope: string;
   collection: string;
-  view: "published" | "drafts" | "all";
+  view: "published" | "drafts";
 } {
   try {
     const parts: unknown = JSON.parse(key);
@@ -120,7 +120,7 @@ export function cacheScope(key: string): {
     )
       return { scope: parts[1], collection: parts[2], view: parts[3] };
   } catch {
-    /* Opaque legacy test keys select all versions. */
+    // Invalid JSON is not a cache view descriptor.
   }
-  return { scope: key, collection: "", view: "all" };
+  throw new DocumentError("Document cache requires a documentCacheView descriptor", "invalid");
 }

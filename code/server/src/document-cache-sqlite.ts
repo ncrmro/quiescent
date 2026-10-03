@@ -4,17 +4,20 @@ import {
   type DocumentCacheDatabase,
   type DocumentCacheQuery,
   type DocumentCacheStatement,
+  documentCacheIndexStatements,
   sqlDocumentCache,
 } from "./document-cache-sql.ts";
 /** Persistent local adapter; import this subpath only in Node/self-hosted runtimes. */
-export function sqliteDocumentCache(options: { url: string }) {
+export function sqliteDocumentCache(options: { url: string; indexes?: string[] }) {
   if (!options.url.startsWith("file:"))
     throw new Error("Local document cache requires a file: SQLite URL");
   const client = createClient({ url: options.url });
   let initialized: Promise<void> | undefined;
   function ready() {
     initialized ??= client.executeMultiple(
-      readFileSync(new URL("./documents-cache.schema.sql", import.meta.url), "utf8"),
+      readFileSync(new URL("./documents-cache.schema.sql", import.meta.url), "utf8") +
+        "\n" +
+        documentCacheIndexStatements(options.indexes ?? []).join("\n"),
     );
     return initialized;
   }

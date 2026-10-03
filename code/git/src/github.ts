@@ -5,14 +5,10 @@ import type {
   CommitComparison,
   CommitFilesOptions,
   CommitResult,
-  CreatePullRequestOptions,
   FileContent,
   ForgeConfig,
-  ForgeUser,
   PublishingForge,
-  PullRequest,
   RepoEntry,
-  RepoPermissions,
 } from "./types.ts";
 
 interface GitHubContentsEntry {
@@ -44,33 +40,6 @@ export class GitHubForge implements PublishingForge {
     this.owner = config.owner;
     this.repository = config.repo;
     this.repoPath = `/repos/${config.owner}/${config.repo}`;
-  }
-
-  async getUser(): Promise<ForgeUser> {
-    const user = await this.http.json<{
-      id: number;
-      login: string;
-      name?: string;
-      email?: string;
-      avatar_url?: string;
-    }>("/user");
-    return {
-      id: user.id,
-      login: user.login,
-      ...(user.name ? { name: user.name } : {}),
-      ...(user.email ? { email: user.email } : {}),
-      ...(user.avatar_url ? { avatarUrl: user.avatar_url } : {}),
-    };
-  }
-
-  async getRepoPermissions(): Promise<RepoPermissions> {
-    const repo = await this.http.json<{
-      permissions?: { push?: boolean; admin?: boolean };
-    }>(this.repoPath);
-    return {
-      push: repo.permissions?.push ?? false,
-      admin: repo.permissions?.admin ?? false,
-    };
   }
 
   async getFile(path: string, ref?: string): Promise<FileContent | null> {
@@ -432,30 +401,6 @@ export class GitHubForge implements PublishingForge {
       method: "POST",
       body: JSON.stringify({ ref: `refs/heads/${name}`, sha: fromSha }),
     });
-  }
-
-  async createPullRequest(options: CreatePullRequestOptions): Promise<PullRequest> {
-    const pull = await this.http.json<{ number: number; html_url: string }>(
-      `${this.repoPath}/pulls`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          title: options.title,
-          head: options.head,
-          base: options.base,
-          body: options.body ?? "",
-        }),
-      },
-    );
-    return { number: pull.number, url: pull.html_url };
-  }
-
-  async ensureFork(): Promise<{ owner: string; repo: string }> {
-    const fork = await this.http.json<{ name: string; owner: { login: string } }>(
-      `${this.repoPath}/forks`,
-      { method: "POST", body: JSON.stringify({}) },
-    );
-    return { owner: fork.owner.login, repo: fork.name };
   }
 }
 

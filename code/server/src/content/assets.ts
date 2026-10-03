@@ -32,12 +32,31 @@ export function uploadedFilename(name: string, type: string, oid: string) {
           : "jpg";
   return `${base}-${oid.slice(0, 12)}.${extension}`;
 }
+export interface DocumentMediaUrlInput {
+  documentId: string;
+  filename: string;
+  branch?: string;
+  revision?: string;
+}
+export type DocumentMediaUrlResolver = (input: DocumentMediaUrlInput) => string;
 /** Hosts serve this route through their configured delivery adapter; source Markdown stays portable. */
 export function documentMediaUrl(
   id: string,
   src: string,
-  options: { apiBase?: string; branch?: string; revision?: string } = {},
+  options: {
+    apiBase?: string;
+    branch?: string;
+    revision?: string;
+    resolveUrl?: DocumentMediaUrlResolver;
+  } = {},
 ) {
+  if (options.resolveUrl)
+    return options.resolveUrl({
+      documentId: id,
+      filename: src,
+      ...(options.branch ? { branch: options.branch } : {}),
+      ...(options.revision ? { revision: options.revision } : {}),
+    });
   const base = options.apiBase ?? "";
   const path = `/media/${encodeURIComponent(id)}/${encodeURIComponent(src)}`;
   const query = new URLSearchParams();

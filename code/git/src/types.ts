@@ -11,19 +11,6 @@ export interface ForgeConfig {
   fetch?: typeof fetch;
 }
 
-export interface ForgeUser {
-  id: number;
-  login: string;
-  name?: string;
-  email?: string;
-  avatarUrl?: string;
-}
-
-export interface RepoPermissions {
-  push: boolean;
-  admin: boolean;
-}
-
 export interface RepoEntry {
   path: string;
   name: string;
@@ -71,31 +58,14 @@ export interface CommitResult {
   url?: string;
 }
 
-export interface CreatePullRequestOptions {
-  /** Branch name; for cross-repo PRs on GitHub use "owner:branch". */
-  head: string;
-  base: string;
-  title: string;
-  body?: string;
-}
-
-export interface PullRequest {
-  number: number;
-  url: string;
-}
-
+/** File/ref operations. Only PublishingForge supports the document lifecycle. */
 export interface ForgeClient {
   readonly kind: ForgeKind;
-  getUser(): Promise<ForgeUser>;
-  getRepoPermissions(): Promise<RepoPermissions>;
   getFile(path: string, ref?: string): Promise<FileContent | null>;
   listDir(path?: string, ref?: string): Promise<RepoEntry[]>;
   getBranchSha(branch: string): Promise<string>;
   commitFiles(options: CommitFilesOptions): Promise<CommitResult>;
   createBranch(name: string, fromSha: string): Promise<void>;
-  createPullRequest(options: CreatePullRequestOptions): Promise<PullRequest>;
-  /** Fork the repo for contributors without push access. Returns the fork's owner/repo. */
-  ensureFork(): Promise<{ owner: string; repo: string }>;
 }
 
 /** Optional publishing capability; adapters must implement this explicitly. */

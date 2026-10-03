@@ -1,5 +1,6 @@
 import type { DocumentDraft } from "./contracts.ts";
 import { cacheScope, type DocumentQuery } from "./document-cache-query.ts";
+import { compactDocumentCache } from "./document-cache-scope.ts";
 import {
   type DocumentCacheChange,
   type DocumentCacheStorage,
@@ -65,7 +66,7 @@ function rowDocument(row: Row): DocumentDraft {
 function selection(key: string) {
   const { scope, collection, view } = cacheScope(key);
   return {
-    clause: `scope = ? AND collection = ?${view === "all" ? "" : view === "published" ? " AND branch = ''" : " AND branch <> ''"}`,
+    clause: `scope = ? AND collection = ?${view === "published" ? " AND branch = ''" : " AND branch <> ''"}`,
     values: [scope, collection],
   };
 }
@@ -131,31 +132,27 @@ function valuesFor(key: string, document: DocumentDraft, now: number) {
     now,
   ];
 }
-const ensuredIndexes = new WeakMap<DocumentCacheDatabase, Map<string, Promise<void>>>();
 /** Rows share one physical table; freshness and writer fences are isolated by view. */
-export function sqlDocumentCache(database: DocumentCacheDatabase): DocumentCacheStorage {
+function createSqlDocumentCache(database: DocumentCacheDatabase): DocumentCacheStorage {
   const sql = (query: string, ...values: unknown[]) => database.prepare(query).bind(...values);
   const ensure = (key: string) => sql(`INSERT OR IGNORE INTO ${table}(cache_key) VALUES (?)`, key);
   const guard = `EXISTS (SELECT 1 FROM ${table} WHERE cache_key = ? AND lease = ? AND pending = 0)`;
   function removeProjected(key: string, revision: number, change: DocumentCacheChange) {
     const scope = selection(key);
-    const view = cacheScope(key).view;
     const check = `EXISTS (SELECT 1 FROM ${table} WHERE cache_key = ? AND revision = ?)`;
     const removeAll = !change.document && !change.retireBranch;
     return sql(
-      `DELETE FROM ${rows} WHERE ${scope.clause} AND document_id = ? AND (? = 1 OR branch = ? OR branch = ? OR (branch = '' AND ? = 1)) AND ${check}`,
+      `DELETE FROM ${rows} WHERE ${scope.clause} AND document_id = ? AND (? = 1 OR branch = ? OR branch = ?) AND ${check}`,
       ...scope.values,
       change.id,
       Number(removeAll),
       change.document?.branch ?? "",
       change.retireBranch ?? "",
-      Number(view === "all"),
       key,
       revision,
     );
   }
   function insertProjected(key: string, revision: number, document: DocumentDraft, now: number) {
-    const scope = selection(key);
     const view = cacheScope(key).view;
     if (
       (view === "published" && document.branch !== null) ||
@@ -163,16 +160,11 @@ export function sqlDocumentCache(database: DocumentCacheDatabase): DocumentCache
     )
       throw new Error("Document cache visibility mismatch");
     const check = `EXISTS (SELECT 1 FROM ${table} WHERE cache_key = ? AND revision = ?)`;
-    const hide =
-      view === "all" && document.branch === null
-        ? ` AND NOT EXISTS (SELECT 1 FROM ${rows} WHERE ${scope.clause} AND document_id = ?)`
-        : "";
     return sql(
-      `INSERT INTO ${rows}(${columns}) SELECT ${Array(12).fill("?").join(",")} WHERE ${check}${hide}`,
+      `INSERT INTO ${rows}(${columns}) SELECT ${Array(12).fill("?").join(",")} WHERE ${check}`,
       ...valuesFor(key, document, now),
       key,
       revision,
-      ...(hide ? [...scope.values, document.document.id] : []),
     );
   }
   function projection(
@@ -187,31 +179,6 @@ export function sqlDocumentCache(database: DocumentCacheDatabase): DocumentCache
     return changes;
   }
   return {
-    async ensureIndexes(indexes) {
-      let pending = ensuredIndexes.get(database);
-      if (!pending) {
-        pending = new Map();
-        ensuredIndexes.set(database, pending);
-      }
-      for (const field of indexes) {
-        let work = pending.get(field);
-        if (!work) {
-          work = sql(
-            `CREATE INDEX IF NOT EXISTS quiescent_scalar_${field} ON ${rows}(scope, collection, ${expression(field)}, branch)`,
-          )
-            .run()
-            .then(() => undefined);
-          if (pending.size >= 128) pending.delete(pending.keys().next().value!);
-          pending.set(field, work);
-        }
-        try {
-          await work;
-        } catch (error) {
-          pending.delete(field);
-          throw error;
-        }
-      }
-    },
     async read(key, query = {}) {
       const scope = selection(key);
       const filter = querySQL(query);
@@ -335,4 +302,19 @@ export function sqlDocumentCache(database: DocumentCacheDatabase): DocumentCache
       ]);
     },
   };
+}
+
+/** Run during database setup, never during document reads. */
+export function documentCacheIndexStatements(indexes: string[]): string[] {
+  const builtin = new Set(["id", "slug", "createdAt", "publishedAt"]);
+  return [...new Set(indexes)]
+    .filter((field) => !builtin.has(field))
+    .map((field) => {
+      const column = expression(field);
+      return `CREATE INDEX IF NOT EXISTS quiescent_scalar_${field} ON ${rows}(scope, collection, ${column}, branch);`;
+    });
+}
+
+export function sqlDocumentCache(database: DocumentCacheDatabase): DocumentCacheStorage {
+  return compactDocumentCache(createSqlDocumentCache(database));
 }

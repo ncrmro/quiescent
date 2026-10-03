@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { memoryDocumentCache } from "../../server/src/document-cache.ts";
+import { sqliteDocumentCache } from "../../server/src/document-cache-sqlite.ts";
 import { createDocumentHandler } from "../../server/src/document-http.ts";
 import { createDocumentService } from "../../server/src/document-service.ts";
 import { localR2Media } from "../../server/src/media.ts";
@@ -8,6 +8,8 @@ import { type Collection, collectionSchema } from "../src/writing/collections.ts
 
 async function mockDocuments(page: Page, collection: Collection) {
   const backend = fixture();
+  const storage = sqliteDocumentCache({ url: "file::memory:" });
+  page.on("close", () => storage.close());
   const media = localR2Media({
     get: async () => null,
     put: async () => {
@@ -15,7 +17,7 @@ async function mockDocuments(page: Page, collection: Collection) {
     },
   });
   const service = createDocumentService({
-    cache: { storage: memoryDocumentCache(), key: collection },
+    cache: { storage, key: collection },
     media,
     references: () => [],
     lfs: {
@@ -202,7 +204,7 @@ for (const collection of ["posts", "recipes"] as const) {
       .click();
     await page.getByLabel("Tags", { exact: true }).fill("unfinished");
     await page.waitForTimeout(1000);
-    expect((await service.getDraft(saved.document.id)).document.frontmatter.tags).toEqual([
+    expect((await service.openDocument(saved.document.id)).document.frontmatter.tags).toEqual([
       "weekend",
       "family",
     ]);
@@ -237,7 +239,7 @@ for (const collection of ["posts", "recipes"] as const) {
     await page.getByRole("button", { name: "Editor options", exact: true }).click();
     await page.getByRole("button", { name: "Save now", exact: true }).click();
     await expect(page.getByLabel("Slug", { exact: true })).toHaveAttribute("aria-invalid", "true");
-    expect((await service.getDraft(saved.document.id)).headSha).toBe(head);
+    expect((await service.openDocument(saved.document.id)).headSha).toBe(head);
     await page.getByLabel("Slug", { exact: true }).fill("quiet-afternoon");
     await page.getByRole("button", { name: "Done", exact: true }).click();
     await page.getByRole("button", { name: "Editor options", exact: true }).click();

@@ -1,4 +1,8 @@
-import { fromMarkdown, renderDocument, toMarkdown } from "@quiescent/server/content";
+import type { EditorHost, EditorPhase, EditorState } from "./host.ts";
+
+export type { EditorHost, EditorPhase, EditorSlots, EditorState, EditorToolbar } from "./host.ts";
+
+import { fromMarkdown, jsonEqual, renderDocument, toMarkdown } from "@quiescent/server/content";
 import type {
   ConfirmedUpload,
   DocumentDraft,
@@ -18,21 +22,21 @@ import { createWritingEditor } from "./rich-text.ts";
 export { createWritingEditor, type WritingEditorOptions } from "./rich-text.ts";
 export interface DocumentAppOptions {
   /** Arrange the mounted controls before opening a document. Keep them inside root. */
-  layout?: (root: HTMLElement) => undefined | (() => void);
+  layout?: (root: HTMLElement, host: EditorHost) => undefined | (() => void);
   configureToolbar?: import("./rich-text.ts").WritingEditorOptions["configureToolbar"];
-  formatStatus?: (message: string) => string;
+  formatStatus?: (message: string, state: EditorState) => string;
+  onState?: (state: EditorState) => void;
+  mediaUrl?: import("@quiescent/server/content").DocumentMediaUrlResolver;
   deriveMetadata?: (
     current: Record<string, unknown>,
     previous: Record<string, unknown>,
   ) => Record<string, unknown>;
   initialDocumentId?: string;
   startNew?: boolean;
-  navigation?: boolean;
   onLocalDocumentOpen?: (document: DocumentRecord) => void;
   onDocumentOpen?: (document: DocumentRecord) => void;
   initialDocument: () => { frontmatter: Record<string, unknown>; body: string };
   label?: string;
-  displayName?: (document: DocumentRecord) => string;
   imageFields?: string[];
   fieldControls?: Record<string, MetadataControl>;
   documentPath: (document: DocumentRecord) => string;
@@ -44,16 +48,21 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   const api = options.apiBase ?? "/api/documents";
   const local = localDrafts(api);
   const label = options.label ?? "document";
-  const displayName = options.displayName ?? ((value: DocumentRecord) => value.id);
   const fields = options.imageFields ?? [];
-  const mediaUrl = (src: string) =>
-    active
-      ? `${api}/${active.document.id}/media/${encodeURIComponent(src)}${active.branch ? `?branch=${encodeURIComponent(active.branch)}` : ""}`
-      : src;
+  const mediaUrl = (src: string) => {
+    if (!active) return src;
+    return (
+      options.mediaUrl?.({
+        documentId: active.document.id,
+        filename: src,
+        ...(active.branch ? { branch: active.branch } : {}),
+        revision: active.headSha,
+      }) ??
+      `${api}/${active.document.id}/media/${encodeURIComponent(src)}${active.branch ? `?branch=${encodeURIComponent(active.branch)}` : ""}`
+    );
+  };
   let active: Draft | undefined;
   let publishedDocument: { document: DocumentRecord; headSha: string } | undefined;
-  const summaries = new Map<string, DocumentDraft>();
-  let listLoaded = false;
   let editor: ReturnType<typeof createWritingEditor> | undefined;
   let derivationTimer: ReturnType<typeof setTimeout> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -68,20 +77,25 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   let destroyed = false;
   let disposeLayout: undefined | (() => void);
   root.innerHTML =
-    '<div class="writing-app"><aside><button type="button" data-new>New document</button><nav aria-label="Documents"></nav></aside><main><p role="status" aria-live="polite"></p><div data-fields hidden><div data-metadata></div><div data-header-tools></div><div data-editor></div><div class="writing-actions"><button type="button" data-save>Save now</button><button type="button" data-preview>Preview</button><button type="button" data-delete>Delete document</button><button type="button" data-publish>Publish</button></div><section data-preview-area hidden></section><p data-link></p></div></main></div>';
+    '<div class="writing-app"><main><p role="status" aria-live="polite"></p><div data-fields hidden><div data-metadata></div><div data-header-tools></div><div data-editor></div><div class="writing-actions"><button type="button" data-save>Save now</button><button type="button" data-preview>Preview</button><button type="button" data-delete>Delete document</button><button type="button" data-publish>Publish</button></div><section data-preview-area hidden></section><p data-link></p></div></main></div>';
   const q = <T extends HTMLElement>(selector: string) => root.querySelector<T>(selector)!;
-  q("aside").hidden = options.navigation === false;
-  q("[data-new]").textContent = `New ${label}`;
   q("[data-delete]").textContent = `Delete ${label}`;
-  q("nav").setAttribute("aria-label", `${label}s`);
   let markdownMode = false;
   const markdownInput = document.createElement("textarea");
   markdownInput.setAttribute("aria-label", "Markdown body");
   markdownInput.hidden = true;
   q("[data-editor]").after(markdownInput);
   markdownInput.addEventListener("input", () => changed());
-  const status = (message: string) => {
-    q("[role=status]").textContent = options.formatStatus?.(message) ?? message;
+  const status = (message: string, phase: EditorPhase = "notice") => {
+    const state: EditorState = {
+      message,
+      phase,
+      busy: ["saving", "publishing", "uploading"].includes(phase),
+      persisted: Boolean(active && active.branch !== ""),
+      publicationConfirmed: Boolean(publishedDocument && !active),
+    };
+    q("[role=status]").textContent = options.formatStatus?.(message, state) ?? message;
+    options.onState?.(state);
   };
   let metadata: ReturnType<typeof createMetadataForm>;
   let images: ReturnType<typeof imageFields>;
@@ -92,18 +106,12 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     await images?.wait();
     if (publishing || navigating || destroyed) return;
     navigating = true;
-    root.querySelectorAll<HTMLButtonElement>("nav button, [data-new]").forEach((button) => {
-      button.disabled = true;
-    });
     metadata?.disable(true);
     editor?.setEditable(false);
     try {
       await action();
     } finally {
       navigating = false;
-      root.querySelectorAll<HTMLButtonElement>("nav button, [data-new]").forEach((button) => {
-        button.disabled = !listLoaded;
-      });
       metadata?.disable(!active);
       editor?.setEditable(Boolean(active));
     }
@@ -142,7 +150,6 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
         } catch {
           localStorageFailed = true;
         }
-        updateList(active);
         return;
       }
       try {
@@ -192,7 +199,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     const draft = active!;
     const snapshot = structuredClone(draft.document);
     const version = generation;
-    status("Saving…");
+    status("Saving…", "saving");
     saving = (async () => {
       const wasLocal = draft.branch === "";
       const updated = wasLocal
@@ -213,7 +220,6 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       draft.branch = updated.branch;
       draft.headSha = updated.headSha;
       draft.state = updated.state;
-      updateList(updated);
       savedGeneration = version;
       if (generation === version) {
         clearRecovery();
@@ -221,7 +227,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
         metadata.load(updated.document.frontmatter);
         images?.show();
         metadata.errors();
-        status("Saved");
+        status("Saved", "saved");
       } else remember();
     })();
     try {
@@ -236,9 +242,11 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       recoveryNeedsReview
         ? "Recovered writing: choose Save now after reviewing."
         : "Unsaved changes",
+      recoveryNeedsReview ? "notice" : "dirty",
     );
     if (recoveryNeedsReview || draft.branch === "") {
-      if (draft.branch === "") status("Saved on this device — choose Save now to save to GitHub.");
+      if (draft.branch === "")
+        status("Saved on this device — choose Save now to save to GitHub.", "local");
       return false;
     }
     return true;
@@ -290,44 +298,15 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       void flush().catch((e) => status(`Could not save: ${e.message}`));
     }, 800);
   };
-  const renderList = () => {
-    const drafts = [...summaries.values()];
-    const nav = q("nav");
-    nav.replaceChildren();
-    for (const draft of drafts) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.disabled = navigating;
-      button.textContent = `${draft.branch === "" ? "Local · " : ""}${displayName(draft.document) || "Untitled"} — ${{ draft: "Draft", published: "Published", "unpublished-changes": "Unpublished changes" }[draft.state]}`;
-      button.onclick = () => {
-        void navigate(() =>
-          open(draft.document.id, draft.state === "published" ? undefined : draft.branch),
-        ).catch((e) => status(e.message));
-      };
-      nav.append(button);
-    }
-  };
-  const updateList = (draft: DocumentDraft) => {
-    summaries.set(draft.document.id, structuredClone(draft));
-    renderList();
-  };
-  const list = async () => {
-    const drafts = await request<DocumentDraft[]>("");
-    for (const draft of drafts)
-      if (!summaries.has(draft.document.id)) summaries.set(draft.document.id, draft);
-    for (const draft of local.list())
-      if (!summaries.has(draft.document.id)) summaries.set(draft.document.id, draft);
-    listLoaded = true;
-    renderList();
-    q<HTMLButtonElement>("[data-new]").disabled = navigating;
-  };
-  q<HTMLButtonElement>("[data-new]").disabled = true;
   const uploadImage = async (target: string, file: File) => {
     if (!active?.branch) throw new Error("Choose Save now before uploading images.");
-    const upload = await request<UploadTicket>(`/${target}/uploads`, {
-      method: "POST",
-      body: JSON.stringify({ contentType: file.type, size: file.size }),
-    });
+    const upload = await request<UploadTicket>(
+      `/${target}/uploads?branch=${encodeURIComponent(active.branch)}`,
+      {
+        method: "POST",
+        body: JSON.stringify({ contentType: file.type, size: file.size }),
+      },
+    );
     const response = await fetch(upload.url, {
       method: "PUT",
       headers: upload.headers,
@@ -335,10 +314,13 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     });
     if (!response.ok) throw new Error("Upload failed");
     return (
-      await request<ConfirmedUpload>(`/${target}/uploads/${upload.assetId}/confirm`, {
-        method: "POST",
-        body: JSON.stringify({ filename: file.name }),
-      })
+      await request<ConfirmedUpload>(
+        `/${target}/uploads/${upload.assetId}/confirm?branch=${encodeURIComponent(active!.branch!)}`,
+        {
+          method: "POST",
+          body: JSON.stringify({ filename: file.name }),
+        },
+      )
     ).src;
   };
   function restoreRecovery(draft: Draft) {
@@ -352,7 +334,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
           : "an earlier session";
         if (
           !window.confirm(
-            `Restore unsaved metadata and body “${"document"}” from ${when} for review? Nothing will be saved until you choose Save now. Cancel keeps this copy and checks the next one.`,
+            `Restore unsaved metadata and body “${label}” from ${when} for review? Nothing will be saved until you choose Save now. Cancel keeps this copy and checks the next one.`,
           )
         )
           continue;
@@ -401,12 +383,13 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
         : recovery
           ? "Recovered unsaved writing. Review and choose Save now."
           : "Saved",
+      draft.branch === "" ? "local" : recovery ? "notice" : "saved",
     );
   }
   const open = async (id: string, branch?: string | null) => {
     await editor?.waitForUploads();
     await flush();
-    const cached = summaries.get(id) ?? local.list().find((draft) => draft.document.id === id);
+    const cached = local.list().find((draft) => draft.document.id === id);
     const draft =
       cached && cached.branch === ""
         ? (structuredClone(cached) as Draft)
@@ -415,7 +398,6 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     editor?.destroy();
     active = draft;
     publishedDocument = undefined;
-    updateList(draft);
     generation = 0;
     savedGeneration = 0;
     let recovery = false;
@@ -446,11 +428,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       state: "draft",
     };
     local.save(draft.document);
-    updateList(draft);
     await open(draft.document.id, draft.branch);
-  };
-  q("[data-new]").onclick = () => {
-    void navigate(createLocal).catch((e) => status(e.message));
   };
   q("[data-save]").onclick = () => {
     if (publishing || navigating) return;
@@ -469,6 +447,30 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   function unchangedPublished() {
     return active?.branch === null && generation === savedGeneration;
   }
+  async function confirmPublication(
+    id: string,
+    result: MutationResponse<{ document: DocumentRecord; publishedSha: string }>,
+  ) {
+    const published = await request<{ document: DocumentRecord; headSha: string }>(
+      `/${id}/published`,
+    );
+    if (!jsonEqual(published.document, result.document))
+      throw new Error("Publication could not yet be confirmed. Retry safely.");
+    const link = document.createElement("a");
+    link.href = options.documentPath(result.document);
+    link.textContent = "Read document";
+    link.target = "_blank";
+    link.rel = "noopener";
+    if (!result.cacheWarning) {
+      const readerResponse = await fetch(link.href, { cache: "no-store" });
+      if (
+        !readerResponse.ok ||
+        readerResponse.headers.get("X-Quiescent-Revision") !== published.headSha
+      )
+        throw new Error("The reader page has not confirmed this revision yet. Retry safely.");
+    }
+    return { published, link };
+  }
   q("[data-publish]").onclick = () => {
     if (!active || publishing || navigating) return;
     publishing = true;
@@ -478,12 +480,12 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       await editor?.waitForUploads();
       applyDerivation();
       if (unchangedPublished()) {
-        status("Published");
+        status("Published", "published");
         return;
       }
       await flush(true);
       const draft = active!;
-      status("Publishing…");
+      status("Publishing…", "publishing");
       const result = await request<
         MutationResponse<{ document: DocumentRecord; publishedSha: string }>
       >(`/${draft.document.id}/publish`, {
@@ -493,31 +495,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
           expectedHeadSha: draft.headSha,
         }),
       });
-      const published = await request<{ document: DocumentRecord; headSha: string }>(
-        `/${draft.document.id}/published`,
-      );
-      if (JSON.stringify(published.document) !== JSON.stringify(result.document))
-        throw new Error("Publication could not yet be confirmed. Retry safely.");
-      const link = document.createElement("a");
-      link.href = options.documentPath(result.document);
-      link.textContent = "Read document";
-      link.target = "_blank";
-      link.rel = "noopener";
-      if (!result.cacheWarning) {
-        const readerResponse = await fetch(link.href, { cache: "no-store" });
-        if (
-          !readerResponse.ok ||
-          readerResponse.headers.get("X-Quiescent-Revision") !== published.headSha
-        )
-          throw new Error("The reader page has not confirmed this revision yet. Retry safely.");
-      }
-      updateList({
-        ...draft,
-        document: result.document,
-        headSha: published.headSha,
-        state: "published",
-        branch: null,
-      });
+      const { published, link } = await confirmPublication(draft.document.id, result);
       publishedDocument = published;
       active = undefined;
       generation = savedGeneration = 0;
@@ -529,7 +507,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       };
       q("[data-link]").replaceChildren(link, edit);
       options.onDocumentOpen?.(result.document);
-      status(result.cacheWarning ?? "Published");
+      status(result.cacheWarning ?? "Published", result.cacheWarning ? "notice" : "published");
     })()
       .catch((e) => status(`Could not publish: ${e.message}`))
       .finally(() => {
@@ -561,8 +539,6 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       await flush();
       const target = active ?? publishedDocument!;
       const result = await deleteTarget(target);
-      summaries.delete(target.document.id);
-      renderList();
       for (const k of Object.keys(localStorage))
         if (k.startsWith(recoveryPrefix(target.document.id))) localStorage.removeItem(k);
       active = undefined;
@@ -620,11 +596,26 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
         status,
       });
       q("[data-header-tools]").hidden = !fields.length;
-      disposeLayout = options.layout?.(root);
+      disposeLayout = options.layout?.(root, {
+        readDocument: () => (active ? structuredClone(active.document) : undefined),
+        slots: {
+          status: q("[role=status]"),
+          metadata: q("[data-metadata]"),
+          metadataFields: metadata.slots(),
+          cover: q("[data-header-tools]"),
+          body: q("[data-editor]"),
+          markdown: markdownInput,
+          preview: q("[data-preview-area]"),
+          result: q("[data-link]"),
+          save: q("[data-save]") as HTMLButtonElement,
+          delete: q("[data-delete]") as HTMLButtonElement,
+          publish: q("[data-publish]") as HTMLButtonElement,
+          showPreview: q("[data-preview]") as HTMLButtonElement,
+        },
+      });
       if (options.initialDocumentId) await navigate(() => open(options.initialDocumentId!));
       else if (options.startNew) await navigate(createLocal);
-      else status("Choose a document or start writing.");
-      if (options.navigation !== false) await list();
+      else status("Choose a document or start writing.", "idle");
     })
     .catch((error) => status(`Could not load editor: ${error.message}`));
   return {

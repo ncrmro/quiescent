@@ -140,6 +140,7 @@ test("stale document snapshots cannot be retained as fresh HTML", () => {
   });
   pages.set(cache, "one", {
     fetchedAt: Date.now() - 1000,
+    expiresAt: Date.now() + 600000,
     updatedAt: Date.now(),
     stale: true,
     refreshing: true,
@@ -147,9 +148,67 @@ test("stale document snapshots cannot be retained as fresh HTML", () => {
   expect(settings).toEqual([false]);
   pages.set(cache, "one", {
     fetchedAt: Date.now() - 1800000,
+    expiresAt: Date.now() + 600000,
     updatedAt: Date.now(),
     stale: false,
     refreshing: false,
   });
-  expect((settings[1] as { maxAge: number }).maxAge).toBeLessThanOrEqual(1800);
+  expect((settings[1] as { maxAge: number }).maxAge).toBeLessThanOrEqual(600);
+});
+
+test("SQL field ordering does not invalidate unchanged content and readers share revision headers", async () => {
+  const events: string[] = [];
+  const pages = astroDocumentCache<{ id: string; frontmatter: object; body: string }>({
+    collection: "posts",
+    origin: "https://test",
+    documentPath: (d) => `/posts/${d.id}`,
+    fetch: async () => {
+      events.push("warm");
+      return new Response("page");
+    },
+  });
+  const cache: RouteCache = {
+    enabled: true,
+    set() {},
+    async invalidate() {
+      events.push("invalidate");
+    },
+  };
+  await pages.afterRefresh(
+    cache,
+    [{ frontmatter: { title: "Same", tags: ["one", "two"] }, body: "Text", id: "one" }],
+    [{ id: "one", body: "Text", frontmatter: { tags: ["one", "two"], title: "Same" } }],
+  );
+  expect(events).toEqual([]);
+  const headers = new Headers();
+  pages.setReaderHeaders(headers, "immutable-sha");
+  expect(headers.get("X-Quiescent-Revision")).toBe("immutable-sha");
+  expect(headers.get("X-Quiescent-Rendered")).toBeTruthy();
+});
+
+test("expired or failed document snapshots never populate HTML cache", () => {
+  const settings: unknown[] = [];
+  const cache: RouteCache = {
+    enabled: true,
+    set(value) {
+      settings.push(value);
+    },
+    async invalidate() {},
+  };
+  const pages = astroDocumentCache<{ id: string }>({
+    collection: "posts",
+    origin: "https://test",
+    documentPath: (d) => `/posts/${d.id}`,
+    maxAge: 86400,
+  });
+  const status = {
+    fetchedAt: Date.now(),
+    updatedAt: null,
+    expiresAt: Date.now() - 1,
+    stale: false,
+    refreshing: false,
+  };
+  pages.set(cache, "one", status);
+  pages.set(cache, "one", { ...status, expiresAt: Date.now() + 60000, error: "Unavailable" });
+  expect(settings).toEqual([false, false]);
 });

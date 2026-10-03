@@ -17,12 +17,14 @@ export function createMetadataForm(
 ) {
   let original: Record<string, unknown> = {};
   const fields = new Map<string, MetadataField>();
+  const containers = new Map<string, HTMLElement>();
   const properties = typeof schema === "boolean" ? {} : (schema.properties ?? {});
   for (const [name, property] of Object.entries(properties)) {
     if (property === false) continue;
     const container = document.createElement("div");
     container.dataset.metadataField = name;
     parent.append(container);
+    containers.set(name, container);
     fields.set(
       name,
       controls[name]?.(container, name, onChange) ??
@@ -36,6 +38,13 @@ export function createMetadataForm(
     );
   }
   return {
+    slots: () =>
+      new Map(
+        [...fields].map(([name, field]) => [
+          name,
+          { container: containers.get(name)!, input: field.input },
+        ]),
+      ),
     read(): Record<string, unknown> {
       return {
         ...original,

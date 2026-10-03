@@ -22,6 +22,7 @@ import type { MediaStorage } from "./media.ts";
 
 const uncachedStatus: DocumentCacheStatus = {
   fetchedAt: null,
+  expiresAt: null,
   updatedAt: null,
   stale: false,
   refreshing: false,
@@ -30,6 +31,8 @@ function combinedStatus(a: DocumentCacheStatus, b: DocumentCacheStatus): Documen
   return {
     fetchedAt:
       a.fetchedAt === null || b.fetchedAt === null ? null : Math.min(a.fetchedAt, b.fetchedAt),
+    expiresAt:
+      a.expiresAt === null || b.expiresAt === null ? null : Math.min(a.expiresAt, b.expiresAt),
     updatedAt: Math.max(a.updatedAt ?? 0, b.updatedAt ?? 0) || null,
     stale: a.stale || b.stale,
     refreshing: a.refreshing || b.refreshing,
@@ -39,7 +42,7 @@ function combinedStatus(a: DocumentCacheStatus, b: DocumentCacheStatus): Documen
 /** Git owns mutations. Independently fresh published/draft SQL views serve all warm reads. */
 export function createDocumentService<T extends Frontmatter>(
   options: DocumentStoreOptions<T> & {
-    cache?: Omit<DocumentListCacheOptions, "onPublishedChange"> & {
+    cache?: Omit<DocumentListCacheOptions, "indexes" | "afterRefresh"> & {
       onPublishedChange?: (
         previous: DocumentDraft<T>[],
         next: DocumentDraft<T>[],
@@ -54,7 +57,7 @@ export function createDocumentService<T extends Frontmatter>(
 ) {
   const assets = createDocumentMedia({ ...options, delivery: options.media });
   const store = createDocumentStore({ ...options, assets });
-  const indexes = options.indexes ?? options.cache?.indexes ?? [];
+  const indexes = options.indexes ?? [];
   validateDocumentIndexes(indexes, options.schema);
   const { onPublishedChange, ...cacheOptions } = options.cache ?? {};
   const publicCache = options.cache
@@ -131,8 +134,9 @@ export function createDocumentService<T extends Frontmatter>(
     if (published) return published;
     throw new DocumentError("Document not found", "not_found");
   }
+  const { getDraft: _getDraft, saveDraft: _saveDraft, ...publicStore } = store;
   return {
-    ...store,
+    ...publicStore,
     listPublishedFromGit: store.listPublished,
     listDocumentsWithStatus,
     listPublishedWithStatus,
@@ -163,22 +167,6 @@ export function createDocumentService<T extends Frontmatter>(
             (document) => ({ id: document.document.id, document }),
           )
         : store.createDocument(...args);
-    },
-    async getDraft(...args: Parameters<typeof store.getDraft>) {
-      return draftCache
-        ? draftCache.mutate(
-            () => store.getDraft(...args),
-            (document) => ({ id: document.document.id, document }),
-          )
-        : store.getDraft(...args);
-    },
-    async saveDraft(...args: Parameters<typeof store.saveDraft>) {
-      return draftCache
-        ? draftCache.mutate(
-            () => store.saveDraft(...args),
-            (document) => ({ id: document.document.id, document }),
-          )
-        : store.saveDraft(...args);
     },
     async saveDocument(...args: Parameters<typeof store.saveDocument>) {
       return draftCache

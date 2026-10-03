@@ -64,7 +64,7 @@ function setup(
 test("persistent SQLite reopens public, article, admin, and editor reads without Git; collections share rows", async () => {
   const dir = await mkdtemp(join(tmpdir(), "quiescent-sqlite-"));
   const url = `file:${join(dir, "cache.sqlite")}`;
-  let storage = sqliteDocumentCache({ url });
+  let storage = sqliteDocumentCache({ url, indexes: ["slug", "minutes"] });
   const f = fixture();
   try {
     const service = setup(storage, f);
@@ -103,7 +103,7 @@ test("persistent SQLite reopens public, article, admin, and editor reads without
     await service.listDocuments();
     await recipes.listDocuments();
     storage.close();
-    storage = sqliteDocumentCache({ url });
+    storage = sqliteDocumentCache({ url, indexes: ["slug", "minutes"] });
     const warm = setup(storage, f, "posts", true);
     const warmRecipes = setup(storage, f, "recipes", true);
     expect((await warm.listPublished())[0]?.document.body).toBe("Published body");
@@ -138,6 +138,12 @@ test("persistent SQLite reopens public, article, admin, and editor reads without
       ["posts", 2],
       ["recipes", 1],
     ]);
+    const scopes = await inspect.execute("SELECT DISTINCT scope FROM quiescent_documents");
+    expect(scopes.rows.every((row) => /^[a-f0-9]{64}$/.test(String(row.scope)))).toBe(true);
+    const indexes = await inspect.execute(
+      "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'quiescent_scalar_%'",
+    );
+    expect(indexes.rows.map((row) => row.name)).toEqual(["quiescent_scalar_minutes"]);
     inspect.close();
   } finally {
     storage.close();
@@ -147,8 +153,8 @@ test("persistent SQLite reopens public, article, admin, and editor reads without
 test("independent persistent SQLite adapters fence a delayed refresh against a completed writer", async () => {
   const dir = await mkdtemp(join(tmpdir(), "quiescent-sqlite-race-"));
   const url = `file:${join(dir, "cache.sqlite")}`;
-  const first = sqliteDocumentCache({ url });
-  const second = sqliteDocumentCache({ url });
+  const first = sqliteDocumentCache({ url, indexes: ["slug", "minutes"] });
+  const second = sqliteDocumentCache({ url, indexes: ["slug", "minutes"] });
   const key = documentCacheView("repo", "posts", "published");
   try {
     const f = fixture();
@@ -170,6 +176,42 @@ test("independent persistent SQLite adapters fence a delayed refresh against a c
   } finally {
     first.close();
     second.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("unchanged SQL refresh ignores object key order but detects body changes", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "quiescent-sqlite-equality-"));
+  const storage = sqliteDocumentCache({ url: `file:${join(dir, "cache.sqlite")}` });
+  try {
+    const f = fixture();
+    const service = setup(storage, f);
+    const draft = await service.createDocument({
+      frontmatter: { title: "Public", slug: "public", minutes: 1 },
+      body: "original",
+    });
+    let value = { ...draft, branch: null, state: "published" as const };
+    let invalidations = 0;
+    const cache = createDocumentListCache(
+      {
+        storage,
+        key: documentCacheView("equal-repo", "posts", "published"),
+        ttlMs: 5000,
+        now: () => 1000,
+        afterRefresh: async () => {
+          invalidations++;
+        },
+      },
+      async () => [value],
+    );
+    expect((await cache.read()).cache.expiresAt).toBe(6000);
+    await cache.refresh();
+    expect(invalidations).toBe(0);
+    value = { ...value, document: { ...value.document, body: "changed" } };
+    await cache.refresh();
+    expect(invalidations).toBe(1);
+  } finally {
+    storage.close();
     await rm(dir, { recursive: true, force: true });
   }
 });

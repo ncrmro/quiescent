@@ -2,14 +2,15 @@ import { safeLink, validateDocument, type WritingDocument } from "@quiescent/ser
 import { Editor } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
 import StarterKit from "@tiptap/starter-kit";
+import type { EditorPhase, EditorToolbar } from "./host.ts";
 export interface WritingEditorOptions {
   parent: HTMLElement;
   /** Hosts may move command buttons within this toolbar; editor behavior is retained. */
-  configureToolbar?: (toolbar: HTMLElement) => undefined | (() => void);
+  configureToolbar?: (toolbar: HTMLElement, context: EditorToolbar) => undefined | (() => void);
   document: WritingDocument;
   onChange: (document: WritingDocument) => void;
   uploadImage: (file: File) => Promise<string>;
-  onStatus?: (message: string) => void;
+  onStatus?: (message: string, phase?: EditorPhase) => void;
   mediaUrl?: (src: string) => string;
 }
 export function createWritingEditor(options: WritingEditorOptions) {
@@ -51,6 +52,7 @@ export function createWritingEditor(options: WritingEditorOptions) {
     },
     onUpdate: () => options.onChange(validateDocument(editor.getJSON())),
   });
+  const commands = new Map<string, HTMLButtonElement>();
   const add = (label: string, action: () => void) => {
     const b = document.createElement("button");
     b.type = "button";
@@ -58,6 +60,7 @@ export function createWritingEditor(options: WritingEditorOptions) {
     b.textContent = label;
     b.dataset.command = label.toLowerCase().replaceAll(" ", "-");
     b.setAttribute("aria-label", label);
+    commands.set(b.dataset.command, b);
     // Keep the editing selection and keyboard when tapping a formatting action.
     b.addEventListener("pointerdown", (event) => event.preventDefault());
     b.addEventListener("click", action);
@@ -106,7 +109,10 @@ export function createWritingEditor(options: WritingEditorOptions) {
   editor.on("selectionUpdate", showImageActions);
   editor.on("update", showImageActions);
   showImageActions();
-  const disposeToolbar = options.configureToolbar?.(toolbar);
+  const disposeToolbar = options.configureToolbar?.(toolbar, {
+    editable: editor.view.dom,
+    commands,
+  });
   file.addEventListener("change", () => {
     const chosen = file.files?.[0];
     if (!chosen || !editable || uploads.size) {
@@ -123,7 +129,7 @@ export function createWritingEditor(options: WritingEditorOptions) {
     }
     const alt = window.prompt("Describe this image", "") ?? "";
     imageButton.disabled = true;
-    options.onStatus?.("Uploading image…");
+    options.onStatus?.("Uploading image…", "uploading");
     const upload = Promise.resolve()
       .then(() => options.uploadImage(chosen))
       .then((src) => {
@@ -135,7 +141,7 @@ export function createWritingEditor(options: WritingEditorOptions) {
           .setTextSelection(editor.state.selection.to)
           .setImage({ src, alt })
           .run();
-        options.onStatus?.("Image uploaded.");
+        options.onStatus?.("Image uploaded.", "saved");
       })
       .catch((error) => {
         options.onStatus?.(

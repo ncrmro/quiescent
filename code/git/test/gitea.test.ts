@@ -28,10 +28,10 @@ describe("resolveGiteaBaseUrl", () => {
 describe("GiteaForge", () => {
   test("uses codeberg api base", async () => {
     const { client, requests } = forge([
-      { method: "GET", url: "/user", response: { id: 2, login: "ncrmro" } },
+      { method: "GET", url: "/branches/main", response: { commit: { id: "head1" } } },
     ]);
-    await client.getUser();
-    expect(requests[0]?.url).toBe("https://codeberg.org/api/v1/user");
+    expect(await client.getBranchSha("main")).toBe("head1");
+    expect(requests[0]?.url).toBe("https://codeberg.org/api/v1/repos/ncrmro/notes/branches/main");
   });
 
   test("commitFiles batches create, update and delete operations with blob shas", async () => {

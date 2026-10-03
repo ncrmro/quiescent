@@ -1,5 +1,6 @@
 import { fileMedia } from "@quiescent/server/file-media";
 import { sqliteDocumentCache } from "@quiescent/server/sqlite-cache";
+import configuration from "../../quiescent.config.json" with { type: "json" };
 import type { WritingEnv } from "../writing/app";
 export const env: WritingEnv = {
   ...process.env,
@@ -12,7 +13,7 @@ export function hostedMedia() {
   return fileMedia(process.env.WRITING_MEDIA_DIRECTORY ?? "./.writing-media");
 }
 
-export const warmFetch: typeof fetch = (input, init) =>
+export const warmFetch: import("@quiescent/astro").CacheFetch = (input, init) =>
   fetch(input, {
     ...init,
     headers: {
@@ -42,6 +43,9 @@ export const transformImage: import("@quiescent/astro/images").TransformImage = 
 };
 
 const documents = sqliteDocumentCache({
+  indexes: Object.values(configuration.collections).flatMap((collection) =>
+    "indexes" in collection ? collection.indexes : [],
+  ),
   url: process.env.WRITING_CACHE_URL ?? "file:.writing-cache.sqlite",
 });
 export function hostedDocumentCache() {

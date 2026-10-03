@@ -8,6 +8,7 @@ export { GiteaForge, resolveGiteaBaseUrl } from "./gitea.ts";
 export { GitHubForge } from "./github.ts";
 export * from "./types.ts";
 
+/** Gitea-family adapters expose file/ref operations only; requirePublishingForge checks lifecycle support. */
 export function createForge(config: ForgeConfig): ForgeClient {
   switch (config.kind) {
     case "github":

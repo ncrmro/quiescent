@@ -6,10 +6,12 @@ import { fixture } from "./forge-fixture.ts";
 
 function setup() {
   const f = fixture();
+  const reads = { delivery: 0, lfs: 0 };
   const delivered = new Map<string, { bytes: ArrayBuffer; type: string }>();
   const objects = new Map<string, ArrayBuffer>();
   const bucket: MediaBucket = {
     async get(key) {
+      reads.delivery++;
       const v = delivered.get(key);
       return v
         ? {
@@ -31,6 +33,7 @@ function setup() {
       return object;
     },
     async download(object) {
+      reads.lfs++;
       const bytes = objects.get(object.oid);
       if (!bytes) throw new Error("LFS unavailable");
       return bytes.slice(0);
@@ -51,7 +54,7 @@ function setup() {
     media,
     lfs,
   });
-  return { ...f, service, media, lfs, objects, delivered };
+  return { ...f, service, media, lfs, objects, delivered, reads };
 }
 const selection = (draft: {
   document: { id: string };
@@ -83,7 +86,7 @@ test("one save commits Markdown and LFS pointers; rename preserves identity and 
   const { src } = await media.confirm(draft.document.id, ticket.assetId, "Garden.png");
   expect(src).toMatch(/^Garden-[a-f0-9]{12}\.png$/);
   const count = commits.size;
-  const saved = await service.saveDraft({
+  const saved = await service.saveDocument({
     ...selection(draft),
     document: {
       ...draft.document,
@@ -106,9 +109,11 @@ test("one save commits Markdown and LFS pointers; rename preserves identity and 
     await new Response((await service.readMedia(saved.document.id, src))!.body).arrayBuffer(),
   ).toEqual(png);
   expect(delivered.size).toBe(1);
-  const edit = await service.getDraft(saved.document.id);
-  const renamed = await service.saveDraft({
-    ...selection(edit),
+  const edit = await service.openDocument(saved.document.id);
+  const renamed = await service.saveDocument({
+    id: edit.document.id,
+    branch: edit.branch,
+    expectedHeadSha: edit.headSha,
     document: {
       ...edit.document,
       frontmatter: { ...edit.document.frontmatter, slug: "slow-morning" },
@@ -137,7 +142,7 @@ test("failed LFS upload leaves the draft revision and Markdown untouched", async
   };
   const count = commits.size;
   await expect(
-    service.saveDraft({
+    service.saveDocument({
       ...selection(draft),
       document: {
         ...draft.document,
@@ -161,7 +166,7 @@ test("renaming preserves and hydrates an original no longer referenced by the do
     new TextEncoder().encode("GIF89a").buffer,
     "image/gif",
   );
-  const saved = await service.saveDraft({
+  const saved = await service.saveDocument({
     ...selection(draft),
     document: {
       ...draft.document,
@@ -171,7 +176,7 @@ test("renaming preserves and hydrates an original no longer referenced by the do
   const old = await service.location(saved.document.id, saved.headSha);
   const pointer = commits.get(saved.headSha)!.files[`${old.directory}/archive.gif`];
   delivered.clear();
-  const renamed = await service.saveDraft({
+  const renamed = await service.saveDocument({
     ...selection(saved),
     document: {
       ...saved.document,
@@ -217,4 +222,92 @@ test("private media GET serves staged uploads without creating branches and reje
   expect(commits.size).toBe(after);
   expect(branches.size).toBe(branchCount);
   expect(published.state).toBe("published");
+});
+
+test("media reads reuse the existing delivery stream and cold LFS bytes without a second read", async () => {
+  const { service, media, delivered, reads } = setup();
+  const draft = await service.createDocument({
+    frontmatter: { title: "Garden", slug: "garden", headerImage: null },
+    body: "",
+  });
+  await media.restore(draft.document.id, "garden.png", png, "image/png");
+  const saved = await service.saveDocument({
+    ...selection(draft),
+    document: {
+      ...draft.document,
+      frontmatter: { ...draft.document.frontmatter, headerImage: "garden.png" },
+    },
+  });
+  await service.publish(selection(saved));
+  reads.delivery = 0;
+  reads.lfs = 0;
+  expect(
+    await new Response(
+      (await service.readMedia(saved.document.id, "garden.png"))!.body,
+    ).arrayBuffer(),
+  ).toEqual(png);
+  expect(reads).toEqual({ delivery: 1, lfs: 0 });
+  delivered.clear();
+  reads.delivery = 0;
+  expect(
+    await new Response(
+      (await service.readMedia(saved.document.id, "garden.png"))!.body,
+    ).arrayBuffer(),
+  ).toEqual(png);
+  expect(reads).toEqual({ delivery: 1, lfs: 1 });
+});
+
+test("upload phases require an existing selected branch and never create document commits", async () => {
+  const { createDocumentHandler } = await import("../src/document-http.ts");
+  const { service, media, commits, branches } = setup();
+  const draft = await service.createDocument({
+    frontmatter: { title: "Garden", slug: "garden", headerImage: null },
+    body: "",
+  });
+  const handler = createDocumentHandler({ store: service, media, authorize: () => true });
+  const base = `https://test/api/documents/${draft.document.id}/uploads`;
+  const request = (url: string, data: unknown) =>
+    new Request(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: "https://test" },
+      body: JSON.stringify(data),
+    });
+  const before = { commits: commits.size, branches: branches.size };
+  expect(
+    (await handler(request(base, { contentType: "image/png", size: png.byteLength }))).status,
+  ).toBe(409);
+  const branch = `?branch=${encodeURIComponent(draft.branch!)}`;
+  const prepared = await handler(
+    request(base + branch, { contentType: "image/png", size: png.byteLength }),
+  );
+  expect(prepared.status).toBe(200);
+  const ticket = (await prepared.json()) as { assetId: string; url: string };
+  expect(ticket.url.startsWith("/api/documents/")).toBe(true);
+  expect(new URL(ticket.url, "https://test").searchParams.get("branch")).toBe(draft.branch);
+  expect(
+    (
+      await handler(
+        new Request(new URL(ticket.url, "https://test"), {
+          method: "PUT",
+          headers: { "Content-Type": "image/png", Origin: "https://test" },
+          body: png,
+        }),
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await handler(
+        request(`${base}/${ticket.assetId}/confirm${branch}`, { filename: "garden.png" }),
+      )
+    ).status,
+  ).toBe(200);
+  expect({ commits: commits.size, branches: branches.size }).toEqual(before);
+  await service.publish(selection(draft));
+  const published = { commits: commits.size, branches: branches.size };
+  expect(
+    (await handler(request(base + branch, { contentType: "image/png", size: png.byteLength })))
+      .status,
+  ).toBe(409);
+  expect({ commits: commits.size, branches: branches.size }).toEqual(published);
 });

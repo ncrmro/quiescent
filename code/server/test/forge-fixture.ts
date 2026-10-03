@@ -19,18 +19,6 @@ export function fixture() {
     return sha;
   }
   const forge: PublishingForge = {
-    async getUser() {
-      throw new Error("Not supported in document fixture");
-    },
-    async getRepoPermissions() {
-      throw new Error("Not supported in document fixture");
-    },
-    async createPullRequest() {
-      throw new Error("Not supported in document fixture");
-    },
-    async ensureFork() {
-      throw new Error("Not supported in document fixture");
-    },
     kind: "github",
     async getBranchSha(branch: string) {
       if (!branches.has(branch)) throw new Error("missing branch");

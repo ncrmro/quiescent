@@ -16,13 +16,15 @@ export function createDocumentMedia<T extends Frontmatter>(options: {
   async function hydrate(id: string, name: string, pointer: string) {
     const object = parseLfsPointer(pointer);
     const cached = await delivery.read(id, object.oid);
-    if (cached) {
-      await cached.body.cancel();
-      return object;
-    }
+    if (cached?.size === object.size) return cached;
+    await cached?.body.cancel();
     const bytes = await lfs.download(object);
     await delivery.restore(id, object.oid, bytes, assetContentType(name));
-    return object;
+    return {
+      body: new Response(bytes).body!,
+      size: bytes.byteLength,
+      contentType: assetContentType(name),
+    };
   }
   return {
     async prepare(document: DocumentRecord<T>, context: { directory: string; ref: string }) {
@@ -45,7 +47,8 @@ export function createDocumentMedia<T extends Frontmatter>(options: {
           throw new MediaError("Images must use a filename within this document.");
         const existing = await forge.getFile(`${context.directory}/${name}`, context.ref);
         if (existing) {
-          await hydrate(document.id, name, existing.content);
+          const hydrated = await hydrate(document.id, name, existing.content);
+          await hydrated.body.cancel();
           result[name] = existing.content;
           continue;
         }
@@ -62,8 +65,7 @@ export function createDocumentMedia<T extends Frontmatter>(options: {
       if (!isAssetFilename(name)) throw new MediaError("Invalid image filename");
       const file = await forge.getFile(`${context.directory}/${name}`, context.ref);
       if (!file) return null;
-      const object = await hydrate(id, name, file.content);
-      return delivery.read(id, object.oid);
+      return hydrate(id, name, file.content);
     },
   };
 }

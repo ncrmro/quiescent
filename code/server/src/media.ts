@@ -15,6 +15,7 @@ export interface MediaObject {
 /** Structural interface: an R2 binding satisfies this without a platform dependency. */
 export interface MediaBucket {
   get(key: string): Promise<{
+    body?: ReadableStream<Uint8Array>;
     arrayBuffer(): Promise<ArrayBuffer>;
     size: number;
     httpMetadata?: { contentType?: string };
@@ -140,15 +141,24 @@ function createMedia(
     },
   };
 }
-/** Local R2 emulation uses the same finalization flow, with a loopback upload endpoint. */
+/** R2 bindings and compatible local stores share finalization and streaming delivery. */
 export function localR2Media(bucket: MediaBucket, apiBase = "/api/documents"): MediaStorage {
   const store: ObjectStore = {
     async get(k) {
       const o = await bucket.get(k);
       if (!o) return null;
       const type = o.httpMetadata?.contentType ?? "";
-      metadata(type, o.size, k.startsWith("uploads/") ? MAX_IMAGE_SIZE : MAX_STORED_IMAGE_SIZE);
-      return { body: new Response(await o.arrayBuffer()).body!, size: o.size, contentType: type };
+      try {
+        metadata(type, o.size, k.startsWith("uploads/") ? MAX_IMAGE_SIZE : MAX_STORED_IMAGE_SIZE);
+      } catch (error) {
+        await o.body?.cancel().catch(() => undefined);
+        throw error;
+      }
+      return {
+        body: o.body ?? new Response(await o.arrayBuffer()).body!,
+        size: o.size,
+        contentType: type,
+      };
     },
     async put(k, b, t) {
       await bucket.put(k, b, { httpMetadata: { contentType: t } });

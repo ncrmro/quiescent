@@ -35,6 +35,8 @@ test("service create/save/publish/open/delete write through while public listing
       },
     },
   });
+  expect(service).not.toHaveProperty("getDraft");
+  expect(service).not.toHaveProperty("saveDraft");
   expect(await service.listDocuments()).toEqual([]);
   const created = await service.createDocument({
     frontmatter: { title: "First" },
@@ -44,7 +46,7 @@ test("service create/save/publish/open/delete write through while public listing
   expect((await service.listDocuments())[0]).toEqual(created);
   expect(reads).toBe(before);
   expect(await service.listPublished()).toEqual([]);
-  const saved = await service.saveDraft({
+  const saved = await service.saveDocument({
     id: created.document.id,
     branch: created.branch!,
     expectedHeadSha: created.headSha,
@@ -62,12 +64,19 @@ test("service create/save/publish/open/delete write through while public listing
   expect((await service.listDocuments())[0]?.state).toBe("published");
   expect(reads).toBe(before);
   expect((await service.listPublished())[0]?.document).toEqual(published.document);
-  const editing = await service.getDraft(created.document.id);
+  const opened = await service.openDocument(created.document.id);
+  expect(opened.branch).toBeNull();
+  const editing = await service.saveDocument({
+    id: opened.document.id,
+    branch: opened.branch,
+    expectedHeadSha: opened.headSha,
+    document: { ...opened.document, body: "Further private changes" },
+  });
   before = reads;
   expect((await service.listDocuments())[0]?.state).toBe("unpublished-changes");
   expect(reads).toBe(before);
   await expect(
-    service.saveDraft({
+    service.saveDocument({
       id: editing.document.id,
       branch: editing.branch!,
       expectedHeadSha: "stale",

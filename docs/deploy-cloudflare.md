@@ -9,7 +9,9 @@ the initialized content repository.
 
 Run `devenv shell -- bun run deploy:writing`. The script builds workspace
 packages and Astro, deploys the generated Worker configuration, then warms public
-pages. It also installs the idempotent document-cache schema before deployment.
+pages. It also runs `scripts/cache-schema.mjs` to generate the base schema and declared
+scalar indexes, then applies that idempotent SQL before deployment. The local
+`dev:writing` script uses the same setup; request handlers do not run schema DDL.
 It does not publish npm packages. Create a D1 database with `wrangler d1 create`,
 then set the `WRITING_CACHE` binding in the configuration to its returned ID.
 This database is only a rebuildable document cache; no sessions, KV, or cron
@@ -32,3 +34,6 @@ deployed Worker rather than inferred from development mode.
 Local workerd uses Astro's memory HTML cache because the local Workers Cache API
 does not implement tag purge. Its document cache still uses persistent local D1.
 Production uses Astro's Cloudflare HTML provider; verify tag invalidation there.
+
+Local `writing-dev.sh` sets `WRITING_PAGE_CACHE=memory` explicitly for the page
+cache. The Astro configuration does not infer this mode from a config filename.

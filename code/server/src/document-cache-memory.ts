@@ -1,4 +1,4 @@
-import { cacheScope, selectDocuments } from "./document-cache-query.ts";
+import { selectDocuments } from "./document-cache-query.ts";
 import {
   type DocumentCacheSnapshot,
   type DocumentCacheStorage,
@@ -81,17 +81,10 @@ export function memoryDocumentCache(options: { maxEntries?: number } = {}): Docu
           (d) =>
             d.document.id !== change.id ||
             ((!!change.document || !!change.retireBranch) &&
-              (cacheScope(key).view !== "all" || d.branch !== null) &&
               d.branch !== change.document?.branch &&
               d.branch !== change.retireBranch),
         );
-        if (
-          change.document &&
-          (cacheScope(key).view !== "all" ||
-            change.document.branch !== null ||
-            !value.documents.some((d) => d.document.id === change.id))
-        )
-          value.documents.unshift(structuredClone(change.document));
+        if (change.document) value.documents.unshift(structuredClone(change.document));
       }
       if (!current) value.initialized = false;
       value.pending = Math.max(0, value.pending - 1);

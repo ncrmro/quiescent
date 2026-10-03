@@ -1,3 +1,4 @@
+import { jsonEqual } from "@quiescent/server/content";
 import {
   createDocumentHandler,
   type DocumentCacheStatus,
@@ -92,20 +93,26 @@ export function astroDocumentCache<T extends { id: string }>(options: DocumentCa
     for (const path of options.affectedPaths?.(old, current) ?? []) paths.add(path);
   }
   return {
+    /** Reader confirmation headers are part of the Astro integration contract. */
+    setReaderHeaders(headers: Headers, revision?: string) {
+      headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+      headers.set("X-Quiescent-Rendered", crypto.randomUUID());
+      headers.set("X-Quiescent-Revision", revision ?? "");
+    },
     set(cache: RouteCache, id?: string, freshness?: DocumentCacheStatus) {
       if (freshness?.stale || freshness?.error) {
         cache.set(false);
         return;
       }
       const policy = documentCachePolicy(options, id);
-      if (freshness?.fetchedAt)
-        policy.maxAge = Math.max(
-          1,
-          Math.min(
-            policy.maxAge,
-            Math.floor((freshness.fetchedAt + (options.maxAge ?? 3600) * 1000 - Date.now()) / 1000),
-          ),
-        );
+      if (freshness?.expiresAt != null) {
+        const remaining = Math.floor((freshness.expiresAt - Date.now()) / 1000);
+        if (remaining <= 0) {
+          cache.set(false);
+          return;
+        }
+        policy.maxAge = Math.min(policy.maxAge, remaining);
+      }
       cache.set(policy);
     },
     async afterPublication(
@@ -128,7 +135,7 @@ export function astroDocumentCache<T extends { id: string }>(options: DocumentCa
       const before = new Map(previous.map((document) => [document.id, document]));
       const after = new Map(next.map((document) => [document.id, document]));
       const changed = [...new Set([...before.keys(), ...after.keys()])].filter(
-        (id) => retry || JSON.stringify(before.get(id)) !== JSON.stringify(after.get(id)),
+        (id) => retry || !jsonEqual(before.get(id), after.get(id)),
       );
       if (!changed.length && !retry) return;
       const paths = new Set(indexes);

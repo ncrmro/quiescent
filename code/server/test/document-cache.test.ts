@@ -9,6 +9,7 @@ import {
   type DocumentCacheStatement,
   type DocumentCacheStorage,
   d1DocumentCache,
+  documentCacheView,
   memoryDocumentCache,
 } from "../src/document-cache.ts";
 
@@ -68,6 +69,7 @@ for (const [name, adapter] of Object.entries({
   memory: memoryDocumentCache,
   sqlite: sqliteCache,
 })) {
+  const key = documentCacheView("owner/repository/main/schema", "posts", "drafts");
   test(`${name}: first fill and warm reads avoid Git; stale reads schedule one refresh`, async () => {
     const storage = adapter();
     let now = 1;
@@ -76,7 +78,7 @@ for (const [name, adapter] of Object.entries({
     const cache = createDocumentListCache(
       {
         storage,
-        key: "repo/main/posts/schema",
+        key,
         ttlMs: 100,
         now: () => now,
         waitUntil: (work) => pending.push(work),
@@ -102,7 +104,7 @@ for (const [name, adapter] of Object.entries({
     let now = 1;
     let calls = 0;
     const cache = createDocumentListCache(
-      { storage, key: "test", ttlMs: 100, now: () => now },
+      { storage, key, ttlMs: 100, now: () => now },
       async () => {
         if (++calls > 1) throw new Error("upstream token should not leak");
         return [document("old")];
@@ -123,13 +125,13 @@ for (const [name, adapter] of Object.entries({
     const storage = adapter();
     const slow = deferred<DocumentDraft[]>();
     let calls = 0;
-    const cache = createDocumentListCache({ storage, key: "test" }, async () =>
+    const cache = createDocumentListCache({ storage, key }, async () =>
       ++calls === 1 ? [document("old")] : slow.promise,
     );
     await cache.read();
     const refreshing = cache.refresh();
     // Allow the refresh to acquire its persistent fence before the mutation starts.
-    while (!(await storage.read("test")).lease) await Promise.resolve();
+    while (!(await storage.read(key)).lease) await Promise.resolve();
     await cache.mutate(
       async () => document("new"),
       (value) => ({ id: "one", document: value }),
@@ -140,59 +142,57 @@ for (const [name, adapter] of Object.entries({
   });
   test(`${name}: concurrent writers invalidate instead of installing an older result`, async () => {
     const storage = adapter();
-    const cache = createDocumentListCache({ storage, key: "test" }, async () => [
-      document("git-latest"),
-    ]);
+    const cache = createDocumentListCache({ storage, key }, async () => [document("git-latest")]);
     await cache.read();
-    const older = await storage.beginWrite("test", 1, 100);
-    const newer = await storage.beginWrite("test", 2, 100);
-    expect(
-      await storage.finishWrite("test", newer, { id: "one", document: document("new") }, 3),
-    ).toBe(true);
-    expect(
-      await storage.finishWrite("test", older, { id: "one", document: document("old") }, 4),
-    ).toBe(false);
-    expect((await storage.read("test")).initialized).toBe(false);
+    const older = await storage.beginWrite(key, 1, 100);
+    const newer = await storage.beginWrite(key, 2, 100);
+    expect(await storage.finishWrite(key, newer, { id: "one", document: document("new") }, 3)).toBe(
+      true,
+    );
+    expect(await storage.finishWrite(key, older, { id: "one", document: document("old") }, 4)).toBe(
+      false,
+    );
+    expect((await storage.read(key)).initialized).toBe(false);
     expect((await cache.read()).documents).toEqual([document("git-latest")]);
   });
   test(`${name}: abandoned mutation fences expire and permit an authoritative rebuild`, async () => {
     const storage = adapter();
-    await storage.beginWrite("test", 1, 100);
-    const before = await storage.read("test");
-    expect(await storage.claim("test", before.revision, "blocked", 50, 200)).toBe(false);
-    expect(await storage.claim("test", before.revision, "recovered", 101, 200)).toBe(true);
-    expect(await storage.complete("test", "recovered", [document("restored")], 102)).toBe(true);
-    expect((await storage.read("test")).pending).toBe(0);
+    await storage.beginWrite(key, 1, 100);
+    const before = await storage.read(key);
+    expect(await storage.claim(key, before.revision, "blocked", 50, 200)).toBe(false);
+    expect(await storage.claim(key, before.revision, "recovered", 101, 200)).toBe(true);
+    expect(await storage.complete(key, "recovered", [document("restored")], 102)).toBe(true);
+    expect((await storage.read(key)).pending).toBe(0);
   });
   test(`${name}: normal reads rebuild after an abandoned writer expires before the TTL`, async () => {
     const storage = adapter();
     let now = 1;
     let calls = 0;
     const cache = createDocumentListCache(
-      { storage, key: "test", now: () => now, ttlMs: 10000 },
+      { storage, key, now: () => now, ttlMs: 10000 },
       async () => [document(String(++calls))],
     );
     await cache.read();
-    await storage.beginWrite("test", 2, 100);
+    await storage.beginWrite(key, 2, 100);
     now = 101;
     expect((await cache.read()).documents).toEqual([document("2")]);
   });
   test(`${name}: late mutation completion revokes a refresh started after its fence expired`, async () => {
     const storage = adapter();
-    const cache = createDocumentListCache({ storage, key: "test" }, async () => [document("old")]);
+    const cache = createDocumentListCache({ storage, key }, async () => [document("old")]);
     await cache.read();
-    const revision = await storage.beginWrite("test", 1, 100);
-    expect(await storage.claim("test", revision, "new-refresh", 101, 300)).toBe(true);
+    const revision = await storage.beginWrite(key, 1, 100);
+    expect(await storage.claim(key, revision, "new-refresh", 101, 300)).toBe(true);
     expect(
-      await storage.finishWrite("test", revision, { id: "one", document: document("new") }, 102),
+      await storage.finishWrite(key, revision, { id: "one", document: document("new") }, 102),
     ).toBe(true);
-    expect(await storage.complete("test", "new-refresh", [document("old")], 103)).toBe(false);
-    expect((await storage.read("test")).documents).toEqual([document("new")]);
+    expect(await storage.complete(key, "new-refresh", [document("old")], 103)).toBe(false);
+    expect((await storage.read(key)).documents).toEqual([document("new")]);
   });
   test(`${name}: editing and publishing one active branch preserve its parallel draft`, async () => {
     const storage = adapter();
     const alternate = { ...document("alternate"), branch: "draft/alternate" };
-    const cache = createDocumentListCache({ storage, key: "test" }, async () => [
+    const cache = createDocumentListCache({ storage, key }, async () => [
       document("one"),
       alternate,
     ]);
@@ -207,7 +207,7 @@ for (const [name, adapter] of Object.entries({
     ]);
     await cache.mutate(
       async () => ({ ...document("published"), branch: null, state: "published" as const }),
-      (value) => ({ id: "one", retireBranch: "draft/one", document: value }),
+      () => ({ id: "one", retireBranch: "draft/one" }),
     );
     expect((await cache.read()).documents).toEqual([alternate]);
     await cache.mutate(
@@ -219,13 +219,14 @@ for (const [name, adapter] of Object.entries({
   test(`${name}: projections isolate repository/branch/schema scope and preserve multiple drafts`, async () => {
     const storage = adapter();
     const second = { ...document("alternate"), branch: "draft/alternate" };
-    const first = createDocumentListCache({ storage, key: "repo/main/schema-a" }, async () => [
-      document("one"),
-      second,
-    ]);
-    const other = createDocumentListCache({ storage, key: "repo/concept/schema-b" }, async () => [
-      document("private"),
-    ]);
+    const first = createDocumentListCache(
+      { storage, key: documentCacheView("repo/main/schema-a", "posts", "drafts") },
+      async () => [document("one"), second],
+    );
+    const other = createDocumentListCache(
+      { storage, key: documentCacheView("repo/concept/schema-b", "posts", "drafts") },
+      async () => [document("private")],
+    );
     expect((await first.read()).documents).toHaveLength(2);
     expect((await other.read()).documents).toEqual([document("private")]);
     expect((await first.read()).documents).toHaveLength(2);
@@ -292,4 +293,17 @@ test("external refresh invalidates pages after committing rows; failures explici
   expect((await cache.refresh()).cache.stale).toBe(true);
   expect((await cache.refresh()).cache.stale).toBe(false);
   expect(retries).toEqual([false, true]);
+});
+
+// SQL persists only explicit published/draft views; opaque keys remain memory-only.
+test("SQL rejects opaque and malformed view descriptors", async () => {
+  const storage = sqliteCache();
+  for (const key of [
+    "opaque",
+    "null",
+    JSON.stringify(["quiescent-documents-v2", "repo", "posts", "all"]),
+  ]) {
+    await expect(storage.read(key)).rejects.toThrow("documentCacheView descriptor");
+    await expect(storage.beginWrite(key, 1, 100)).rejects.toThrow("documentCacheView descriptor");
+  }
 });

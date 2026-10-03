@@ -41,8 +41,7 @@
             "title": "Image"
           }
         }
-      },
-      "indexes": ["slug", "title"]
+      }
     },
     "recipes": {
       "directory": "recipes",
@@ -101,7 +100,7 @@
           }
         }
       },
-      "indexes": ["slug", "preparationMinutes"]
+      "indexes": ["preparationMinutes"]
     }
   }
 }

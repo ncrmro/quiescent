@@ -17,7 +17,11 @@ port=$(node ../../scripts/writing-port.mjs)
 args=()
 if [ -n "${WRITING_SECRETS_FILE:-}" ]; then args+=(--env-file "$WRITING_SECRETS_FILE"); fi
 if [ -n "${WRITING_ALLOWED_ORIGINS:-}" ]; then args+=(--var "WRITING_ALLOWED_ORIGINS:$WRITING_ALLOWED_ORIGINS"); fi
-WRITING_CONFIG=wrangler.writing.jsonc node node_modules/.bin/astro build
-node node_modules/wrangler/bin/wrangler.js d1 execute WRITING_CACHE --config wrangler.writing.jsonc --local --persist-to "$PWD/.wrangler/state" --file ../server/src/documents-cache.schema.sql
+WRITING_PAGE_CACHE=memory WRITING_CONFIG=wrangler.writing.jsonc node node_modules/.bin/astro build
+cache_schema=$(mktemp)
+trap 'rm -f "$cache_schema"' EXIT
+node ../../scripts/cache-schema.mjs > "$cache_schema"
+node node_modules/wrangler/bin/wrangler.js d1 execute WRITING_CACHE --config wrangler.writing.jsonc --local --persist-to "$PWD/.wrangler/state" --file "$cache_schema"
+rm -f "$cache_schema"
 echo "$$" > .writing-server.pid
 exec node node_modules/wrangler/bin/wrangler.js dev "${args[@]}" --config dist/server/wrangler.json --persist-to "$PWD/.wrangler/state" --ip "$WRITING_HOST" --port "$port" --inspector-port 0

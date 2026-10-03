@@ -55,14 +55,22 @@
     "@quiescent/git": "^0.2.0",
     "aws4fetch": "^1.0.20",
     "yaml": "^2.9.1",
-    "@tiptap/core": "^3.0.0",
-    "@tiptap/starter-kit": "^3.0.0",
-    "@tiptap/extension-image": "^3.0.0",
-    "@tiptap/markdown": "^3.31.3",
-    "@libsql/client": "^0.18.0"
+    "@tiptap/core": "^3.31.3",
+    "@tiptap/starter-kit": "^3.31.3",
+    "@tiptap/extension-image": "^3.31.3",
+    "@tiptap/markdown": "^3.31.3"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "@libsql/client": "^0.18.0"
+  },
+  "peerDependencies": {
+    "@libsql/client": "^0.18.0"
+  },
+  "peerDependenciesMeta": {
+    "@libsql/client": {
+      "optional": true
+    }
   }
 }

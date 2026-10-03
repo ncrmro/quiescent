@@ -10,7 +10,7 @@ import type {
 import { json } from "./http.ts";
 import type { MediaStorage } from "./media.ts";
 export interface DocumentHandlerOptions<T extends Frontmatter> extends PrivateHttpOptions {
-  store: ReturnType<typeof createDocumentStore<T>> & {
+  store: Omit<ReturnType<typeof createDocumentStore<T>>, "getDraft" | "saveDraft"> & {
     listDocumentsWithStatus?: () => Promise<DocumentListing<T>>;
     refreshDocuments?: () => Promise<DocumentListing<T>>;
   };

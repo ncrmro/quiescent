@@ -37,7 +37,7 @@ test("listing metadata and refresh require authorization; refresh additionally r
   let refreshes = 0;
   const listing = {
     documents: [],
-    cache: { fetchedAt: 1, updatedAt: 1, stale: false, refreshing: false },
+    cache: { expiresAt: 1001, fetchedAt: 1, updatedAt: 1, stale: false, refreshing: false },
   };
   const handler = createDocumentHandler({
     store: {

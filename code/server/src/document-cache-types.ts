@@ -4,6 +4,7 @@ import type { Frontmatter } from "./document-codec.ts";
 
 export interface DocumentCacheStatus {
   fetchedAt: number | null;
+  expiresAt: number | null;
   updatedAt: number | null;
   stale: boolean;
   refreshing: boolean;
@@ -30,7 +31,6 @@ export type DocumentCacheChange = { id: string; document?: DocumentDraft; retire
 /** All mutations are atomic. Refresh completion must test its lease in the same transaction. */
 export interface DocumentCacheStorage {
   read(key: string, query?: DocumentQuery): Promise<DocumentCacheSnapshot>;
-  ensureIndexes?(indexes: string[]): Promise<void>;
   claim(key: string, revision: number, lease: string, now: number, until: number): Promise<boolean>;
   complete(key: string, lease: string, documents: DocumentDraft[], now: number): Promise<boolean>;
   fail(key: string, lease: string, error: string, retryAt: number): Promise<void>;
@@ -46,11 +46,6 @@ export interface DocumentCacheStorage {
 export interface DocumentListCacheOptions {
   storage: DocumentCacheStorage;
   indexes?: string[];
-  onPublishedChange?: (
-    previous: DocumentDraft[],
-    next: DocumentDraft[],
-    retry?: boolean,
-  ) => Promise<void>;
   afterRefresh?: (
     previous: DocumentDraft[],
     next: DocumentDraft[],

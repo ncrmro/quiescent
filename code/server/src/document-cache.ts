@@ -1,3 +1,4 @@
+import { jsonEqual } from "./content/equality.ts";
 import type { DocumentDraft, MutationResponse } from "./contracts.ts";
 import {
   type DocumentQuery,
@@ -15,6 +16,7 @@ import type { Frontmatter } from "./document-codec.ts";
 export * from "./document-cache-d1.ts";
 export * from "./document-cache-memory.ts";
 export * from "./document-cache-query.ts";
+export { documentCacheIndexStatements } from "./document-cache-sql.ts";
 export * from "./document-cache-types.ts";
 
 const warning =
@@ -34,6 +36,7 @@ export function createDocumentListCache<T extends Frontmatter>(
       documents: snapshot.documents as DocumentDraft<T>[],
       cache: {
         fetchedAt: snapshot.fetchedAt,
+        expiresAt: snapshot.fetchedAt === null ? null : snapshot.fetchedAt + ttl,
         updatedAt: snapshot.updatedAt,
         stale:
           !snapshot.initialized ||
@@ -50,6 +53,7 @@ export function createDocumentListCache<T extends Frontmatter>(
       documents,
       cache: {
         fetchedAt: null,
+        expiresAt: null,
         updatedAt: null,
         stale: true,
         refreshing: false,
@@ -61,7 +65,7 @@ export function createDocumentListCache<T extends Frontmatter>(
     if (!options.afterRefresh) return;
     const retry = previous.error?.includes("page invalidation failed");
     if (!previous.initialized && !retry) return;
-    if (!retry && JSON.stringify(previous.documents) === JSON.stringify(documents)) return;
+    if (!retry && samePublishedDocuments(previous.documents, documents)) return;
     try {
       await options.afterRefresh(previous.documents, documents, !!retry);
     } catch {
@@ -137,7 +141,6 @@ export function createDocumentListCache<T extends Frontmatter>(
         : result;
     let snapshot: DocumentCacheSnapshot;
     try {
-      await storage.ensureIndexes?.(options.indexes ?? []);
       snapshot = await storage.read(key, query);
     } catch {
       return selected(degraded(await load()));
@@ -201,4 +204,10 @@ export function createDocumentListCache<T extends Frontmatter>(
     return project(revision, result, change(result));
   }
   return { read, refresh, mutate };
+}
+
+function samePublishedDocuments(previous: DocumentDraft[], next: DocumentDraft[]) {
+  if (previous.length !== next.length) return false;
+  const before = new Map(previous.map((item) => [item.document.id, item.document]));
+  return next.every((item) => jsonEqual(before.get(item.document.id), item.document));
 }

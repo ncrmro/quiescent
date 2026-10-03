@@ -29,9 +29,9 @@
       "version": "0.2.0",
       "dependencies": {
         "@quiescent/server": "^0.2.0",
-        "@tiptap/core": "^3.0.0",
-        "@tiptap/extension-image": "^3.0.0",
-        "@tiptap/starter-kit": "^3.0.0",
+        "@tiptap/core": "^3.31.3",
+        "@tiptap/extension-image": "^3.31.3",
+        "@tiptap/starter-kit": "^3.31.3",
       },
       "devDependencies": {
         "@types/bun": "^1.2.0",
@@ -51,19 +51,25 @@
       "version": "0.2.0",
       "dependencies": {
         "@cfworker/json-schema": "^4.1.1",
-        "@libsql/client": "^0.18.0",
         "@quiescent/git": "^0.2.0",
-        "@tiptap/core": "^3.0.0",
-        "@tiptap/extension-image": "^3.0.0",
+        "@tiptap/core": "^3.31.3",
+        "@tiptap/extension-image": "^3.31.3",
         "@tiptap/markdown": "^3.31.3",
-        "@tiptap/starter-kit": "^3.0.0",
+        "@tiptap/starter-kit": "^3.31.3",
         "aws4fetch": "^1.0.20",
         "yaml": "^2.9.1",
       },
       "devDependencies": {
+        "@libsql/client": "^0.18.0",
         "@types/bun": "^1.2.0",
         "typescript": "^5.8.0",
       },
+      "peerDependencies": {
+        "@libsql/client": "^0.18.0",
+      },
+      "optionalPeers": [
+        "@libsql/client",
+      ],
     },
     "code/web": {
       "name": "@quiescent/web",
@@ -71,6 +77,7 @@
       "dependencies": {
         "@astrojs/cloudflare": "^14.3.3",
         "@astrojs/node": "^11.1.6",
+        "@libsql/client": "^0.18.0",
         "@quiescent/astro": "workspace:*",
         "@quiescent/editor": "workspace:*",
         "@quiescent/git": "workspace:*",

@@ -12,7 +12,7 @@ defineDocumentConfig(configuration);
 
 const selfHosted = process.env.WRITING_RUNTIME === "node";
 // Local workerd lacks the Workers Cache tag-purge API used by Astro.
-const localWorker = process.env.WRITING_CONFIG === "wrangler.writing.jsonc";
+const localWorker = process.env.WRITING_PAGE_CACHE === "memory";
 export default defineConfig({
   devToolbar: { enabled: !process.env.E2E_PORT },
   session: false,

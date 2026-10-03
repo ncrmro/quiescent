@@ -1,5 +1,5 @@
 import type { MediaStorage } from "@quiescent/server";
-import { documentMediaUrl } from "@quiescent/server/content";
+import { type DocumentMediaUrlResolver, documentMediaUrl } from "@quiescent/server/content";
 import type { DocumentDraft, Frontmatter } from "@quiescent/server/documents";
 import type { APIContext, ImageMetadata } from "astro";
 import { imageMetadata } from "astro/assets/utils";
@@ -22,6 +22,7 @@ export async function documentImages<T extends Frontmatter>(
   draft: DocumentDraft<T>,
   filenames: string[],
   read: (id: string, filename: string) => ReturnType<MediaStorage["read"]>,
+  options: { mediaUrl?: DocumentMediaUrlResolver } = {},
 ): Promise<DocumentImages> {
   const images: DocumentImages = {};
   for (const filename of new Set(filenames)) {
@@ -32,7 +33,10 @@ export async function documentImages<T extends Frontmatter>(
     );
     images[filename] = {
       ...metadata,
-      src: documentMediaUrl(draft.document.id, filename, { revision: draft.headSha }),
+      src: documentMediaUrl(draft.document.id, filename, {
+        revision: draft.headSha,
+        ...(options.mediaUrl ? { resolveUrl: options.mediaUrl } : {}),
+      }),
     };
   }
   return images;
@@ -42,7 +46,6 @@ export async function documentImages<T extends Frontmatter>(
 export async function documentImageResponse(options: {
   request: Request;
   cache: RouteCache;
-  cacheImage: (cache: RouteCache, id: string) => void;
   logger: APIContext["logger"];
   source: (id: string, filename: string) => Promise<Response>;
   transform: TransformImage;
@@ -80,7 +83,6 @@ export async function documentImageResponse(options: {
     headers: transformed.headers,
   });
   if (image.ok) {
-    options.cacheImage(options.cache, match[1]!);
     image.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
   }
   return image;

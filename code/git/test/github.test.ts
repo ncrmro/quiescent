@@ -17,39 +17,6 @@ function forge(routes: Route[]) {
 }
 
 describe("GitHubForge", () => {
-  test("getUser maps fields", async () => {
-    const { client } = forge([
-      {
-        method: "GET",
-        url: "/user",
-        response: { id: 1, login: "ncrmro", name: "Nic", avatar_url: "http://a" },
-      },
-    ]);
-    const user = await client.getUser();
-    expect(user).toEqual({
-      id: 1,
-      login: "ncrmro",
-      name: "Nic",
-      avatarUrl: "http://a",
-    });
-  });
-
-  test("getRepoPermissions maps push/admin and defaults to false", async () => {
-    const { client } = forge([
-      {
-        method: "GET",
-        url: "/repos/ncrmro/notes",
-        response: { permissions: { push: true, admin: false } },
-      },
-    ]);
-    expect(await client.getRepoPermissions()).toEqual({ push: true, admin: false });
-
-    const { client: noPerms } = forge([
-      { method: "GET", url: "/repos/ncrmro/notes", response: {} },
-    ]);
-    expect(await noPerms.getRepoPermissions()).toEqual({ push: false, admin: false });
-  });
-
   test("getFile decodes base64 content and returns null on 404", async () => {
     const { client } = forge([
       {
@@ -170,18 +137,9 @@ describe("GitHubForge", () => {
     ).rejects.toBeInstanceOf(ConflictError);
   });
 
-  test("createBranch and createPullRequest hit expected endpoints", async () => {
-    const { client, requests } = forge([
-      { method: "POST", url: "/git/refs", response: {} },
-      { method: "POST", url: "/pulls", response: { number: 7, html_url: "http://pr" } },
-    ]);
+  test("createBranch creates the requested ref", async () => {
+    const { client, requests } = forge([{ method: "POST", url: "/git/refs", response: {} }]);
     await client.createBranch("quiescent/ncrmro/1", "head1");
-    const pr = await client.createPullRequest({
-      head: "quiescent/ncrmro/1",
-      base: "main",
-      title: "Suggest edits",
-    });
-    expect(pr).toEqual({ number: 7, url: "http://pr" });
     expect(requests[0]?.body).toEqual({ ref: "refs/heads/quiescent/ncrmro/1", sha: "head1" });
   });
 });

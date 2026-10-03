@@ -146,3 +146,50 @@ test("GIF originals restore losslessly above the upload limit", async () => {
   );
   expect((await media.confirm("post", ticket.assetId, "animation.gif")).src).toMatch(/\.gif$/);
 });
+
+test("R2 binding delivery returns the original stream without requesting an array buffer", async () => {
+  let buffered = 0;
+  const body = new Response(png).body!;
+  const media = localR2Media({
+    async get() {
+      return {
+        body,
+        size: png.byteLength,
+        httpMetadata: { contentType: "image/png" },
+        async arrayBuffer() {
+          buffered++;
+          throw new Error("Must stream");
+        },
+      };
+    },
+    async put() {},
+  });
+  const object = await media.read("post", "image.png");
+  expect(object?.body).toBe(body);
+  expect(buffered).toBe(0);
+  expect(new Uint8Array(await new Response(object!.body).arrayBuffer())).toEqual(png);
+});
+
+test("invalid bucket metadata cancels the unused body stream", async () => {
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({
+    cancel() {
+      cancelled = true;
+    },
+  });
+  const media = localR2Media({
+    async get() {
+      return {
+        body,
+        size: 12,
+        httpMetadata: { contentType: "text/html" },
+        async arrayBuffer() {
+          throw new Error("Must not buffer");
+        },
+      };
+    },
+    async put() {},
+  });
+  await expect(media.read("post", "image.png")).rejects.toMatchObject({ status: 400 });
+  expect(cancelled).toBe(true);
+});

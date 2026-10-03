@@ -573,6 +573,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     location: layout.location,
     schema: options.schema,
     createDocument,
+    /** @deprecated Mutates Git by starting an editing branch. Use read-only openDocument, then saveDocument on explicit save. Retained for low-level concurrency coverage until the next breaking release. */
     getDraft,
     openDocument,
     saveDocument,
@@ -581,6 +582,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
         ? activeDrafts(id)
         : (await listDocuments()).filter((document) => document.branch !== null),
     readDraft,
+    /** @deprecated Low-level branch-only mutation. Use saveDocument, which also supports the first save of a published document. */
     saveDraft,
     publish,
     deleteDocument,
