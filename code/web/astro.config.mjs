@@ -11,6 +11,8 @@ import configuration from "./quiescent.config.json" with { type: "json" };
 defineDocumentConfig(configuration);
 
 const selfHosted = process.env.WRITING_RUNTIME === "node";
+// Local workerd lacks the Workers Cache tag-purge API used by Astro.
+const localWorker = process.env.WRITING_CONFIG === "wrangler.writing.jsonc";
 export default defineConfig({
   devToolbar: { enabled: !process.env.E2E_PORT },
   session: false,
@@ -20,11 +22,11 @@ export default defineConfig({
       ? { service: { entrypoint: "@astrojs/cloudflare/image-service-workerd" } }
       : {}),
   },
-  cache: { provider: selfHosted ? memoryCache() : cacheCloudflare() },
+  cache: { provider: selfHosted || localWorker ? memoryCache() : cacheCloudflare() },
   outDir: selfHosted ? "./dist-node" : "./dist",
   output: "server",
   vite: {
-    ...(selfHosted ? { ssr: { external: ["sharp"] } } : {}),
+    ...(selfHosted ? { ssr: { external: ["sharp", "@quiescent/server/sqlite-cache"] } } : {}),
     server: { strictPort: true },
     resolve: {
       alias: {

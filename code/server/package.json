@@ -31,7 +31,11 @@
       "default": "./dist/contracts.js"
     },
     "./config.schema.json": "./dist/config.schema.json",
-    "./documents-cache.schema.sql": "./dist/documents-cache.schema.sql"
+    "./documents-cache.schema.sql": "./dist/documents-cache.schema.sql",
+    "./sqlite-cache": {
+      "types": "./dist/document-cache-sqlite.d.ts",
+      "default": "./dist/document-cache-sqlite.js"
+    }
   },
   "types": "./dist/index.d.ts",
   "files": [
@@ -54,7 +58,8 @@
     "@tiptap/core": "^3.0.0",
     "@tiptap/starter-kit": "^3.0.0",
     "@tiptap/extension-image": "^3.0.0",
-    "@tiptap/markdown": "^3.31.3"
+    "@tiptap/markdown": "^3.31.3",
+    "@libsql/client": "^0.18.0"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",

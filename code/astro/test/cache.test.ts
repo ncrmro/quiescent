@@ -70,3 +70,86 @@ test("renames invalidate the previous URL and warm its missing page", async () =
   expect(warmed).toContain("/recipes/new");
   expect(warmed).toContain("/recipes/old");
 });
+
+test("external snapshot refresh invalidates and warms changed, renamed and deleted public pages", async () => {
+  const paths: string[] = [];
+  const tags: string[] = [];
+  const pages = astroDocumentCache<{ id: string; slug: string; body: string }>({
+    collection: "posts",
+    origin: "https://test",
+    indexPaths: ["/"],
+    documentPath: (d) => `/posts/${d.slug}`,
+    fetch: async (input) => {
+      const path = new URL(String(input)).pathname;
+      paths.push(path);
+      return new Response("", {
+        status: ["/posts/old", "/posts/deleted"].includes(path) ? 404 : 200,
+      });
+    },
+  });
+  const cache: RouteCache = {
+    enabled: true,
+    set() {},
+    async invalidate(value) {
+      tags.push(...(value.tags ?? []));
+    },
+  };
+  await pages.afterRefresh(
+    cache,
+    [
+      { id: "one", slug: "old", body: "before" },
+      { id: "two", slug: "deleted", body: "removed" },
+    ],
+    [{ id: "one", slug: "new", body: "after" }],
+  );
+  expect(tags).toContain("quiescent:collection:posts");
+  expect(new Set(paths)).toEqual(new Set(["/", "/posts/old", "/posts/new", "/posts/deleted"]));
+  paths.length = 0;
+  await pages.afterRefresh(
+    cache,
+    [{ id: "one", slug: "new", body: "after" }],
+    [{ id: "one", slug: "new", body: "after" }],
+  );
+  expect(paths).toEqual([]);
+  await pages.afterRefresh(
+    cache,
+    [{ id: "one", slug: "new", body: "after" }],
+    [{ id: "one", slug: "new", body: "after" }],
+    true,
+  );
+  expect(new Set(paths)).toEqual(new Set(["/", "/posts/new"]));
+  paths.length = 0;
+  await pages.afterRefresh(cache, [], [], true);
+  expect(new Set(paths)).toEqual(new Set(["/"]));
+});
+
+test("stale document snapshots cannot be retained as fresh HTML", () => {
+  const settings: unknown[] = [];
+  const cache: RouteCache = {
+    enabled: true,
+    set(value) {
+      settings.push(value);
+    },
+    async invalidate() {},
+  };
+  const pages = astroDocumentCache<{ id: string }>({
+    collection: "posts",
+    origin: "https://test",
+    documentPath: (d) => `/posts/${d.id}`,
+    maxAge: 3600,
+  });
+  pages.set(cache, "one", {
+    fetchedAt: Date.now() - 1000,
+    updatedAt: Date.now(),
+    stale: true,
+    refreshing: true,
+  });
+  expect(settings).toEqual([false]);
+  pages.set(cache, "one", {
+    fetchedAt: Date.now() - 1800000,
+    updatedAt: Date.now(),
+    stale: false,
+    refreshing: false,
+  });
+  expect((settings[1] as { maxAge: number }).maxAge).toBeLessThanOrEqual(1800);
+});

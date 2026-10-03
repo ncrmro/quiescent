@@ -30,9 +30,9 @@ export function createDocumentHandler<T extends Frontmatter>(options: DocumentHa
     schema: store.schema,
     list: store.listDocuments,
     create: (data) => store.createDocument(data as unknown as DocumentInput<T>),
-    get: store.getDraft,
+    get: store.openDocument,
     save: (selection, data) =>
-      store.saveDraft({ ...selection, document: data.document as DocumentInput<T> }),
+      store.saveDocument({ ...selection, document: data.document as DocumentInput<T> }),
     publish: store.publish,
     delete: store.deleteDocument,
     afterPublish: async (result) => {

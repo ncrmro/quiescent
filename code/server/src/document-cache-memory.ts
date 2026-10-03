@@ -1,3 +1,4 @@
+import { cacheScope, selectDocuments } from "./document-cache-query.ts";
 import {
   type DocumentCacheSnapshot,
   type DocumentCacheStorage,
@@ -23,8 +24,10 @@ export function memoryDocumentCache(options: { maxEntries?: number } = {}): Docu
     return value;
   }
   return {
-    async read(key) {
-      return structuredClone(entry(key));
+    async read(key, query) {
+      const snapshot = structuredClone(entry(key));
+      if (query) snapshot.documents = selectDocuments(snapshot.documents, query);
+      return snapshot;
     },
     async claim(key, revision, lease, now, until) {
       const value = entry(key);
@@ -77,14 +80,15 @@ export function memoryDocumentCache(options: { maxEntries?: number } = {}): Docu
         value.documents = value.documents.filter(
           (d) =>
             d.document.id !== change.id ||
-            (!!change.document &&
-              d.branch !== null &&
-              d.branch !== change.document.branch &&
+            ((!!change.document || !!change.retireBranch) &&
+              (cacheScope(key).view !== "all" || d.branch !== null) &&
+              d.branch !== change.document?.branch &&
               d.branch !== change.retireBranch),
         );
         if (
           change.document &&
-          (change.document.branch !== null ||
+          (cacheScope(key).view !== "all" ||
+            change.document.branch !== null ||
             !value.documents.some((d) => d.document.id === change.id))
         )
           value.documents.unshift(structuredClone(change.document));

@@ -46,9 +46,10 @@ filenames through the same Git LFS and delivery adapters. The example's header
 images use responsive optimization on both runtimes: Sharp on Node and the Images
 binding on Cloudflare.
 
-Public HTML is cached for 24 hours and warmed on publication, deletion, startup,
+Public HTML is cached for up to one hour, bounded by document-cache freshness, and warmed on publication, deletion, startup,
 and deployment. Draft saves do not change public content. Optimized image variants
-are generated on first request, then cached. Direct Git edits require cache refresh.
+are generated on first request, then cached. Direct Git edits appear on explicit refresh or the next refresh after the data TTL.
+Published refreshes invalidate and warm affected HTML pages.
 Unsupported visual-editor Markdown remains editable as source and displays as
 escaped source in this deliberately small example renderer.
 
@@ -146,7 +147,7 @@ version: `dda53372-62c7-4b60-bf69-1c3cfac3f32b`.
 The example supplies a `tags` field control with removable chips, a native datalist,
 and tappable suggestions. New tags are allowed and saved with the rest of the document.
 `/api/tags/<collection>` deduplicates tags from published main-branch documents only.
-It uses the collection's 24-hour Astro route cache and is an index warming target,
+It uses the collection's one-hour Astro route cache and is an index warming target,
 so publication, deletion, startup, and deployment refresh it eagerly. Suggestions
 are optional: if loading fails, writers can still enter tags. No library code is
 changed for this feature.

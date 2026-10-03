@@ -11,7 +11,7 @@ import { documentUuid, localDrafts } from "./local-drafts.ts";
 import { createMetadataForm, type MetadataControl, type MetadataSchema } from "./metadata.ts";
 import { findRecoveryRecords, type RecoveryRecord, removeRecoveredRecord } from "./recovery.ts";
 
-type Draft = DocumentDraft & { branch: string };
+type Draft = DocumentDraft;
 
 import { createWritingEditor } from "./rich-text.ts";
 
@@ -48,7 +48,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   const fields = options.imageFields ?? [];
   const mediaUrl = (src: string) =>
     active
-      ? `${api}/${active.document.id}/media/${encodeURIComponent(src)}?branch=${encodeURIComponent(active.branch)}`
+      ? `${api}/${active.document.id}/media/${encodeURIComponent(src)}${active.branch ? `?branch=${encodeURIComponent(active.branch)}` : ""}`
       : src;
   let active: Draft | undefined;
   let publishedDocument: { document: DocumentRecord; headSha: string } | undefined;
@@ -129,12 +129,13 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     byte.toString(16).padStart(2, "0"),
   ).join("");
   const recoveryPrefix = (id: string) => `quiescent-writing:${api}:${id}:`;
-  const key = (id: string, branch: string) => `${recoveryPrefix(id)}${branch}:${recoverySession}`;
+  const key = (id: string, branch: string | null) =>
+    `${recoveryPrefix(id)}${branch}:${recoverySession}`;
   let selectedRecovery: RecoveryRecord | undefined;
   let remembered: { key: string; raw: string } | undefined;
   const remember = () => {
     if (active) {
-      if (!active.branch) {
+      if (active.branch === "") {
         try {
           local.save(active.document);
           localStorageFailed = false;
@@ -171,7 +172,9 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   }
   function needsSave(create: boolean) {
     if (!active) return false;
-    return active.branch ? generation !== savedGeneration : create;
+    return active.branch === ""
+      ? create
+      : generation !== savedGeneration || (active.branch === null && create);
   }
   const flush = async (create = false): Promise<void> => {
     clearTimeout(timer);
@@ -191,7 +194,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     const version = generation;
     status("Saving…");
     saving = (async () => {
-      const wasLocal = !draft.branch;
+      const wasLocal = draft.branch === "";
       const updated = wasLocal
         ? await request<Draft>("", { method: "POST", body: JSON.stringify(snapshot) })
         : await request<Draft>(`/${draft.document.id}`, {
@@ -234,8 +237,8 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
         ? "Recovered writing: choose Save now after reviewing."
         : "Unsaved changes",
     );
-    if (recoveryNeedsReview || !draft.branch) {
-      if (!draft.branch) status("Saved on this device — choose Save now to save to GitHub.");
+    if (recoveryNeedsReview || draft.branch === "") {
+      if (draft.branch === "") status("Saved on this device — choose Save now to save to GitHub.");
       return false;
     }
     return true;
@@ -390,10 +393,10 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   function opened(draft: Draft, recovery: boolean) {
     q("[data-publish]").textContent =
       draft.state === "published" || draft.document.publishedAt ? "Publish changes" : "Publish";
-    if (draft.branch) options.onDocumentOpen?.(draft.document);
+    if (draft.branch !== "") options.onDocumentOpen?.(draft.document);
     else options.onLocalDocumentOpen?.(draft.document);
     status(
-      !draft.branch
+      draft.branch === ""
         ? "Saved on this device — choose Save now to save to GitHub."
         : recovery
           ? "Recovered unsaved writing. Review and choose Save now."
@@ -420,7 +423,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     metadata.disable(false);
     selectedRecovery = undefined;
     remembered = undefined;
-    recovery = draft.branch ? restoreRecovery(draft) : false;
+    recovery = draft.branch !== "" ? restoreRecovery(draft) : false;
     metadata.load(draft.document.frontmatter);
     images?.show();
     q("[data-fields]").hidden = false;
@@ -463,6 +466,9 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     preview.innerHTML = renderDocument(editor.getDocument(), (ref) => mediaUrl(ref.assetId));
     preview.hidden = !preview.hidden;
   };
+  function unchangedPublished() {
+    return active?.branch === null && generation === savedGeneration;
+  }
   q("[data-publish]").onclick = () => {
     if (!active || publishing || navigating) return;
     publishing = true;
@@ -470,6 +476,11 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     editor?.setEditable(false);
     void (async () => {
       await editor?.waitForUploads();
+      applyDerivation();
+      if (unchangedPublished()) {
+        status("Published");
+        return;
+      }
       await flush(true);
       const draft = active!;
       status("Publishing…");
@@ -505,6 +516,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
         document: result.document,
         headSha: published.headSha,
         state: "published",
+        branch: null,
       });
       publishedDocument = published;
       active = undefined;
@@ -527,7 +539,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
       });
   };
   async function deleteTarget(target: { document: DocumentRecord; headSha: string }) {
-    if (active && !active.branch) {
+    if (active?.branch === "") {
       local.remove(target.document.id);
       return {} as MutationResponse<object>;
     }
@@ -567,7 +579,7 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   const beforeUnload = (event: BeforeUnloadEvent) => {
     if (
       localStorageFailed ||
-      (active?.branch && generation !== savedGeneration) ||
+      (active && active.branch !== "" && generation !== savedGeneration) ||
       !metadataValid ||
       publishing ||
       images?.busy()

@@ -1,11 +1,13 @@
 import { Validator } from "@cfworker/json-schema";
 import configurationSchema from "./config.schema.json" with { type: "json" };
+import { validateDocumentIndexes } from "./document-cache-query.ts";
 import type { Frontmatter, JSONSchema } from "./document-codec.ts";
 import { DocumentError } from "./document-error.ts";
 import { documentDirectory, draftBranches, filenameTemplate } from "./document-naming.ts";
 
 export interface CollectionConfig {
   schema: JSONSchema;
+  indexes?: string[];
   directory?: string;
   filename?: string;
   draftBranch?: string;
@@ -41,6 +43,7 @@ export function defineDocumentConfig(input: unknown): QuiescentConfig {
     draftBranches(name, collection.draftBranch);
     filenameTemplate(collection.filename ?? "{id}");
     new Validator(collection.schema, "2020-12", false);
+    validateDocumentIndexes(collection.indexes ?? [], collection.schema);
   }
   return config;
 }
@@ -55,6 +58,7 @@ export function configuredCollection<T extends Frontmatter = Frontmatter>(
   return {
     collection: name,
     schema: collection.schema,
+    indexes: collection.indexes ?? [],
     directory: collection.directory ?? name,
     defaultBranch: config.repository.publishedBranch ?? "main",
     draftBranch: collection.draftBranch ?? "quiescent/{collection}/{id}/{cycle}",

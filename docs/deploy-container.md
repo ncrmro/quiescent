@@ -12,7 +12,8 @@ R2 on Node as well as Cloudflare. Direct browser uploads require exact-origin
 bucket CORS. Keep the bucket private.
 
 Install and retain the production dependencies alongside the Node build, including
-`sharp` and its platform-specific optional binaries. Astro uses Sharp for runtime
+`sharp`, `@quiescent/server`, and their platform-specific optional binaries.
+The SQLite cache subpath stays external so its packaged SQL schema remains available. Astro uses Sharp for runtime
 responsive WebP images; it is intentionally external to the JavaScript bundle.
 
 The launcher warms Astro's full-page memory cache before accepting normal traffic.
@@ -21,9 +22,10 @@ cache provider. Put HTTPS in front of the app for public hosting.
 
 The fixed `quiescent-demo` password demonstrates an account-free example. A host
 can supply its own authorization callback without changing the document store.
-No database, OAuth service, cron flush, or KV draft storage is required. The
-example uses a bounded in-memory document listing cache, rebuilt after restart.
-Supply another `DocumentCacheStorage` adapter for shared persistent storage.
-See [listing caching](document-cache.md) for the same cache contract used on D1.
+No external database service, OAuth service, cron flush, or KV draft storage is
+required. The example creates `.writing-cache.sqlite` locally; set
+`WRITING_CACHE_URL=file:/data/documents.sqlite` to place it on a persistent volume.
+The cache is disposable and uses the same schema and query implementation as D1.
+See [document caching](document-cache.md).
 
 See [the complete workflow and validation commands](writing-prototype.md).

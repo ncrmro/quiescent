@@ -5,12 +5,16 @@ export interface DocumentRecord<T extends Frontmatter = Frontmatter> extends Doc
   publishedAt?: string;
 }
 export interface StoredDocument<T extends Frontmatter = Frontmatter> extends DocumentRecord<T> {
+  /** Internal storage location, never serialized into document frontmatter. */
+  storageDirectory?: string;
   publicationSource?: string;
   deletedAt?: string;
 }
 export type DocumentState = "draft" | "published" | "unpublished-changes";
 export interface DocumentDraft<T extends Frontmatter = Frontmatter> {
   document: DocumentRecord<T>;
+  /** Storage directory at headSha, for cached read-only media. */
+  directory?: string;
   branch: string | null;
   headSha: string;
   state: DocumentState;
@@ -18,6 +22,11 @@ export interface DocumentDraft<T extends Frontmatter = Frontmatter> {
 export interface DocumentSelection {
   id: string;
   branch: string;
+  expectedHeadSha: string;
+}
+export interface SaveSelection {
+  id: string;
+  branch: string | null;
   expectedHeadSha: string;
 }
 export interface DeleteSelection {

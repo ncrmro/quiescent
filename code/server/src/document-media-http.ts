@@ -8,8 +8,8 @@ export async function upload(
 ) {
   const [id, asset, operation] = parts;
   if (!id || parts.length > 3) return json({ error: "Not found" }, 404);
-  await service.getDraft(id);
   if (!asset && request.method === "POST") {
+    await service.getDraft(id);
     const data = await payload(request);
     if (typeof data.contentType !== "string" || typeof data.size !== "number")
       throw new MediaError("Image metadata missing");
@@ -17,12 +17,14 @@ export async function upload(
   }
   if (!asset) return json({ error: "Not found" }, 404);
   if (operation === "confirm" && request.method === "POST") {
+    await service.getDraft(id);
     const data = await payload(request);
     return json(
       await media.confirm(id, asset, typeof data.filename === "string" ? data.filename : undefined),
     );
   }
   if (!operation && request.method === "PUT" && media.uploadLocal) {
+    await service.getDraft(id);
     await media.uploadLocal(id, asset, request);
     return json({ ok: true });
   }

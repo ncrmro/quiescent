@@ -3,6 +3,7 @@ import { createForge, createLfsClient, requirePublishingForge } from "@quiescent
 import {
   configuredCollection,
   createDocumentService,
+  type DocumentDraft,
   DocumentError,
   defineDocumentConfig,
   localR2Media,
@@ -44,7 +45,15 @@ function configuredMedia(env: WritingEnv): MediaStorage {
   if (env.WRITING_MEDIA) return localR2Media(env.WRITING_MEDIA);
   throw new WritingConfigurationError("Writing media storage is not configured.");
 }
-export function writingApp(env: WritingEnv, collection: Collection = "posts") {
+export function writingApp(
+  env: WritingEnv,
+  collection: Collection = "posts",
+  onPublishedChange?: (
+    previous: DocumentDraft<ExampleMetadata>[],
+    next: DocumentDraft<ExampleMetadata>[],
+    retry?: boolean,
+  ) => Promise<void>,
+) {
   if (!env.SERVICE_TOKEN)
     throw new WritingConfigurationError("Set SERVICE_TOKEN to connect the writing repository.");
   const owner = env.WRITING_REPO_OWNER ?? documentConfig.repository.owner;
@@ -81,6 +90,7 @@ export function writingApp(env: WritingEnv, collection: Collection = "posts") {
       ]),
       ttlMs: 60 * 60 * 1000,
       waitUntil: scheduleCacheRefresh,
+      ...(onPublishedChange ? { onPublishedChange } : {}),
     },
     references: (document) => [
       ...markdownImages(document.body),
@@ -90,7 +100,7 @@ export function writingApp(env: WritingEnv, collection: Collection = "posts") {
       if (!document.frontmatter.title.trim())
         throw new DocumentError("Add a title before publishing", "invalid");
       if (
-        (await service.listPublished()).some(
+        (await service.listPublishedFromGit()).some(
           (other) =>
             other.document.id !== document.id &&
             other.document.frontmatter.slug === document.frontmatter.slug,

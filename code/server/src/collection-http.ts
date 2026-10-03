@@ -1,4 +1,4 @@
-import type { DeleteSelection, DocumentSelection } from "./contracts.ts";
+import type { DeleteSelection, DocumentSelection, SaveSelection } from "./contracts.ts";
 import { DocumentError } from "./document-error.ts";
 import { documentErrorResponse, json, payload } from "./http.ts";
 export type RequestData = Record<string, unknown>;
@@ -24,6 +24,13 @@ export function privateHandler(
 function selection(id: string, data: RequestData): DocumentSelection {
   if (typeof data.branch !== "string" || typeof data.expectedHeadSha !== "string")
     throw new DocumentError("Draft revision missing", "invalid");
+  return { id, branch: data.branch, expectedHeadSha: data.expectedHeadSha };
+}
+function saveSelection(id: string, data: RequestData): SaveSelection {
+  if (data.branch !== null && typeof data.branch !== "string")
+    throw new DocumentError("Document revision missing", "invalid");
+  if (typeof data.expectedHeadSha !== "string")
+    throw new DocumentError("Document revision missing", "invalid");
   return { id, branch: data.branch, expectedHeadSha: data.expectedHeadSha };
 }
 function deletion(id: string, data: RequestData): DeleteSelection {
@@ -59,7 +66,7 @@ interface CollectionRoutes<Draft, Published extends object, Deleted extends obje
   list: () => Promise<Draft[]>;
   create: (data: RequestData) => Promise<Draft>;
   get: (id: string, branch?: string) => Promise<Draft>;
-  save: (selection: DocumentSelection, data: RequestData) => Promise<Draft>;
+  save: (selection: SaveSelection, data: RequestData) => Promise<Draft>;
   publish: (selection: DocumentSelection) => Promise<Published>;
   delete: (selection: DeleteSelection) => Promise<Deleted>;
   afterPublish: (result: Published) => Promise<void>;
@@ -86,7 +93,7 @@ export function collectionRoutes<Draft, Published extends object, Deleted extend
         );
       case "PUT:": {
         const data = await payload(request);
-        return json(await options.save(selection(id, data), data));
+        return json(await options.save(saveSelection(id, data), data));
       }
       case "POST:publish":
         return publishedResponse(

@@ -130,3 +130,32 @@ test("omitted naming options retain UUID paths and the original branch conventio
     "Note",
   );
 });
+
+test("collection indexes require declared scalar properties and reject arrays, unknown fields and unsafe names", () => {
+  const indexed = {
+    ...configuration,
+    collections: { posts: { ...configuration.collections.posts, indexes: ["slug"] } },
+  };
+  expect(configuredCollection(defineDocumentConfig(indexed), "posts").indexes).toEqual(["slug"]);
+  for (const indexes of [["unknown"], ["slug", "slug"], ["slug); DROP TABLE documents;--"]])
+    expect(() =>
+      defineDocumentConfig({
+        ...indexed,
+        collections: { posts: { ...indexed.collections.posts, indexes } },
+      }),
+    ).toThrow();
+  expect(() =>
+    defineDocumentConfig({
+      ...indexed,
+      collections: {
+        posts: {
+          ...indexed.collections.posts,
+          schema: {
+            type: "object",
+            properties: { slug: { type: "array", items: { type: "string" } } },
+          },
+        },
+      },
+    }),
+  ).toThrow("scalar");
+});

@@ -41,7 +41,8 @@
             "title": "Image"
           }
         }
-      }
+      },
+      "indexes": ["slug", "title"]
     },
     "recipes": {
       "directory": "recipes",
@@ -99,7 +100,8 @@
             "minimum": 0
           }
         }
-      }
+      },
+      "indexes": ["slug", "preparationMinutes"]
     }
   }
 }

@@ -266,11 +266,32 @@ for (const collection of ["posts", "recipes"] as const) {
       "weekend",
       "family",
     ]);
+    const commitsAfterPublish = backend.commits.size;
+    const branchesAfterPublish = backend.branches.size;
     await page.getByRole("button", { name: "Edit document", exact: true }).click();
     await expect(page.getByRole("status")).toHaveText("Saved");
     await expect(page.getByRole("textbox", { name: "Document body" })).toHaveText(
       "We walked beside the river.",
     );
+    expect(backend.commits.size).toBe(commitsAfterPublish);
+    expect(backend.branches.size).toBe(branchesAfterPublish);
+    const firstSave = page.waitForRequest(
+      (request) => request.method() === "PUT" && request.url().endsWith(`/${saved.document.id}`),
+    );
+    await page
+      .getByRole("textbox", { name: "Document body" })
+      .fill("A private revision after opening.");
+    expect((await firstSave).postDataJSON().branch).toBeNull();
+    await expect(page.getByRole("status")).toHaveText("Saved");
+    expect(backend.branches.size).toBe(branchesAfterPublish + 1);
+    expect((await service.getPublished(saved.document.id))!.document.body).toBe(
+      saved.document.body,
+    );
+    expect((await service.openDocument(saved.document.id)).document.body).toContain(
+      "A private revision after opening.",
+    );
+    if (collection === "recipes")
+      await page.getByRole("button", { name: "Finish writing", exact: true }).click();
     const branchesBefore = [...backend.branches.keys()];
     await page.getByRole("button", { name: "Editor options", exact: true }).click();
     await page

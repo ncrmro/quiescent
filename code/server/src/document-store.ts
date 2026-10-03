@@ -16,6 +16,7 @@ import type {
   DocumentDraft,
   DocumentRecord,
   DocumentSelection,
+  SaveSelection,
   StoredDocument,
 } from "./contracts.ts";
 
@@ -23,6 +24,7 @@ export type {
   DocumentDraft,
   DocumentRecord,
   DocumentSelection,
+  SaveSelection,
   StoredDocument,
 } from "./contracts.ts";
 export interface DocumentStoreOptions<T extends Frontmatter> {
@@ -45,8 +47,11 @@ function publishedRecord<T extends Frontmatter>(document: StoredDocument<T> | nu
   return document?.publishedAt ? publicDocument(document) : null;
 }
 function publicDocument<T extends Frontmatter>(document: StoredDocument<T>): DocumentRecord<T> {
-  const { publicationSource: _, deletedAt: __, ...value } = document;
+  const { publicationSource: _, deletedAt: __, storageDirectory: ___, ...value } = document;
   return value;
+}
+function storedLocation(document: StoredDocument) {
+  return document.storageDirectory ? { directory: document.storageDirectory } : {};
 }
 /** Schema-validated Markdown documents; Git is the authority for every lifecycle operation. */
 export function createDocumentStore<T extends Frontmatter = Frontmatter>(
@@ -85,7 +90,13 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     const headSha = await forge.getBranchSha(main);
     const document = await read(id, headSha);
     return document?.publishedAt && !document.deletedAt
-      ? { document: publicDocument(document), branch: null, headSha, state: "published" }
+      ? {
+          document: publicDocument(document),
+          ...storedLocation(document),
+          branch: null,
+          headSha,
+          state: "published",
+        }
       : null;
   }
   async function listPublished(): Promise<DocumentDraft<T>[]> {
@@ -96,6 +107,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
         document?.publishedAt && !document.deletedAt
           ? {
               document: publicDocument(document),
+              ...storedLocation(document),
               branch: null,
               headSha,
               state: "published" as const,
@@ -120,6 +132,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     return document
       ? {
           document: publicDocument(document),
+          ...storedLocation(document),
           branch: name,
           headSha: sha,
           state: document.publishedAt ? ("unpublished-changes" as const) : ("draft" as const),
@@ -162,6 +175,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     });
     return {
       document: document,
+      directory: layout.directory(document),
       branch,
       headSha: result.sha,
       state: document.publishedAt ? "unpublished-changes" : "draft",
@@ -247,6 +261,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
       if (!document) throw new DocumentError("Draft not found", "not_found");
       return {
         document: publicDocument(document),
+        ...storedLocation(document),
         branch,
         headSha,
         state: document.publishedAt ? "unpublished-changes" : "draft",
@@ -257,6 +272,63 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     const published = await getPublished(id);
     if (!published) throw new DocumentError("Document not found", "not_found");
     return startPublished(published);
+  }
+  async function openDocument(id: string, branch?: string): Promise<DocumentDraft<T>> {
+    path(id);
+    const draft = await readDraft(id, branch);
+    if (draft) return draft;
+    const published = !branch ? await getPublished(id) : null;
+    if (!published) throw new DocumentError("Document not found", "not_found");
+    return published;
+  }
+  async function expectedPublished(id: string, expectedHeadSha: string) {
+    const [published, expected] = await Promise.all([getPublished(id), read(id, expectedHeadSha)]);
+    if (
+      !published ||
+      !expected?.publishedAt ||
+      expected.deletedAt ||
+      JSON.stringify(published.document) !== JSON.stringify(publicDocument(expected))
+    )
+      throw new DocumentError(
+        "This document has newer changes. Reopen it before saving.",
+        "conflict",
+      );
+    return published;
+  }
+  async function saveDocument(
+    input: SaveSelection & { document: DocumentInput<T> & { id?: string } },
+  ): Promise<DocumentDraft<T>> {
+    if (input.branch !== null) return saveDraft({ ...input, branch: input.branch });
+    path(input.id);
+    const value = checked(input.document);
+    if (input.document.id !== undefined && input.document.id !== input.id)
+      throw new DocumentError("Document identifier mismatch", "invalid");
+    const published = await expectedPublished(input.id, input.expectedHeadSha);
+    const equal = (document: DocumentRecord<T>) =>
+      JSON.stringify(checked(document)) === JSON.stringify(value);
+    const existing = (await activeDrafts(input.id))[0];
+    if (existing) {
+      if (equal(existing.document)) return existing; // Retry after a lost first-save response.
+      throw new DocumentError(
+        "This document already has a draft. Reopen it before saving.",
+        "conflict",
+      );
+    }
+    const draft = await startPublished(published);
+    // A concurrent first save may have won the deterministic cycle. Never overwrite it.
+    if (JSON.stringify(draft.document) !== JSON.stringify(published.document)) {
+      if (equal(draft.document)) return draft;
+      throw new DocumentError(
+        "This document has newer changes. Reopen it before saving.",
+        "conflict",
+      );
+    }
+    return saveDraft({
+      id: input.id,
+      branch: draft.branch!,
+      expectedHeadSha: draft.headSha,
+      document: value,
+    });
   }
   async function saveDraft(
     input: DocumentSelection & { document: DocumentInput<T> & { id?: string } },
@@ -289,6 +361,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     const result = await commit(input.branch, head, document, "Save document draft");
     return {
       document: document,
+      directory: layout.directory(document),
       branch: input.branch,
       headSha: result.sha,
       state: document.publishedAt ? "unpublished-changes" : "draft",
@@ -319,6 +392,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     if (published && (await wasPublished(input, published, mainSha))) {
       return {
         document: publicDocument(published),
+        ...storedLocation(published),
         previous: publicDocument(published),
         headSha: head,
         publishedSha: mainSha,
@@ -350,6 +424,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
       throw new DocumentError("Publication could not be confirmed. Retry safely.", "conflict");
     return {
       document: publicDocument(visible),
+      ...storedLocation(visible),
       previous: publishedRecord(published),
       headSha: head,
       publishedSha: result.sha,
@@ -468,6 +543,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
         ? [
             {
               document: publicDocument(document),
+              ...storedLocation(document),
               branch: name,
               headSha: sha,
               state: document.publishedAt ? ("unpublished-changes" as const) : ("draft" as const),
@@ -482,6 +558,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
         ? [
             {
               document: publicDocument(document),
+              ...storedLocation(document),
               branch: null,
               headSha: mainSha,
               state: "published" as const,
@@ -497,6 +574,12 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     schema: options.schema,
     createDocument,
     getDraft,
+    openDocument,
+    saveDocument,
+    listDrafts: async (id?: string) =>
+      id
+        ? activeDrafts(id)
+        : (await listDocuments()).filter((document) => document.branch !== null),
     readDraft,
     saveDraft,
     publish,

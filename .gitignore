@@ -21,3 +21,5 @@ code/web/.writing-node.pid
 code/web/.env.node.local
 
 code/web/.env.e2e.local
+
+code/web/.writing-cache.sqlite*

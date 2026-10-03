@@ -117,6 +117,7 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
       const workflow = location.state;
       return {
         ...decode(file.content, id),
+        storageDirectory: location.directory,
         ...(workflow.publishedAt ? { publishedAt: workflow.publishedAt } : {}),
         ...(workflow.publicationSource ? { publicationSource: workflow.publicationSource } : {}),
         ...(workflow.deletedAt ? { deletedAt: workflow.deletedAt } : {}),
@@ -131,6 +132,7 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
     if (!file) return null;
     return {
       ...decode(file.content, id),
+      storageDirectory: directory,
       ...(state.publishedAt ? { publishedAt: state.publishedAt } : {}),
       ...(state.publicationSource ? { publicationSource: state.publicationSource } : {}),
       ...(state.deletedAt ? { deletedAt: state.deletedAt } : {}),
@@ -231,5 +233,16 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
         "invalid",
       );
   }
-  return { read, readMany, changes, ids, index, location, assertScope, assertDestination, checkId };
+  return {
+    directory: folder,
+    read,
+    readMany,
+    changes,
+    ids,
+    index,
+    location,
+    assertScope,
+    assertDestination,
+    checkId,
+  };
 }

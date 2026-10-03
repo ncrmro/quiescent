@@ -1,4 +1,5 @@
 import type { DocumentDraft } from "./contracts.ts";
+import type { DocumentQuery } from "./document-cache-query.ts";
 import type { Frontmatter } from "./document-codec.ts";
 
 export interface DocumentCacheStatus {
@@ -28,7 +29,8 @@ export interface DocumentCacheSnapshot {
 export type DocumentCacheChange = { id: string; document?: DocumentDraft; retireBranch?: string };
 /** All mutations are atomic. Refresh completion must test its lease in the same transaction. */
 export interface DocumentCacheStorage {
-  read(key: string): Promise<DocumentCacheSnapshot>;
+  read(key: string, query?: DocumentQuery): Promise<DocumentCacheSnapshot>;
+  ensureIndexes?(indexes: string[]): Promise<void>;
   claim(key: string, revision: number, lease: string, now: number, until: number): Promise<boolean>;
   complete(key: string, lease: string, documents: DocumentDraft[], now: number): Promise<boolean>;
   fail(key: string, lease: string, error: string, retryAt: number): Promise<void>;
@@ -43,6 +45,17 @@ export interface DocumentCacheStorage {
 }
 export interface DocumentListCacheOptions {
   storage: DocumentCacheStorage;
+  indexes?: string[];
+  onPublishedChange?: (
+    previous: DocumentDraft[],
+    next: DocumentDraft[],
+    retry?: boolean,
+  ) => Promise<void>;
+  afterRefresh?: (
+    previous: DocumentDraft[],
+    next: DocumentDraft[],
+    retry?: boolean,
+  ) => Promise<void>;
   /** Scope by repository, published branch, collection, schema, and configuration version. */
   key: string;
   ttlMs?: number;

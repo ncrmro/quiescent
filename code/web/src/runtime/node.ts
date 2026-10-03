@@ -1,5 +1,5 @@
-import { memoryDocumentCache } from "@quiescent/server";
 import { fileMedia } from "@quiescent/server/file-media";
+import { sqliteDocumentCache } from "@quiescent/server/sqlite-cache";
 import type { WritingEnv } from "../writing/app";
 export const env: WritingEnv = {
   ...process.env,
@@ -41,7 +41,9 @@ export const transformImage: import("@quiescent/astro/images").TransformImage = 
   });
 };
 
-const documents = memoryDocumentCache();
+const documents = sqliteDocumentCache({
+  url: process.env.WRITING_CACHE_URL ?? "file:.writing-cache.sqlite",
+});
 export function hostedDocumentCache() {
   return documents;
 }

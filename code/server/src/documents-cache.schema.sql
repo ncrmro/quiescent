@@ -12,11 +12,21 @@ CREATE TABLE IF NOT EXISTS quiescent_document_cache (
   updated_at INTEGER,
   error TEXT
 );
-CREATE TABLE IF NOT EXISTS quiescent_document_cache_entries (
-  cache_key TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS quiescent_documents (
+  scope TEXT NOT NULL,
+  collection TEXT NOT NULL,
   document_id TEXT NOT NULL,
   branch TEXT NOT NULL,
-  document_json TEXT NOT NULL,
-  PRIMARY KEY (cache_key, document_id, branch),
-  FOREIGN KEY (cache_key) REFERENCES quiescent_document_cache(cache_key) ON DELETE CASCADE
+  slug TEXT,
+  frontmatter_json TEXT NOT NULL,
+  body TEXT NOT NULL,
+  revision TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  published_at TEXT,
+  directory TEXT,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY(scope, collection, document_id, branch)
 );
+CREATE INDEX IF NOT EXISTS quiescent_documents_slug ON quiescent_documents(scope, collection, slug, branch);
+CREATE INDEX IF NOT EXISTS quiescent_documents_created ON quiescent_documents(scope, collection, created_at, branch);
+CREATE INDEX IF NOT EXISTS quiescent_documents_published ON quiescent_documents(scope, collection, published_at, branch);

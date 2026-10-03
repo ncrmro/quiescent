@@ -269,3 +269,27 @@ test("cold-fill persistence failure returns fetched Git data with degradation st
   expect(result.documents).toEqual([document("authoritative")]);
   expect(result.cache.error).toContain("cache is unavailable");
 });
+
+test("external refresh invalidates pages after committing rows; failures explicitly retry the page hook", async () => {
+  const storage = memoryDocumentCache();
+  let version = "old";
+  const retries: boolean[] = [];
+  const cache = createDocumentListCache(
+    {
+      storage,
+      key: "pages",
+      afterRefresh: async (_previous, next, retry) => {
+        retries.push(!!retry);
+        expect((await storage.read("pages")).documents).toEqual(next);
+        if (retries.length === 1) throw new Error("page cache temporarily unavailable");
+      },
+    },
+    async () => [document(version)],
+  );
+  await cache.read();
+  expect(retries).toEqual([]);
+  version = "new";
+  expect((await cache.refresh()).cache.stale).toBe(true);
+  expect((await cache.refresh()).cache.stale).toBe(false);
+  expect(retries).toEqual([false, true]);
+});

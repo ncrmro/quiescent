@@ -16,16 +16,16 @@ for defaults and code overrides.
 Start with [the writing example](docs/writing-prototype.md) or the
 [document API](docs/document-store.md). The same Astro example runs on self-hosted
 Node and Cloudflare Workers. It needs a GitHub repository token and image storage;
-Cloudflare uses D1 for a disposable document listing cache. Node uses a bounded
-in-memory cache. Git and LFS remain authoritative; no auth database or deferred
-Git writes are involved. See [listing caching](docs/document-cache.md).
+Cloudflare uses D1 for a disposable document cache. Node uses a persistent local SQLite
+file through the same schema and queries. Git and LFS remain authoritative; no auth database or deferred
+Git writes are involved. See [document caching](docs/document-cache.md).
 
 ## Packages
 
 | Package | Responsibility |
 | --- | --- |
 | `@quiescent/git` | Forge HTTP APIs, commits, refs, conflict checks, comparisons, merges, Git LFS |
-| `@quiescent/server` | Document validation, Markdown codecs, shared contracts, publication, HTTP handlers, media, portable listing cache and optional D1 adapter |
+| `@quiescent/server` | Document validation, Markdown codecs, shared contracts, publication, HTTP handlers, media, portable document cache with D1 and SQLite adapters |
 | `@quiescent/astro` | Full-page caching, targeted invalidation, eager warming, thin route helpers |
 | `@quiescent/editor` | Schema metadata controls, formatted body editor, atomic saves, recovery, publishing |
 | `@quiescent/wiki` | Independent read-only wiki rendering, search, tags, graph; not part of the writing example |
@@ -36,7 +36,7 @@ are exported from `@quiescent/server/content`; shared document, draft, upload,
 and response types come from `@quiescent/server/contracts`. Posts and arbitrary
 collections use one store and one CRUD dispatcher.
 
-Public pages read only `main`. Astro caches complete HTML for 24 hours. Publish
+Public pages read only `main`. Astro caches complete HTML for up to one hour, bounded by data freshness. Publish
 and delete invalidate affected pages and warm them before responding. Private
 saves update the editor directly. Node startup and Cloudflare deployment warm
 pages before the example is ready. See the writing guide for provider limits.

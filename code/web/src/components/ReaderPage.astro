@@ -1,12 +1,11 @@
 ---
-import { env } from "quiescent:runtime";
 import DocumentBody from "@quiescent/astro/components/DocumentBody.astro";
 import DocumentImage from "@quiescent/astro/components/DocumentImage.astro";
 import { documentImages } from "@quiescent/astro/images";
 import type { DocumentDraft } from "@quiescent/server";
 import { fromMarkdown } from "@quiescent/server/content";
-import { writingApp } from "../writing/app";
 import { type Collection, documentPath, type ExampleMetadata } from "../writing/collections";
+import { collectionApp } from "../writing/pages";
 import EditLink from "./EditLink.astro";
 import PlainImage from "./PlainImage.astro";
 import SiteNav from "./SiteNav.astro";
@@ -18,7 +17,7 @@ interface Props {
   posts: DocumentDraft<ExampleMetadata>[];
 }
 const { post, posts, collection } = Astro.props;
-const { service } = writingApp(env, collection);
+const { service } = collectionApp(Astro.url.origin, collection, Astro.cache);
 const imageSets = new Map<string, Awaited<ReturnType<typeof documentImages>>>();
 for (const draft of posts)
   imageSets.set(
@@ -55,6 +54,22 @@ const images = post ? imageSets.get(post.document.id)! : {};
   <body class="reader-page">
     <SiteNav collection={collection} />
     <main>
+      {!post && collection === "recipes" && (
+  <form method="get">
+    <label>
+      Maximum preparation time (minutes)
+      <input
+        name="maxMinutes"
+        type="number"
+        min="0"
+        step="1"
+        value={Astro.url.searchParams.get("maxMinutes") ?? ""}
+      />
+    </label>
+    <button type="submit">Filter recipes</button>
+    <a href="/recipes">All recipes</a>
+  </form>
+)}
       {post ? (
   <>
     <nav>

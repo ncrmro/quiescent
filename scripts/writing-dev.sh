@@ -18,6 +18,6 @@ args=()
 if [ -n "${WRITING_SECRETS_FILE:-}" ]; then args+=(--env-file "$WRITING_SECRETS_FILE"); fi
 if [ -n "${WRITING_ALLOWED_ORIGINS:-}" ]; then args+=(--var "WRITING_ALLOWED_ORIGINS:$WRITING_ALLOWED_ORIGINS"); fi
 WRITING_CONFIG=wrangler.writing.jsonc node node_modules/.bin/astro build
-node node_modules/wrangler/bin/wrangler.js d1 execute WRITING_CACHE --config wrangler.writing.jsonc --local --file ../server/src/documents-cache.schema.sql
+node node_modules/wrangler/bin/wrangler.js d1 execute WRITING_CACHE --config wrangler.writing.jsonc --local --persist-to "$PWD/.wrangler/state" --file ../server/src/documents-cache.schema.sql
 echo "$$" > .writing-server.pid
-exec node node_modules/wrangler/bin/wrangler.js dev "${args[@]}" --config dist/server/wrangler.json --ip "$WRITING_HOST" --port "$port" --inspector-port 0
+exec node node_modules/wrangler/bin/wrangler.js dev "${args[@]}" --config dist/server/wrangler.json --persist-to "$PWD/.wrangler/state" --ip "$WRITING_HOST" --port "$port" --inspector-port 0

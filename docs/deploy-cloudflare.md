@@ -12,8 +12,8 @@ packages and Astro, deploys the generated Worker configuration, then warms publi
 pages. It also installs the idempotent document-cache schema before deployment.
 It does not publish npm packages. Create a D1 database with `wrangler d1 create`,
 then set the `WRITING_CACHE` binding in the configuration to its returned ID.
-This database is only a rebuildable listing cache; no sessions, KV, or cron
-bindings are required. See [listing caching](document-cache.md).
+This database is only a rebuildable document cache; no sessions, KV, or cron
+bindings are required. See [document caching](document-cache.md).
 
 Images use the private R2 binding. Optional direct browser-to-R2 uploads use the
 R2 S3 credentials described in [the writing guide](writing-prototype.md); they
@@ -28,3 +28,7 @@ the deployed site.
 For local Worker development, use `bun run dev:writing`; it records the allocated
 URL in `code/web/.env.local`. Production cache behavior is verified against the
 deployed Worker rather than inferred from development mode.
+
+Local workerd uses Astro's memory HTML cache because the local Workers Cache API
+does not implement tag purge. Its document cache still uses persistent local D1.
+Production uses Astro's Cloudflare HTML provider; verify tag invalidation there.

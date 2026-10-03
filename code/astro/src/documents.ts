@@ -1,5 +1,6 @@
 import {
   createDocumentHandler,
+  type DocumentCacheStatus,
   type DocumentHandlerOptions,
   type DocumentRecord,
   type Frontmatter,
@@ -53,12 +54,12 @@ export function astroDocumentCache<T extends { id: string }>(options: DocumentCa
   const collectionTag = `quiescent:collection:${options.collection}`;
   const documentTag = options.documentTag ?? ((id: string) => `${indexTag}:${id}`);
   const indexes = options.indexPaths ?? [];
-  async function warm(paths: string[], deletedPath?: string) {
+  async function warm(paths: string[], deletedPaths: string[] = []) {
     const unique = [...new Set(paths)];
     const fill = async (path: string) => {
       const response = await send(new URL(path, options.origin), { redirect: "manual" });
       await response.arrayBuffer();
-      if (response.status !== (path === deletedPath ? 404 : 200))
+      if (response.status !== (deletedPaths.includes(path) ? 404 : 200))
         throw new Error(`Page warming failed for ${path} (${response.status})`);
       return response.headers.get("x-astro-cache") ?? response.headers.get("cf-cache-status");
     };
@@ -75,9 +76,37 @@ export function astroDocumentCache<T extends { id: string }>(options: DocumentCa
     const affected = options.affectedPaths?.(previous, deleted ? null : document) ?? [];
     return { path, removed, affected };
   }
+  function addRefreshPaths(
+    old: T | null,
+    current: T | null,
+    nextPaths: Set<string>,
+    paths: Set<string>,
+    removed: Set<string>,
+  ) {
+    if (old) {
+      const path = options.documentPath(old);
+      paths.add(path);
+      if (!nextPaths.has(path)) removed.add(path);
+    }
+    if (current) paths.add(options.documentPath(current));
+    for (const path of options.affectedPaths?.(old, current) ?? []) paths.add(path);
+  }
   return {
-    set(cache: RouteCache, id?: string) {
-      cache.set(documentCachePolicy(options, id));
+    set(cache: RouteCache, id?: string, freshness?: DocumentCacheStatus) {
+      if (freshness?.stale || freshness?.error) {
+        cache.set(false);
+        return;
+      }
+      const policy = documentCachePolicy(options, id);
+      if (freshness?.fetchedAt)
+        policy.maxAge = Math.max(
+          1,
+          Math.min(
+            policy.maxAge,
+            Math.floor((freshness.fetchedAt + (options.maxAge ?? 3600) * 1000 - Date.now()) / 1000),
+          ),
+        );
+      cache.set(policy);
     },
     async afterPublication(
       cache: RouteCache,
@@ -90,8 +119,29 @@ export function astroDocumentCache<T extends { id: string }>(options: DocumentCa
       const { path, removed, affected } = targets(document, deleted, previous);
       for (const affectedPath of [...affected, ...(removed ? [removed] : [])])
         await cache.invalidate({ path: affectedPath });
-      await warm([...indexes, ...affected, path], deleted ? path : undefined);
-      if (removed) await warm([removed], removed);
+      await warm([...indexes, ...affected, path], deleted ? [path] : []);
+      if (removed) await warm([removed], [removed]);
+    },
+    /** Reconcile external Git changes after the document cache commits its new snapshot. */
+    async afterRefresh(cache: RouteCache, previous: T[], next: T[], retry = false) {
+      if (!cache.enabled) return;
+      const before = new Map(previous.map((document) => [document.id, document]));
+      const after = new Map(next.map((document) => [document.id, document]));
+      const changed = [...new Set([...before.keys(), ...after.keys()])].filter(
+        (id) => retry || JSON.stringify(before.get(id)) !== JSON.stringify(after.get(id)),
+      );
+      if (!changed.length && !retry) return;
+      const paths = new Set(indexes);
+      const nextPaths = new Set(next.map(options.documentPath));
+      const removed = new Set<string>();
+      for (const id of changed) {
+        const old = before.get(id) ?? null;
+        const current = after.get(id) ?? null;
+        addRefreshPaths(old, current, nextPaths, paths, removed);
+      }
+      await cache.invalidate({ tags: [collectionTag] });
+      for (const path of paths) await cache.invalidate({ path });
+      await warm([...paths], [...removed]);
     },
     async refresh(cache: RouteCache, documents: T[]) {
       if (!cache.enabled)
