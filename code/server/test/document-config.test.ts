@@ -51,13 +51,16 @@ test("JSON configuration drives nested storage, custom branches and the complete
     draft.document.id,
   ]);
   await expect(
-    store.getDraft(draft.document.id, `quiescent/posts/${draft.document.id}/${draft.document.id}`),
+    store.openDocument(
+      draft.document.id,
+      `quiescent/posts/${draft.document.id}/${draft.document.id}`,
+    ),
   ).rejects.toThrow("Invalid draft");
   const published = await store.publish(selection(draft));
   expect(f.branches.get("main")).toBe("root");
   expect(f.branches.get("published")).toBe(published.publishedSha);
-  const editing = await store.getDraft(draft.document.id);
-  const saved = await store.saveDraft({
+  const editing = await store.openDocument(draft.document.id);
+  const saved = await store.saveDocument({
     ...selection(editing),
     document: { frontmatter: { slug: "renamed-post" }, body: "Updated" },
   });

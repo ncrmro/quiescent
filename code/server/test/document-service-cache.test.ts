@@ -7,12 +7,18 @@ import { fixture } from "./forge-fixture.ts";
 test("service create/save/publish/open/delete write through while public listing stays Git-authoritative", async () => {
   const f = fixture();
   let reads = 0;
+  let failSaveCommit = 0;
   const service = createDocumentService({
     collection: "posts",
     schema: true,
     author: { name: "Writer", email: "writer@example.test" },
     forge: {
       ...f.forge,
+      async commitFiles(input) {
+        if (input.message === "Save document draft" && --failSaveCommit === 0)
+          throw new Error("interrupted first save");
+        return f.forge.commitFiles(input);
+      },
       async getBranchSha(branch) {
         reads++;
         return f.forge.getBranchSha(branch);
@@ -66,12 +72,16 @@ test("service create/save/publish/open/delete write through while public listing
   expect((await service.listPublished())[0]?.document).toEqual(published.document);
   const opened = await service.openDocument(created.document.id);
   expect(opened.branch).toBeNull();
-  const editing = await service.saveDocument({
+  const firstSave = {
     id: opened.document.id,
     branch: opened.branch,
     expectedHeadSha: opened.headSha,
     document: { ...opened.document, body: "Further private changes" },
-  });
+  };
+  failSaveCommit = 2;
+  await expect(service.saveDocument(firstSave)).rejects.toThrow("interrupted first save");
+  expect((await service.openDocument(opened.document.id)).branch).toBeNull();
+  const editing = await service.saveDocument(firstSave);
   before = reads;
   expect((await service.listDocuments())[0]?.state).toBe("unpublished-changes");
   expect(reads).toBe(before);

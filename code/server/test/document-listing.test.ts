@@ -133,7 +133,13 @@ test("read-only draft selection never starts a cycle and rejects published/delet
   expect(commits.size).toBe(publishedCount);
   expect(branches.size).toBe(branchCount);
   expect((await store.listDocuments())[0]?.state).toBe("published");
-  const edit = await store.getDraft(draft.document.id);
+  const opened = await store.openDocument(draft.document.id);
+  const edit = await store.saveDocument({
+    id: opened.document.id,
+    branch: opened.branch,
+    expectedHeadSha: opened.headSha,
+    document: { ...opened.document, body: "Private revision before deletion" },
+  });
   await store.deleteDocument({
     id: edit.document.id,
     branch: edit.branch,

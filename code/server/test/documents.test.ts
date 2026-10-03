@@ -44,7 +44,7 @@ test("arbitrary schemas save front matter and Markdown in one commit and publish
     frontmatter: { servings: 4, ingredients: ["peaches", "cream"] },
     body: "## Dessert\n\nServe **cold**.\n",
   };
-  const saved = await store.saveDraft({ ...selection(draft), document: input });
+  const saved = await store.saveDocument({ ...selection(draft), document: input });
   expect(commits.size - before).toBe(1);
   const source = commits.get(saved.headSha)!.files[`recipes/${saved.document.id}/index.md`]!;
   expect(source).toContain("servings: 4");
@@ -59,8 +59,11 @@ test("arbitrary schemas save front matter and Markdown in one commit and publish
   });
   const published = await store.publish(selection(saved));
   expect((await store.getPublished(saved.document.id))?.document).toEqual(published.document);
-  const edit = await store.getDraft(saved.document.id);
-  await store.saveDraft({ ...selection(edit), document: { ...input, body: "Private revision" } });
+  const edit = await store.openDocument(saved.document.id);
+  await store.saveDocument({
+    ...selection(edit),
+    document: { ...input, body: "Private revision" },
+  });
   expect((await store.listPublished())[0]?.document.body).toBe(input.body);
   const other = createDocumentStore({ forge, author, collection: "other", schema });
   expect(await other.listDocuments()).toEqual([]);
@@ -77,14 +80,16 @@ test("invalid metadata never creates or partially saves a document", async () =>
   const draft = await store.createDocument(initial);
   const count = commits.size;
   await expect(
-    store.saveDraft({
+    store.saveDocument({
       ...selection(draft),
       document: { frontmatter: { servings: 0, ingredients: [] }, body: "Would lose original" },
     }),
   ).rejects.toBeInstanceOf(DocumentError);
   expect(commits.size).toBe(count);
   expect(branches.get(draft.branch!)).toBe(draft.headSha);
-  expect((await store.getDraft(draft.document.id, draft.branch!)).document.body).toBe(initial.body);
+  expect((await store.openDocument(draft.document.id, draft.branch!)).document.body).toBe(
+    initial.body,
+  );
   commits.get(draft.headSha)!.files[`recipes/${draft.document.id}/index.md`] =
     "---\nservings: nope\ningredients: []\n---\nChanged outside Quiescent";
   const bad = draft;
@@ -199,7 +204,7 @@ test("filename callbacks receive stable date-only creation metadata and rename a
   });
   const draft = await store.createDocument({ frontmatter: { slug: "garden" }, body: "Hello" });
   expect(draft.document.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-  const saved = await store.saveDraft({
+  const saved = await store.saveDocument({
     ...selection(draft),
     document: { frontmatter: { slug: "spring" }, body: "Updated" },
   });

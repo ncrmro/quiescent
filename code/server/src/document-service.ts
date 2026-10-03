@@ -134,9 +134,8 @@ export function createDocumentService<T extends Frontmatter>(
     if (published) return published;
     throw new DocumentError("Document not found", "not_found");
   }
-  const { getDraft: _getDraft, saveDraft: _saveDraft, ...publicStore } = store;
   return {
-    ...publicStore,
+    ...store,
     listPublishedFromGit: store.listPublished,
     listDocumentsWithStatus,
     listPublishedWithStatus,

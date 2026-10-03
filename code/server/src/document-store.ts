@@ -200,10 +200,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     if (!file) throw new DocumentError("Document not found", "not_found");
     const hash = [
       ...new Uint8Array(
-        await crypto.subtle.digest(
-          "SHA-256",
-          new TextEncoder().encode(JSON.stringify(publicDocument(file))),
-        ),
+        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(file))),
       ),
     ]
       .map((b) => b.toString(16).padStart(2, "0"))
@@ -220,11 +217,11 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
         // A racing initializer or writer won. Load its version instead of overwriting it.
         if ((await forge.getBranchSha(branch)) === head) throw error;
       }
-    } else if (await forge.isAncestor(head, await forge.getBranchSha(main))) {
-      // This exact cycle finished while the caller was opening it; resolve the new cycle.
-      return getDraft(published.document.id);
     }
-    return getDraft(published.document.id, branch);
+    const draft = await readDraft(published.document.id, branch);
+    if (!draft)
+      throw new DocumentError("Publication changed while saving. Reopen the document.", "conflict");
+    return draft;
   }
   async function createDocument(
     input: DocumentInput<T> & { id?: string },
@@ -251,28 +248,6 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
         "not_found",
       );
   }
-  async function getDraft(id: string, branch?: string): Promise<DocumentDraft<T>> {
-    path(id);
-    await assertNotDeleted(id);
-    if (branch) {
-      checkBranch(id, branch);
-      const headSha = await forge.getBranchSha(branch);
-      const document = await read(id, headSha);
-      if (!document) throw new DocumentError("Draft not found", "not_found");
-      return {
-        document: publicDocument(document),
-        ...storedLocation(document),
-        branch,
-        headSha,
-        state: document.publishedAt ? "unpublished-changes" : "draft",
-      };
-    }
-    const drafts = await activeDrafts(id);
-    if (drafts[0]) return drafts[0];
-    const published = await getPublished(id);
-    if (!published) throw new DocumentError("Document not found", "not_found");
-    return startPublished(published);
-  }
   async function openDocument(id: string, branch?: string): Promise<DocumentDraft<T>> {
     path(id);
     const draft = await readDraft(id, branch);
@@ -298,7 +273,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
   async function saveDocument(
     input: SaveSelection & { document: DocumentInput<T> & { id?: string } },
   ): Promise<DocumentDraft<T>> {
-    if (input.branch !== null) return saveDraft({ ...input, branch: input.branch });
+    if (input.branch !== null) return saveBranch({ ...input, branch: input.branch });
     path(input.id);
     const value = checked(input.document);
     if (input.document.id !== undefined && input.document.id !== input.id)
@@ -307,14 +282,10 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     const equal = (document: DocumentRecord<T>) =>
       JSON.stringify(checked(document)) === JSON.stringify(value);
     const existing = (await activeDrafts(input.id))[0];
-    if (existing) {
-      if (equal(existing.document)) return existing; // Retry after a lost first-save response.
-      throw new DocumentError(
-        "This document already has a draft. Reopen it before saving.",
-        "conflict",
-      );
-    }
-    const draft = await startPublished(published);
+    // Retry after a lost first-save response.
+    if (existing && equal(existing.document)) return existing;
+    // Adopt an initializer left by an interrupted save; the head check still protects edits.
+    const draft = existing ?? (await startPublished(published));
     // A concurrent first save may have won the deterministic cycle. Never overwrite it.
     if (JSON.stringify(draft.document) !== JSON.stringify(published.document)) {
       if (equal(draft.document)) return draft;
@@ -323,14 +294,14 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
         "conflict",
       );
     }
-    return saveDraft({
+    return saveBranch({
       id: input.id,
       branch: draft.branch!,
       expectedHeadSha: draft.headSha,
       document: value,
     });
   }
-  async function saveDraft(
+  async function saveBranch(
     input: DocumentSelection & { document: DocumentInput<T> & { id?: string } },
   ): Promise<DocumentDraft<T>> {
     checkBranch(input.id, input.branch);
@@ -487,7 +458,7 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
       deleted: true as const,
     };
   }
-  /** Select an existing live draft only. Unlike getDraft this never starts an editing cycle. */
+  /** Select an existing live draft without creating an editing cycle. */
   async function readDraft(id: string, branch?: string): Promise<DocumentDraft<T> | null> {
     path(id);
     if (!branch) return (await activeDrafts(id))[0] ?? null;
@@ -573,8 +544,6 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     location: layout.location,
     schema: options.schema,
     createDocument,
-    /** @deprecated Mutates Git by starting an editing branch. Use read-only openDocument, then saveDocument on explicit save. Retained for low-level concurrency coverage until the next breaking release. */
-    getDraft,
     openDocument,
     saveDocument,
     listDrafts: async (id?: string) =>
@@ -582,8 +551,6 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
         ? activeDrafts(id)
         : (await listDocuments()).filter((document) => document.branch !== null),
     readDraft,
-    /** @deprecated Low-level branch-only mutation. Use saveDocument, which also supports the first save of a published document. */
-    saveDraft,
     publish,
     deleteDocument,
     getPublished,

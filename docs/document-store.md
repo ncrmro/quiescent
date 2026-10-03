@@ -202,13 +202,10 @@ Old post APIs, JSON document imports, and URL-valued media references are remove
 There is no migration or compatibility layer.
 
 
-### Low-level API release follow-up
+### Editing API
 
-The application service exposes `openDocument` for read-only editing and `saveDocument`
-for explicit saves. It does not expose the old `getDraft` or `saveDraft` methods.
-The low-level store temporarily retains these deprecated exports: `getDraft` can
-create a Git branch, and `saveDraft` only accepts an existing branch. Before the next
-breaking release, migrate the editing-cycle concurrency and interrupted-creation
-regression tests to first-save scenarios through `saveDocument`, then remove those
-store exports. Preserve the race and recovery coverage rather than reproducing the
-old behavior in test-only helpers.
+Both the low-level store and application service expose `openDocument` for read-only
+selection and `saveDocument` for an atomic metadata/body save. A published selection
+has `branch: null`; its first save creates an editing branch with revision checks.
+Concurrent first saves cannot overwrite the winner, and interrupted initialization
+can be retried with the same selection. Opening a document never creates a branch.
