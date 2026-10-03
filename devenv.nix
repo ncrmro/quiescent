@@ -7,7 +7,17 @@
     bun.enable = true;
   };
 
-  # `devenv up` (or `devenv up -d`) starts the editing UI; needs
-  # code/web/.dev.vars for OAuth credentials.
-  processes.web.exec = "cd code/web && bun run dev -- --host 0.0.0.0";
+  packages = [
+    # Playwright CLI plus a matching, Nix-managed browser bundle, for the
+    # writing example specs in code/web. Avoids npm browser downloads and
+    # hard-coded Chromium paths on NixOS; do not run `playwright install`.
+    pkgs.playwright-test
+  ];
+
+  env.PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
+  env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
+  env.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
+
+  # The launcher allocates and records this checkout's port and reuses its server.
+  processes.web.exec = "bun run dev:writing";
 }

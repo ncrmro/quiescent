@@ -1,133 +1,96 @@
-# quiescent
+# Quiescent
 
-npm packages for editing documents in a git repo from the browser.
-Authenticate against a git forge, edit markdown with CodeMirror, and let
-quiescent quietly persist your work:
+Quiescent is a GitHub-backed document store. Supply a JSON Schema, edit metadata
+and body together, and save Markdown with validated YAML front matter. Drafts
+stay private on branches; Publish merges the document into `main` without a pull
+request. Image filenames resolve within each document; Git LFS keeps the durable
+bytes while R2 or local files serve them. Posts demonstrate the workflow with title, slug, tags, header image,
+and a formatted body editor.
 
-- **Notes mode** (you have push access) — edits accumulate as drafts and are
-  flushed to commits on the default branch when you stop typing, press
-  Ctrl/Cmd+S, or a cron trigger notices a stale draft.
-- **Contributor mode** (no push access) — your edits become a branch and a
-  pull request, like "suggest an edit" on a docs or blog site.
+Define repository settings, collection directories, naming templates, and inline
+metadata schemas in [`quiescent.config.json`](code/web/quiescent.config.json).
+The example uses that file for both its editor schemas and document storage.
+See [declarative configuration](docs/document-store.md#declarative-configuration)
+for defaults and code overrides.
 
-All git operations use forge HTTP APIs (no git binary). Supported forges:
-GitHub, Gitea, Forgejo, and Codeberg. The Gitea/Forgejo/Codeberg client is
-implemented but not yet tested against a live instance.
+Start with [the writing example](docs/writing-prototype.md) or the
+[document API](docs/document-store.md). The same Astro example runs on self-hosted
+Node and Cloudflare Workers. It needs a GitHub repository token and image storage;
+Cloudflare uses D1 for a disposable document cache. Node uses a persistent local SQLite
+file through the same schema and queries. The Node example installs the optional
+`@libsql/client` peer explicitly; Worker-only hosts do not need it. Scalar indexes
+are installed during setup, not on reads. Git and LFS remain authoritative; no auth database or deferred
+Git writes are involved. See [document caching](docs/document-cache.md).
 
-The packages are deployment-agnostic: storage is a small `KeyValueStore`
-interface (Cloudflare KV satisfies it structurally; self-hosted deployments
-bring Redis, SQLite, or the in-memory store). Cloudflare Workers is the
-first supported target — the example app below — with self-hosted Node as a
-planned second.
+## Packages
 
-## Layout
+| Package | Responsibility |
+| --- | --- |
+| `@quiescent/git` | Forge HTTP APIs, commits, refs, conflict checks, comparisons, merges, Git LFS |
+| `@quiescent/server` | Document validation, Markdown codecs, shared contracts, publication, HTTP handlers, media, portable document cache with D1 and SQLite adapters |
+| `@quiescent/astro` | Full-page caching, targeted invalidation, eager warming, thin route helpers |
+| `@quiescent/editor` | Schema metadata controls, formatted body editor, atomic saves, recovery, publishing |
+| `@quiescent/wiki` | Independent read-only wiki rendering, search, tags, graph; not part of the writing example |
+| `@quiescent/web` | Private reference app: presentation, fixed example password, runtime configuration |
 
-Bun workspace with packages under `code/`:
+`@quiescent/git` provides GitHub document publication and LFS. Its Gitea, Forgejo,
+and Codeberg adapters provide low-level file/ref operations only;
+`requirePublishingForge` rejects them for document publication. Repository user,
+permission, fork, and pull-request helpers are not part of this API.
 
-| Package | Published | Purpose |
-| --- | --- | --- |
-| `@quiescent/git` | npm | Forge API abstraction: contents, multi-file commits, branches, pull requests, forks, OAuth |
-| `@quiescent/server` | npm | Worker-side sessions, KV drafts, and flush-to-commit logic |
-| `@quiescent/editor` | npm | CodeMirror 6 markdown editor with idle detection (the flush-on-stop signal) |
-| `@quiescent/web` | no (example) | Reference Astro app on Cloudflare Workers wiring the packages together: auth routes, draft API, cron flush |
+Server code does not depend on the editor or Astro. Browser-safe document codecs
+are exported from `@quiescent/server/content`; shared document, draft, upload,
+and response types come from `@quiescent/server/contracts`. Posts and arbitrary
+collections use one store and one CRUD dispatcher.
 
-Consumers (e.g. [ncrmro/website](https://github.com/ncrmro/website)) install
-the published packages and copy the thin Astro glue from `code/web`
-(middleware, auth/draft/flush routes, worker entry) into their own site.
-
-## Releases
-
-[release-please](https://github.com/googleapis/release-please) manages
-versioning from Conventional Commits: merging the release PR tags each
-changed package and the `publish` job publishes it to npm with
-`bun publish` (requires the `NPM_TOKEN` repo secret).
+Public pages read only the configured publication branch (`main` by default). Astro caches complete HTML for up to one hour, bounded by data freshness. Publish
+and delete invalidate affected pages and warm them before responding. Private
+saves update the editor directly. Node startup and Cloudflare deployment warm
+pages before the example is ready. See the writing guide for provider limits.
 
 ## Development
 
-The dev shell is provided by [devenv](https://devenv.sh) (`direnv allow` on
-first use).
+Use the repository's devenv shell; its Playwright browsers need no download.
 
 ```sh
-bun install
-bun test                      # code/git + code/editor unit tests
-bun run typecheck             # tsc / astro check per package
-cd code/web
-cp .dev.vars.example .dev.vars   # fill in OAuth app credentials
-bun run dev                   # astro dev with Cloudflare platform proxy
-bun run build && bun run preview # wrangler dev against the built worker
+devenv shell -- bun install --frozen-lockfile
+devenv shell -- bun run check        # Biome, file size, builds, strict types, unit tests
+devenv shell -- bun run test:e2e     # real editor and in-memory forge, no credentials
+devenv shell -- bun run build:node
+# Set SERVICE_TOKEN through your environment or secret manager first.
+WRITING_REPO_OWNER=your-name WRITING_REPO_NAME=your-content-repo \
+  devenv shell -- bun run start:node
 ```
 
-## Consuming in your own Astro + Cloudflare site
+Open the URL in `code/web/.env.node.local` and sign in with `quiescent-demo`.
+For a local Worker, copy `code/web/.dev.vars.example` to `.dev.vars` in that same
+directory, configure the content repository, then run `bun run dev:writing`.
+Deployment details: [Node](docs/deploy-container.md) · [Cloudflare](docs/deploy-cloudflare.md).
 
-The intended use: install `@quiescent/{git,server,editor}` and copy the thin
-glue from `code/web` into your site, mounted under a prefix so the public
-site is untouched (see
-[ncrmro/website](https://github.com/ncrmro/website) for a real example
-mounted at `/admin`):
+TypeScript strict mode, exact optional properties, checked indexed access,
+implicit returns, unused declarations, and override checks apply across packages,
+Astro pages, tests, and development scripts. Biome rejects explicit `any` and
+cognitive complexity above 15 in production (40 in scenario tests). Source files
+may not exceed 1,000 lines. CI enforces these checks, generated Worker binding freshness, both runtime builds,
+and the browser workflow. Regenerate Worker bindings with `bun run types:cloudflare`
+after changing the Cloudflare configuration.
 
-- middleware guarding the editor prefix and its API routes
-- auth routes (`login`/`callback`/`logout`); set the `OAUTH_CALLBACK_PATH`
-  var when the callback isn't at `/auth/callback`
-- draft + flush API routes, editor page, and a custom worker entry whose
-  `scheduled` handler calls `flushStaleDrafts` on a cron trigger
-- `SESSIONS`/`DRAFTS` KV namespaces (any `KeyValueStore` works; KV is the
-  Cloudflare-shaped one) and the `FORGE_KIND`/`REPO_OWNER`/`REPO_NAME`/
-  `DEFAULT_BRANCH` vars, plus `OAUTH_CLIENT_ID`/`OAUTH_CLIENT_SECRET`/
-  `SESSION_SECRET` secrets
+## API boundary
 
-## Deploying the example app
+Collections supply schemas, storage-name functions, URL callbacks, and presentation.
+The example has posts and recipes. `createdAt` is date-only (`YYYY-MM-DD`); storage
+names may include it while browser URLs use just the slug. Optional Astro rendering
+components can be replaced or configured independently of storage and publishing.
+Old post APIs and storage formats are removed without a compatibility layer.
+Editor chrome, mobile sheets, tag pickers, and themes remain app-owned. This cleanup
+does not extract a component package or add a shared editor shell.
 
-One deployment edits one repo, configured in `code/web/wrangler.jsonc` `vars`:
-`FORGE_KIND` (`github` | `gitea` | `forgejo` | `codeberg`), `FORGE_BASE_URL`
-(required for gitea/forgejo), `REPO_OWNER`, `REPO_NAME`, `DEFAULT_BRANCH`.
+The independent [wiki package](code/wiki/README.md) and its
+[conventions](docs/conventions.md) remain available.
 
-1. Create the KV namespaces and paste their ids into `wrangler.jsonc`:
+## Releases
 
-   ```sh
-   wrangler kv namespace create SESSIONS
-   wrangler kv namespace create DRAFTS
-   ```
-
-2. Register an OAuth app on your forge (see below) and set secrets:
-
-   ```sh
-   wrangler secret put OAUTH_CLIENT_ID
-   wrangler secret put OAUTH_CLIENT_SECRET
-   openssl rand -hex 32 | wrangler secret put SESSION_SECRET
-   ```
-
-3. `bun run deploy` (astro build + wrangler deploy). The cron trigger
-   (`*/5 * * * *`) flushes drafts idle for more than five minutes.
-
-### GitHub App registration
-
-1. GitHub → Settings → Developer settings → **New GitHub App**.
-2. Callback URL: `https://<your-worker-domain>/auth/callback`; enable
-   **Request user authorization (OAuth) during installation**; webhooks off.
-3. Repository permissions: **Contents: Read and write**, **Pull requests:
-   Read and write**.
-4. Install the app on the target repo, then use the app's client id/secret
-   as `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET`.
-
-User-to-server tokens expire after ~8 hours; quiescent refreshes them
-automatically with the stored refresh token (including from the cron flush).
-
-### Gitea / Forgejo / Codeberg OAuth2 app
-
-1. Settings → Applications → **Create a new OAuth2 application**.
-2. Redirect URI: `https://<your-worker-domain>/auth/callback`.
-3. Set `FORGE_KIND` (and `FORGE_BASE_URL` for self-hosted instances;
-   Codeberg defaults to `https://codeberg.org`).
-
-## How flushing works
-
-Edits autosave as drafts to the `DRAFTS` KV namespace (`draft:{userId}:{path}`).
-A flush turns all of a user's drafts into a single commit:
-
-- editor idle for 30s, Ctrl/Cmd+S, or the "Commit now" button → `POST /api/flush`
-- tab closed mid-edit → `sendBeacon` persists the draft; the cron trigger
-  flushes it later using the tokens stored on the session that produced it
-
-With push access the commit lands on `DEFAULT_BRANCH`; otherwise quiescent
-creates `quiescent/{login}/{timestamp}` (falling back to a fork when branch
-creation is denied) and opens a pull request.
+The five library packages remain publishable. The example is private. Workspace
+validation requires no npm releases. Release Please manages versions and real
+semver dependency ranges, and the publish workflow uses npm trusted publishing.
+Publish only after validating the workflow and reviewing the breaking API changes.

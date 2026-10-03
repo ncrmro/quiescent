@@ -1,33 +1,28 @@
 import { defineMiddleware } from "astro:middleware";
-import {
-  getSessionById,
-  readCookie,
-  SESSION_COOKIE,
-  verifySessionCookie,
-} from "@quiescent/server";
+import { env } from "quiescent:runtime";
+import { writingAuthor } from "./writing/auth";
 
-// Everything except the auth flow requires a session: quiescent is an editing
-// tool, not a public site.
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
-  if (pathname.startsWith("/auth/")) return next();
-
-  const env = context.locals.runtime.env;
-  const cookie = readCookie(context.request.headers.get("Cookie"), SESSION_COOKIE);
-  const sessionId = cookie ? await verifySessionCookie(env, cookie) : null;
-  const session = sessionId ? await getSessionById(env, sessionId) : null;
-
-  if (!sessionId || !session) {
-    if (pathname.startsWith("/api/")) {
-      return new Response(JSON.stringify({ error: "unauthenticated" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-    return context.redirect("/auth/login");
+  const editor =
+    /^\/write\/?$/.test(pathname) ||
+    /^\/(posts|recipes)\/new\/?$/.test(pathname) ||
+    /^\/(posts|recipes)\/[^/]+\/edit\/?$/.test(pathname);
+  const author = editor || pathname.startsWith("/api/documents/");
+  const privateRoute =
+    author ||
+    pathname === "/login" ||
+    pathname.startsWith("/api/auth/") ||
+    pathname.startsWith("/_server-islands/");
+  if (privateRoute) context.cache.set(false);
+  if (author && !(await writingAuthor(context.request, env))) {
+    const response = editor
+      ? context.redirect("/login")
+      : new Response("Sign in to write", { status: 401 });
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
   }
-
-  context.locals.session = session;
-  context.locals.sessionId = sessionId;
-  return next();
+  const response = await next();
+  if (privateRoute) response.headers.set("Cache-Control", "private, no-store");
+  return response;
 });

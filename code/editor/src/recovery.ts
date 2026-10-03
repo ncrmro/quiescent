@@ -1,0 +1,46 @@
+import type { DocumentInput } from "@quiescent/server/documents";
+export interface RecoveryRecord {
+  key: string;
+  raw: string;
+  updatedAt: number;
+  document: DocumentInput;
+}
+export type RecoveryStorage = Pick<Storage, "length" | "key" | "getItem" | "removeItem">;
+function object(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("Invalid recovery");
+  return value as Record<string, unknown>;
+}
+function parseRecord(key: string, raw: string): RecoveryRecord {
+  const value = object(JSON.parse(raw));
+  const document = object(value.document);
+  if (typeof document.body !== "string") throw new Error("Invalid recovery");
+  return {
+    key,
+    raw,
+    updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : 0,
+    document: { frontmatter: object(document.frontmatter), body: document.body },
+  };
+}
+/** Failed parses stay in storage for manual recovery; old editing cycles are still offered. */
+export function findRecoveryRecords(storage: RecoveryStorage, prefix: string): RecoveryRecord[] {
+  const records: RecoveryRecord[] = [];
+  for (let i = 0; i < storage.length; i++) {
+    const key = storage.key(i);
+    if (!key?.startsWith(prefix)) continue;
+    const raw = storage.getItem(key);
+    if (!raw) continue;
+    try {
+      records.push(parseRecord(key, raw));
+    } catch {
+      /* Keep malformed records for manual recovery. */
+    }
+  }
+  return records.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+export function removeRecoveredRecord(
+  storage: RecoveryStorage,
+  record: Pick<RecoveryRecord, "key" | "raw">,
+): void {
+  if (storage.getItem(record.key) === record.raw) storage.removeItem(record.key);
+}

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { GiteaForge, resolveGiteaBaseUrl } from "../src/gitea.ts";
 import { decodeBase64, encodeBase64 } from "../src/base64.ts";
+import { GiteaForge, resolveGiteaBaseUrl } from "../src/gitea.ts";
 import { createMockFetch, type Route } from "./mock-fetch.ts";
 
 function forge(routes: Route[]) {
@@ -18,7 +18,9 @@ function forge(routes: Route[]) {
 describe("resolveGiteaBaseUrl", () => {
   test("codeberg defaults, gitea requires baseUrl", () => {
     expect(resolveGiteaBaseUrl({ kind: "codeberg" })).toBe("https://codeberg.org");
-    expect(resolveGiteaBaseUrl({ kind: "forgejo", baseUrl: "https://fj.example/" })).toBe("https://fj.example");
+    expect(resolveGiteaBaseUrl({ kind: "forgejo", baseUrl: "https://fj.example/" })).toBe(
+      "https://fj.example",
+    );
     expect(() => resolveGiteaBaseUrl({ kind: "gitea" })).toThrow();
   });
 });
@@ -26,19 +28,37 @@ describe("resolveGiteaBaseUrl", () => {
 describe("GiteaForge", () => {
   test("uses codeberg api base", async () => {
     const { client, requests } = forge([
-      { method: "GET", url: "/user", response: { id: 2, login: "ncrmro" } },
+      { method: "GET", url: "/branches/main", response: { commit: { id: "head1" } } },
     ]);
-    await client.getUser();
-    expect(requests[0]?.url).toBe("https://codeberg.org/api/v1/user");
+    expect(await client.getBranchSha("main")).toBe("head1");
+    expect(requests[0]?.url).toBe("https://codeberg.org/api/v1/repos/ncrmro/notes/branches/main");
   });
 
-  test("commitFiles batches create and update operations with blob shas", async () => {
+  test("commitFiles batches create, update and delete operations with blob shas", async () => {
     const { client, requests } = forge([
       { method: "GET", url: "/branches/main", response: { commit: { id: "head1" } } },
       {
         method: "GET",
         url: "/contents/existing.md",
-        response: { path: "existing.md", name: "existing.md", type: "file", sha: "blob1", size: 1, content: encodeBase64("old") },
+        response: {
+          path: "existing.md",
+          name: "existing.md",
+          type: "file",
+          sha: "blob1",
+          size: 1,
+          content: encodeBase64("old"),
+        },
+      },
+      {
+        method: "GET",
+        url: "/contents/removed.json",
+        response: {
+          path: "removed.json",
+          name: "removed.json",
+          type: "file",
+          sha: "old-blob",
+          content: encodeBase64("{}"),
+        },
       },
       {
         method: "POST",
@@ -52,6 +72,7 @@ describe("GiteaForge", () => {
       files: [
         { path: "existing.md", content: "new" },
         { path: "brand-new.md", content: "fresh" },
+        { path: "removed.json", content: null },
       ],
     });
     expect(result).toEqual({ sha: "commit1", url: "http://c" });
@@ -62,13 +83,31 @@ describe("GiteaForge", () => {
     expect(body.files).toEqual([
       { operation: "update", path: "existing.md", content: encodeBase64("new"), sha: "blob1" },
       { operation: "create", path: "brand-new.md", content: encodeBase64("fresh") },
+      { operation: "delete", path: "removed.json", sha: "old-blob" },
     ]);
   });
 
-  test("createBranch uses gitea branch endpoint", async () => {
+  test("commitFiles passes author and committer overrides", async () => {
     const { client, requests } = forge([
-      { method: "POST", url: "/branches", response: {} },
+      { method: "GET", url: "/branches/main", response: { commit: { id: "head1" } } },
+      { method: "GET", url: "/contents/note.md", status: 404, response: {} },
+      { method: "POST", url: "/contents", response: { commit: { sha: "commit1" } } },
     ]);
+    await client.commitFiles({
+      branch: "main",
+      message: "edit",
+      files: [{ path: "note.md", content: "hi" }],
+      author: { name: "Nico", email: "nico@example.com" },
+    });
+    const batch = requests.find((r) => r.method === "POST" && r.url.endsWith("/contents"));
+    expect((batch!.body as { author: unknown }).author).toEqual({
+      name: "Nico",
+      email: "nico@example.com",
+    });
+  });
+
+  test("createBranch uses gitea branch endpoint", async () => {
+    const { client, requests } = forge([{ method: "POST", url: "/branches", response: {} }]);
     await client.createBranch("suggest-1", "head1");
     expect(requests[0]?.body).toEqual({ new_branch_name: "suggest-1", old_ref_name: "head1" });
   });

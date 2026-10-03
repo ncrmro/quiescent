@@ -1,0 +1,77 @@
+---
+import EditorShell from "./EditorShell.astro";
+import "../writing/editor-layout.css";
+import "../writing/mobile-toolbar.css";
+import ThemeHead from "./ThemeHead.astro";
+import "../writing/tag-picker.css";
+
+interface Props {
+  documentId?: string;
+  collection?: "posts" | "recipes";
+}
+const { documentId, collection = "posts" } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <ThemeHead />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Write · Quiescent</title>
+  </head>
+  <body class="writing-page">
+    <EditorShell collection={collection} />
+    <div id="writing" data-document-id={documentId} data-collection={collection}></div>
+    <script>
+    import { localDrafts } from "@quiescent/editor/local-drafts";
+    import { mountDocumentApp } from "@quiescent/editor/writing";
+    import { deriveSlug, documentPath, initialDocument } from "../writing/collections";
+    import { editorLayout, editorOpened, editorStatus } from "../writing/editor-layout";
+    import { titleField } from "../writing/editor-title";
+    import { editorToolbar } from "../writing/editor-toolbar";
+    import { wireNewLinks } from "../writing/navigation";
+    import { tagPicker } from "../writing/tag-picker";
+
+    wireNewLinks();
+    const root = document.getElementById("writing");
+    if (root) {
+      const collection = root.dataset.collection === "recipes" ? "recipes" : "posts";
+      const pendingKey = `quiescent-new:${collection}`;
+      const pending = sessionStorage.getItem(pendingKey);
+      const resumed = localDrafts(`/api/documents/${collection}`)
+        .list()
+        .find((draft) => draft.document.id === pending);
+      const initialId = root.dataset.documentId ?? resumed?.document.id;
+      mountDocumentApp(root, {
+        layout: editorLayout,
+        configureToolbar: editorToolbar,
+        onState: (state) => editorStatus(root, state),
+        formatStatus: (message, state) => (state.phase === "local" ? "Saved locally" : message),
+        deriveMetadata: deriveSlug,
+        startNew: !initialId,
+        apiBase: `/api/documents/${collection}`,
+        initialDocument: () => initialDocument(collection),
+        documentPath: (document) => documentPath(collection, document),
+        imageFields: ["headerImage"],
+        fieldControls: { title: titleField, tags: tagPicker(collection) },
+        label: collection === "posts" ? "post" : "recipe",
+        ...(initialId ? { initialDocumentId: initialId } : {}),
+        onDocumentOpen: (document) => {
+          editorOpened(root, true);
+          sessionStorage.removeItem(pendingKey);
+          window.history.replaceState(null, "", `/${collection}/${document.id}/edit`);
+        },
+        onLocalDocumentOpen: (document) => {
+          editorOpened(root, false);
+          if (!root.dataset.documentId) sessionStorage.setItem(pendingKey, document.id);
+        },
+        onDelete: () => {
+          sessionStorage.removeItem(pendingKey);
+          window.location.assign("/write");
+        },
+      });
+    }
+    </script>
+  </body>
+</html>

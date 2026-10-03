@@ -1,0 +1,106 @@
+{
+  "$schema": "../server/src/config.schema.json",
+  "repository": {
+    "provider": "github",
+    "owner": "ncrmro",
+    "name": "quiescent-writing-demo"
+  },
+  "collections": {
+    "posts": {
+      "directory": "posts",
+      "filename": "{createdAt}-{slug}",
+      "draftBranch": "quiescent/{collection}/{id}/{cycle}",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "slug", "description", "tags", "headerImage"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "maxLength": 300
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "pattern": "^(?!new$)[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "tags": {
+            "type": "array",
+            "title": "Tags",
+            "items": {
+              "type": "string"
+            }
+          },
+          "headerImage": {
+            "type": ["string", "null"],
+            "title": "Image"
+          }
+        }
+      }
+    },
+    "recipes": {
+      "directory": "recipes",
+      "filename": "{slug}",
+      "draftBranch": "quiescent/{collection}/{id}/{cycle}",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "slug", "description", "tags", "headerImage"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "maxLength": 300
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "pattern": "^(?!new$)[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "tags": {
+            "type": "array",
+            "title": "Tags",
+            "items": {
+              "type": "string"
+            }
+          },
+          "headerImage": {
+            "type": ["string", "null"],
+            "title": "Image"
+          },
+          "ingredients": {
+            "type": "array",
+            "title": "Ingredients",
+            "items": {
+              "type": "object",
+              "required": ["name", "quantity"],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "preparationMinutes": {
+            "type": "integer",
+            "title": "Preparation time (minutes)",
+            "minimum": 0
+          }
+        }
+      },
+      "indexes": ["preparationMinutes"]
+    }
+  }
+}

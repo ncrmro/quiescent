@@ -1,0 +1,61 @@
+---
+import { Image } from "astro:assets";
+import type { ImageMetadata } from "astro";
+
+interface Props {
+  source?: ImageMetadata;
+  src?: string;
+  alt: string;
+  title?: string;
+  priority?: boolean;
+  class?: string;
+  width?: number;
+  widths?: number[];
+  sizes?: string;
+  format?: "webp" | "avif" | "png" | "jpeg";
+  quality?: number;
+}
+const {
+  source,
+  src,
+  alt,
+  title,
+  priority = false,
+  class: className,
+  width = Math.min(source?.width ?? 720, 720),
+  widths = [360, 720, 1080, 1440],
+  sizes = "(max-width: 768px) calc(100vw - 48px), 720px",
+  format = "webp",
+  quality = 80,
+} = Astro.props;
+---
+
+{source?.format === "gif" ? (
+  <img
+    src={source.src}
+    width={source.width}
+    height={source.height}
+    alt={alt}
+    title={title}
+    class={className}
+    loading={priority ? "eager" : "lazy"}
+  />
+) : source ? (
+  <Image
+    src={source}
+    alt={alt}
+    title={title}
+    class={className}
+    width={width}
+    widths={widths}
+    sizes={sizes}
+    layout="constrained"
+    format={format}
+    quality={quality}
+    loading={priority ? "eager" : "lazy"}
+    fetchpriority={priority ? "high" : "auto"}
+    decoding="async"
+  />
+) : (
+  <img src={src} alt={alt} title={title} class={className} loading={priority ? "eager" : "lazy"} />
+)}

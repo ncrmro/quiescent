@@ -27,7 +27,7 @@ export function createMockFetch(routes: Route[]) {
     if (!route) {
       return new Response(JSON.stringify({ message: "no mock route" }), { status: 404 });
     }
-    return new Response(JSON.stringify(route.response), {
+    return new Response(route.status === 204 ? null : JSON.stringify(route.response), {
       status: route.status ?? 200,
       headers: { "Content-Type": "application/json" },
     });

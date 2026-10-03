@@ -1,0 +1,174 @@
+---
+import ThemeControl from "./ThemeControl.astro";
+
+interface Props {
+  editing?: boolean;
+  collection?: "posts" | "recipes";
+}
+const { editing = false, collection = "posts" } = Astro.props;
+const links = [
+  { href: "/", label: "Stories" },
+  { href: "/recipes", label: "Recipes" },
+  { href: "/write", label: "Documents" },
+  {
+    href: `/${collection}/new`,
+    label: collection === "posts" ? "New post" : "New recipe",
+    collection,
+  },
+];
+---
+
+<header class="site-navbar">
+  <a class="brand" href="/">Quiescent</a>
+  <nav class="desktop-links" aria-label="Main navigation">
+    <ThemeControl />
+    {links.map((link) => (
+  <a href={link.href} data-new-document={link.collection}>
+    {link.label}
+  </a>
+))}
+    {editing && (
+  <button type="button" data-sign-out>
+    Sign out
+  </button>
+)}
+  </nav>
+  <button
+    class="menu-toggle"
+    type="button"
+    aria-label="Open navigation"
+    aria-controls="mobile-navigation"
+    aria-expanded="false"
+  >
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 6h18M3 12h18M3 18h18" fill="none" stroke="currentColor" stroke-width="2" />
+    </svg>
+  </button>
+  <dialog id="mobile-navigation" class="mobile-menu" aria-label="Navigation">
+    <button type="button" class="menu-close" aria-label="Close navigation">Close ×</button>
+    <nav aria-label="Mobile navigation">
+      <ThemeControl />
+      {links.map((link) => (
+  <a href={link.href} data-new-document={link.collection}>
+    {link.label}
+  </a>
+))}
+      {editing && (
+  <button type="button" data-sign-out>
+    Sign out
+  </button>
+)}
+    </nav>
+  </dialog>
+</header>
+<script>
+import { wireNewLinks } from "../writing/navigation";
+
+wireNewLinks();
+const toggle = document.querySelector<HTMLButtonElement>(".menu-toggle");
+const menu = document.querySelector<HTMLDialogElement>(".mobile-menu");
+if (toggle && menu) {
+  toggle.addEventListener("click", () => {
+    menu.showModal();
+    toggle.setAttribute("aria-expanded", "true");
+  });
+  menu.querySelector(".menu-close")?.addEventListener("click", () => menu.close());
+  menu.addEventListener("close", () => {
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.focus();
+  });
+  menu.addEventListener("click", (event) => {
+    if (event.target === menu) menu.close();
+  });
+  window.matchMedia("(min-width: 701px)").addEventListener("change", (event) => {
+    if (event.matches) menu.close();
+  });
+}
+document.querySelectorAll<HTMLButtonElement>("[data-sign-out]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    if (!window.confirm("Sign out? Wait for your writing to show Saved first.")) return;
+    const response = await fetch("/api/auth/logout", { method: "POST" });
+    if (response.ok) window.location.assign("/login");
+  });
+});
+</script>
+<style>
+.site-navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  font:
+    16px / 1.6 system-ui,
+    sans-serif;
+}
+.brand {
+  font:
+    700 1.5rem Georgia,
+    serif;
+  text-decoration: none;
+}
+a,
+button {
+  color: var(--accent);
+}
+.desktop-links {
+  display: flex;
+  gap: 1.2rem;
+  align-items: center;
+}
+button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+  font: inherit;
+  cursor: pointer;
+}
+.menu-toggle {
+  display: none;
+}
+.mobile-menu {
+  position: fixed;
+  inset: 0 auto 0 0;
+  margin: 0;
+  width: min(85vw, 320px);
+  height: 100dvh;
+  max-height: 100dvh;
+  box-sizing: border-box;
+  padding: 1.5rem;
+  border: 0;
+  background: var(--page);
+  color: var(--text);
+}
+.mobile-menu::backdrop {
+  background: var(--backdrop);
+}
+.mobile-menu nav {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+.menu-close {
+  display: block;
+  margin-left: auto;
+}
+:global(html:has(.mobile-menu[open])) {
+  overflow: hidden;
+}
+@media (max-width: 700px) {
+  .desktop-links {
+    display: none;
+  }
+  .menu-toggle {
+    display: inline-flex;
+  }
+  .site-navbar {
+    padding: 1rem;
+  }
+}
+</style>

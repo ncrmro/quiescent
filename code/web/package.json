@@ -4,23 +4,30 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "astro dev",
+    "dev": "cd ../.. && bun run dev:writing",
     "build": "astro build",
-    "preview": "wrangler dev",
-    "deploy": "astro build && wrangler deploy",
-    "typecheck": "astro check"
+    "preview": "wrangler dev --config dist/server/wrangler.json",
+    "deploy": "bash ../../scripts/writing-deploy.sh",
+    "typecheck": "astro check",
+    "test:e2e": "node ../../scripts/test-browser.mjs",
+    "test:e2e:ui": "node ../../scripts/test-browser.mjs --ui"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "^12.6.0",
+    "@astrojs/cloudflare": "^14.3.3",
+    "@astrojs/node": "^11.1.6",
+    "@quiescent/astro": "workspace:*",
     "@quiescent/editor": "workspace:*",
     "@quiescent/git": "workspace:*",
     "@quiescent/server": "workspace:*",
-    "astro": "^5.12.0"
+    "astro": "^7.3.5",
+    "sharp": "0.35.5",
+    "@libsql/client": "^0.18.0"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.4",
+    "@astrojs/check": "^0.9.10",
     "@cloudflare/workers-types": "^4.20250620.0",
+    "@playwright/test": "1.59.1",
     "typescript": "^5.8.0",
-    "wrangler": "^4.20.0"
+    "wrangler": "^4.144.0"
   }
 }

@@ -1,0 +1,39 @@
+# Deploy the writing example to Cloudflare
+
+Configure the Worker name, content repository, private R2 bucket, and
+`WRITING_SELF` binding in `code/web/wrangler.writing-test.jsonc`. The self binding
+must point to this same Worker so cache warming uses the cached fetch handler.
+Store `SERVICE_TOKEN` using Wrangler's secret store with that configuration;
+never put a PAT in checked-in variables. The PAT needs Contents read/write for
+the initialized content repository.
+
+Run `devenv shell -- bun run deploy:writing`. The script builds workspace
+packages and Astro, deploys the generated Worker configuration, then warms public
+pages. It also runs `scripts/cache-schema.mjs` to generate the base schema and declared
+scalar indexes, then applies that idempotent SQL before deployment. The local
+`dev:writing` script uses the same setup; request handlers do not run schema DDL.
+It does not publish npm packages. Create a D1 database with `wrangler d1 create`,
+then set the `WRITING_CACHE` binding in the configuration to its returned ID.
+This database is only a rebuildable document cache; no sessions, KV, or cron
+bindings are required. See [document caching](document-cache.md).
+
+Images use the private R2 binding. Optional direct browser-to-R2 uploads use the
+R2 S3 credentials described in [the writing guide](writing-prototype.md); they
+also work on Node. Git LFS preserves image originals; R2 serves them.
+
+Astro's experimental Cloudflare cache provider stores whole public pages. Private
+routes are no-store. Publish and delete invalidate affected tags and eagerly warm
+pages; cache warming failures are returned separately from successful Git writes.
+For manual GitHub changes, run `scripts/writing-warm.mjs` with `BASE_URL` set to
+the deployed site.
+
+For local Worker development, use `bun run dev:writing`; it records the allocated
+URL in `code/web/.env.local`. Production cache behavior is verified against the
+deployed Worker rather than inferred from development mode.
+
+Local workerd uses Astro's memory HTML cache because the local Workers Cache API
+does not implement tag purge. Its document cache still uses persistent local D1.
+Production uses Astro's Cloudflare HTML provider; verify tag invalidation there.
+
+Local `writing-dev.sh` sets `WRITING_PAGE_CACHE=memory` explicitly for the page
+cache. The Astro configuration does not infer this mode from a config filename.

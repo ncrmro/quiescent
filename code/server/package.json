@@ -2,7 +2,7 @@
   "name": "@quiescent/server",
   "version": "0.2.0",
   "type": "module",
-  "description": "Server-side sessions, drafts, and flush-to-commit logic for quiescent; storage-agnostic (Cloudflare KV, or any KeyValueStore)",
+  "description": "Schema-validated Markdown documents, shared contracts, Git publishing, and media for Quiescent",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -13,6 +13,28 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./file-media": {
+      "types": "./dist/file-media.d.ts",
+      "default": "./dist/file-media.js"
+    },
+    "./documents": {
+      "types": "./dist/documents.d.ts",
+      "default": "./dist/documents.js"
+    },
+    "./content": {
+      "types": "./dist/content/index.d.ts",
+      "default": "./dist/content/index.js"
+    },
+    "./contracts": {
+      "types": "./dist/contracts.d.ts",
+      "default": "./dist/contracts.js"
+    },
+    "./config.schema.json": "./dist/config.schema.json",
+    "./documents-cache.schema.sql": "./dist/documents-cache.schema.sql",
+    "./sqlite-cache": {
+      "types": "./dist/document-cache-sqlite.d.ts",
+      "default": "./dist/document-cache-sqlite.js"
     }
   },
   "types": "./dist/index.d.ts",
@@ -23,16 +45,32 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "prepublishOnly": "tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp src/documents-cache.schema.sql dist/documents-cache.schema.sql",
+    "prepublishOnly": "npm run build",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@quiescent/git": "^0.1.0"
+    "@cfworker/json-schema": "^4.1.1",
+    "@quiescent/git": "^0.2.0",
+    "aws4fetch": "^1.0.20",
+    "yaml": "^2.9.1",
+    "@tiptap/core": "^3.31.3",
+    "@tiptap/starter-kit": "^3.31.3",
+    "@tiptap/extension-image": "^3.31.3",
+    "@tiptap/markdown": "^3.31.3"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "@libsql/client": "^0.18.0"
+  },
+  "peerDependencies": {
+    "@libsql/client": "^0.18.0"
+  },
+  "peerDependenciesMeta": {
+    "@libsql/client": {
+      "optional": true
+    }
   }
 }

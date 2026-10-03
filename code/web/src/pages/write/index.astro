@@ -1,0 +1,110 @@
+---
+import SiteNav from "../../components/SiteNav.astro";
+import ThemeHead from "../../components/ThemeHead.astro";
+export const prerender = false;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <ThemeHead />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Documents · Quiescent</title>
+  </head>
+  <body>
+    <SiteNav editing />
+    <main>
+      <a href="/">Read stories</a>
+      <h1>Your documents</h1>
+      {["posts", "recipes"].map((collection) => (
+  <section data-collection={collection}>
+    <h2>{collection === "posts" ? "Posts" : "Recipes"}</h2>
+    <a href={`/${collection}/new`} data-new-document={collection}>
+      New {collection === "posts" ? "post" : "recipe"}
+    </a>
+    <div class="listing-controls">
+      <label>
+        Search <input type="search" data-search placeholder="Title, tags, or text" />
+      </label>
+      <button type="button" data-refresh>
+        Refresh from GitHub
+      </button>
+    </div>
+    <p data-cache-status class="listing-cache-status"></p>
+    <p role="status">Loading documents…</p>
+    <ul></ul>
+  </section>
+))}
+    </main>
+    <script>
+    import { mountDocumentList } from "../../writing/document-list";
+    import { wireNewLinks } from "../../writing/navigation";
+
+    wireNewLinks();
+    document.querySelectorAll<HTMLElement>("[data-collection]").forEach(mountDocumentList);
+    </script>
+    <style>
+    :global(body) {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font:
+        16px / 1.6 system-ui,
+        sans-serif;
+    }
+    main {
+      max-width: 850px;
+      margin: auto;
+      padding: 2rem;
+    }
+    section {
+      margin-block: 2rem;
+    }
+    a {
+      color: var(--accent);
+    }
+    ul {
+      padding-left: 1.2rem;
+    }
+    li {
+      margin-block: 0.6rem;
+    }
+    .listing-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .listing-controls label {
+      flex: 1;
+      min-width: 12rem;
+    }
+    .listing-controls input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 0.25rem;
+      background: var(--page);
+      color: var(--text);
+    }
+    .listing-controls button {
+      padding: 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 0.25rem;
+      cursor: pointer;
+    }
+    .listing-controls button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+    .listing-cache-status {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-top: 0.75rem;
+    }
+    </style>
+  </body>
+</html>

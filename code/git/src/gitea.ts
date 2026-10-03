@@ -6,15 +6,11 @@ import { createHttpClient, type HttpClient } from "./http.ts";
 import type {
   CommitFilesOptions,
   CommitResult,
-  CreatePullRequestOptions,
   FileContent,
   ForgeClient,
   ForgeConfig,
   ForgeKind,
-  ForgeUser,
-  PullRequest,
   RepoEntry,
-  RepoPermissions,
 } from "./types.ts";
 
 interface GiteaContentsEntry {
@@ -26,47 +22,21 @@ interface GiteaContentsEntry {
   content?: string | null;
 }
 
+/** Low-level file/ref adapter only; document publication requires PublishingForge. */
 export class GiteaForge implements ForgeClient {
   readonly kind: ForgeKind;
   private readonly http: HttpClient;
   private readonly repoPath: string;
 
-  constructor(private readonly config: ForgeConfig) {
+  constructor(config: ForgeConfig) {
     this.kind = config.kind;
     const baseUrl = resolveGiteaBaseUrl(config);
     this.http = createHttpClient({
       apiBase: `${baseUrl}/api/v1`,
       token: config.token,
-      fetch: config.fetch,
+      ...(config.fetch ? { fetch: config.fetch } : {}),
     });
     this.repoPath = `/repos/${config.owner}/${config.repo}`;
-  }
-
-  async getUser(): Promise<ForgeUser> {
-    const user = await this.http.json<{
-      id: number;
-      login: string;
-      full_name?: string;
-      email?: string;
-      avatar_url?: string;
-    }>("/user");
-    return {
-      id: user.id,
-      login: user.login,
-      name: user.full_name || undefined,
-      email: user.email ?? undefined,
-      avatarUrl: user.avatar_url,
-    };
-  }
-
-  async getRepoPermissions(): Promise<RepoPermissions> {
-    const repo = await this.http.json<{
-      permissions?: { push?: boolean; admin?: boolean };
-    }>(this.repoPath);
-    return {
-      push: repo.permissions?.push ?? false,
-      admin: repo.permissions?.admin ?? false,
-    };
   }
 
   async getFile(path: string, ref?: string): Promise<FileContent | null> {
@@ -74,7 +44,10 @@ export class GiteaForge implements ForgeClient {
     const response = await this.http.request(
       `${this.repoPath}/contents/${encodePath(path)}${query}`,
     );
-    if (response.status === 404) return null;
+    if (response.status === 404) {
+      await response.body?.cancel();
+      return null;
+    }
     const entry = (await response.json()) as GiteaContentsEntry;
     if (entry.type !== "file" || entry.content == null) {
       throw new ForgeError(`${path} is not a file`, 422, path);
@@ -117,9 +90,9 @@ export class GiteaForge implements ForgeClient {
       options.files.map(async (file) => {
         const existing = await this.getFile(file.path, options.branch);
         return {
-          operation: existing ? "update" : "create",
+          operation: file.content === null ? "delete" : existing ? "update" : "create",
           path: file.path,
-          content: encodeBase64(file.content),
+          ...(file.content === null ? {} : { content: encodeBase64(file.content) }),
           ...(existing ? { sha: existing.sha } : {}),
         };
       }),
@@ -133,10 +106,15 @@ export class GiteaForge implements ForgeClient {
           branch: options.branch,
           message: options.message,
           files: operations,
+          ...(options.author ? { author: options.author } : {}),
+          ...(options.committer ? { committer: options.committer } : {}),
         }),
       },
     );
-    return { sha: result.commit.sha, url: result.commit.html_url };
+    return {
+      sha: result.commit.sha,
+      ...(result.commit.html_url ? { url: result.commit.html_url } : {}),
+    };
   }
 
   async createBranch(name: string, fromSha: string): Promise<void> {
@@ -144,30 +122,6 @@ export class GiteaForge implements ForgeClient {
       method: "POST",
       body: JSON.stringify({ new_branch_name: name, old_ref_name: fromSha }),
     });
-  }
-
-  async createPullRequest(options: CreatePullRequestOptions): Promise<PullRequest> {
-    const pull = await this.http.json<{ number: number; html_url: string }>(
-      `${this.repoPath}/pulls`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          title: options.title,
-          head: options.head,
-          base: options.base,
-          body: options.body ?? "",
-        }),
-      },
-    );
-    return { number: pull.number, url: pull.html_url };
-  }
-
-  async ensureFork(): Promise<{ owner: string; repo: string }> {
-    const fork = await this.http.json<{ name: string; owner: { login: string } }>(
-      `${this.repoPath}/forks`,
-      { method: "POST", body: JSON.stringify({}) },
-    );
-    return { owner: fork.owner.login, repo: fork.name };
   }
 }
 
