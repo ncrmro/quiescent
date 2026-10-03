@@ -17,7 +17,8 @@
       "component": "quiescent-wiki"
     },
     "code/astro": {
-      "component": "quiescent-astro"
+      "component": "quiescent-astro",
+      "initial-version": "0.1.0"
     }
   },
   "plugins": ["node-workspace"]
