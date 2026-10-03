@@ -30,3 +30,44 @@ test("cache failure reports a committed publication and retry does not commit ag
   expect(f.commits.size).toBe(count);
   expect((await store.getPublished(draft.document.id))?.document.body).toBe("Recipe");
 });
+
+test("listing metadata and refresh require authorization; refresh additionally requires same origin", async () => {
+  const store = fixture().service();
+  let reads = 0;
+  let refreshes = 0;
+  const listing = {
+    documents: [],
+    cache: { fetchedAt: 1, updatedAt: 1, stale: false, refreshing: false },
+  };
+  const handler = createDocumentHandler({
+    store: {
+      ...store,
+      listDocumentsWithStatus: async () => {
+        reads++;
+        return listing;
+      },
+      refreshDocuments: async () => {
+        refreshes++;
+        return listing;
+      },
+    },
+    authorize: (request) => request.headers.get("Authorization") === "test",
+  });
+  expect((await handler(new Request("https://test/api/documents/listing"))).status).toBe(403);
+  const read = await handler(
+    new Request("https://test/api/documents/listing", { headers: { Authorization: "test" } }),
+  );
+  expect(await read.json()).toEqual(listing);
+  expect(read.headers.get("Cache-Control")).toContain("no-store");
+  const refresh = (origin: string) =>
+    handler(
+      new Request("https://test/api/documents/listing/refresh", {
+        method: "POST",
+        headers: { Authorization: "test", Origin: origin },
+      }),
+    );
+  expect((await refresh("https://other")).status).toBe(403);
+  expect(await (await refresh("https://test")).json()).toEqual(listing);
+  expect(reads).toBe(1);
+  expect(refreshes).toBe(1);
+});

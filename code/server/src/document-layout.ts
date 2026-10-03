@@ -1,4 +1,4 @@
-import type { CommitFileChange, PublishingForge } from "@quiescent/git";
+import type { CommitFileChange, FileContent, PublishingForge } from "@quiescent/git";
 import { isAssetFilename } from "./content/assets.ts";
 import type { DocumentRecord, StoredDocument } from "./contracts.ts";
 import { documentCodec, type Frontmatter, type JSONSchema } from "./document-codec.ts";
@@ -80,12 +80,19 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
   async function readMany(
     requests: Array<{ id: string; ref: string }>,
     authoritativeRef?: string,
+    stateIndex?: { ref: string; files: FileContent[] },
   ): Promise<Array<StoredDocument<T> | null>> {
     const getFiles = (files: Array<{ path: string; ref: string }>) =>
       forge.getFiles
         ? forge.getFiles(files)
         : Promise.all(files.map(({ path, ref }) => forge.getFile(path, ref)));
-    const states = await getFiles(requests.map(({ id, ref }) => ({ path: statePath(id), ref })));
+    const known = new Map(stateIndex?.files.map((file) => [file.path, file]));
+    const missing = requests.filter(({ ref }) => ref !== stateIndex?.ref);
+    const fetched = await getFiles(missing.map(({ id, ref }) => ({ path: statePath(id), ref })));
+    let cursor = 0;
+    const states = requests.map(({ id, ref }) =>
+      ref === stateIndex?.ref ? (known.get(statePath(id)) ?? null) : fetched[cursor++],
+    );
     const locations = states.map((file) => (file ? parseLocation(file.content) : null));
     // Main's tombstones exclude every revision before Markdown schema validation.
     const deleted = new Set(
@@ -139,6 +146,21 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
   async function ids(ref: string) {
     const current = await entries(`${collection}/.quiescent`, ref);
     return current.map((entry) => entry.name.replace(/\.json$/, "")).filter((id) => uuid.test(id));
+  }
+  async function index(ref: string) {
+    if (!forge.getDirectoryFiles) return { ids: await ids(ref) };
+    const files = await forge.getDirectoryFiles(`${collection}/.quiescent`, ref);
+    return {
+      ids: files
+        .map((file) =>
+          file.path
+            .split("/")
+            .at(-1)!
+            .replace(/\.json$/, ""),
+        )
+        .filter((id) => uuid.test(id)),
+      stateIndex: { ref, files },
+    };
   }
   async function assertDestination(document: DocumentRecord<T>, ref: string) {
     const existing = await forge.getFile(`${folder(document)}/index.md`, ref);
@@ -209,5 +231,5 @@ export function documentLayout<T extends Frontmatter>(options: LayoutOptions<T>)
         "invalid",
       );
   }
-  return { read, readMany, changes, ids, location, assertScope, assertDestination, checkId };
+  return { read, readMany, changes, ids, index, location, assertScope, assertDestination, checkId };
 }

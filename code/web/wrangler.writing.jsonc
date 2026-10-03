@@ -8,7 +8,9 @@
     "binding": "ASSETS",
     "directory": "./dist/client"
   },
-  "images": { "binding": "IMAGES" },
+  "images": {
+    "binding": "IMAGES"
+  },
   "r2_buckets": [
     {
       "binding": "WRITING_MEDIA",
@@ -29,6 +31,13 @@
     {
       "binding": "WRITING_SELF",
       "service": "quiescent-writing-local"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "WRITING_CACHE",
+      "database_name": "quiescent-writing-cache",
+      "database_id": "8c004ddc-a626-4a97-9d2e-9c3f887fa9ae"
     }
   ]
 }

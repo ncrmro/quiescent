@@ -1,4 +1,5 @@
 import { collectionRoutes, type PrivateHttpOptions, privateHandler } from "./collection-http.ts";
+import type { DocumentListing } from "./document-cache.ts";
 import { mediaResponse, upload } from "./document-media-http.ts";
 import type {
   createDocumentStore,
@@ -9,7 +10,10 @@ import type {
 import { json } from "./http.ts";
 import type { MediaStorage } from "./media.ts";
 export interface DocumentHandlerOptions<T extends Frontmatter> extends PrivateHttpOptions {
-  store: ReturnType<typeof createDocumentStore<T>>;
+  store: ReturnType<typeof createDocumentStore<T>> & {
+    listDocumentsWithStatus?: () => Promise<DocumentListing<T>>;
+    refreshDocuments?: () => Promise<DocumentListing<T>>;
+  };
   apiBase?: string;
   media?: MediaStorage;
   readMedia?: (id: string, filename: string, branch?: string) => ReturnType<MediaStorage["read"]>;
@@ -68,12 +72,20 @@ export function createDocumentHandler<T extends Frontmatter>(options: DocumentHa
     }
     return null;
   }
+  async function listingRoute(request: Request, action?: string) {
+    if (!action && request.method === "GET" && store.listDocumentsWithStatus)
+      return json(await store.listDocumentsWithStatus());
+    if (action === "refresh" && request.method === "POST" && store.refreshDocuments)
+      return json(await store.refreshDocuments());
+    return json({ error: "Not found" }, 404);
+  }
   return privateHandler(options, async (request) => {
     const { pathname } = new URL(request.url);
     if (pathname !== base && !pathname.startsWith(`${base}/`))
       return json({ error: "Not found" }, 404);
     const parts = pathname.slice(base.length).split("/").filter(Boolean);
     const [id, action, ...rest] = parts;
+    if (id === "listing" && !rest.length) return listingRoute(request, action);
     if (id && action === "uploads" && options.media)
       return upload(request, [id, ...rest], store, options.media);
     const response = await readRoute(request, parts);

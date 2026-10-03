@@ -1,4 +1,5 @@
 export * from "./document-assets.ts";
+export * from "./document-cache.ts";
 export * from "./document-codec.ts";
 export * from "./document-config.ts";
 export * from "./document-http.ts";

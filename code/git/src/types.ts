@@ -102,6 +102,10 @@ export interface ForgeClient {
 export interface PublishingForge extends ForgeClient {
   /** Read text files at immutable commits in input order; null denotes an absent file. */
   getFiles?(files: Array<{ path: string; ref: string }>): Promise<Array<FileContent | null>>;
+  /** Complete immediate text-file contents at an immutable commit; an absent directory is empty. */
+  getDirectoryFiles?(path: string, ref: string): Promise<FileContent[]>;
+  /** Ordered immutable ancestry checks. The branch is only a hint; adapters must verify object IDs. */
+  areAncestors?(ancestors: string[], head: { branch: string; sha: string }): Promise<boolean[]>;
   listBranches(prefix: string): Promise<Array<{ name: string; sha: string }>>;
   /** Complete file scope, including rename sources. Rejects potentially truncated results. */
   compareCommits(baseSha: string, headSha: string): Promise<CommitComparison>;

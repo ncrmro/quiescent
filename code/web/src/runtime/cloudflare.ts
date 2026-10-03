@@ -1,5 +1,6 @@
-import { env } from "cloudflare:workers";
+import { env, waitUntil } from "cloudflare:workers";
 import type { CacheFetch } from "@quiescent/astro";
+import { d1DocumentCache } from "@quiescent/server";
 
 export { env };
 export function hostedMedia() {
@@ -21,3 +22,8 @@ export const transformImage: import("@quiescent/astro/images").TransformImage = 
     .output({ format: `image/${options.format}`, quality: options.quality });
   return result.response();
 };
+
+export const scheduleCacheRefresh = waitUntil;
+export function hostedDocumentCache() {
+  return d1DocumentCache(env.WRITING_CACHE);
+}

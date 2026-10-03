@@ -9,12 +9,15 @@ the initialized content repository.
 
 Run `devenv shell -- bun run deploy:writing`. The script builds workspace
 packages and Astro, deploys the generated Worker configuration, then warms public
-pages. It does not publish npm packages. No D1, KV, sessions, or cron bindings
-are required.
+pages. It also installs the idempotent document-cache schema before deployment.
+It does not publish npm packages. Create a D1 database with `wrangler d1 create`,
+then set the `WRITING_CACHE` binding in the configuration to its returned ID.
+This database is only a rebuildable listing cache; no sessions, KV, or cron
+bindings are required. See [listing caching](document-cache.md).
 
 Images use the private R2 binding. Optional direct browser-to-R2 uploads use the
 R2 S3 credentials described in [the writing guide](writing-prototype.md); they
-also work on Node. Git LFS is not implemented.
+also work on Node. Git LFS preserves image originals; R2 serves them.
 
 Astro's experimental Cloudflare cache provider stores whole public pages. Private
 routes are no-store. Publish and delete invalidate affected tags and eagerly warm

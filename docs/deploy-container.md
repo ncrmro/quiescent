@@ -21,6 +21,9 @@ cache provider. Put HTTPS in front of the app for public hosting.
 
 The fixed `quiescent-demo` password demonstrates an account-free example. A host
 can supply its own authorization callback without changing the document store.
-No database, OAuth service, cron flush, or KV draft storage is required.
+No database, OAuth service, cron flush, or KV draft storage is required. The
+example uses a bounded in-memory document listing cache, rebuilt after restart.
+Supply another `DocumentCacheStorage` adapter for shared persistent storage.
+See [listing caching](document-cache.md) for the same cache contract used on D1.
 
 See [the complete workflow and validation commands](writing-prototype.md).

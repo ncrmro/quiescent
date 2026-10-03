@@ -3,8 +3,7 @@
   "repository": {
     "provider": "github",
     "owner": "ncrmro",
-    "name": "quiescent-writing-demo",
-    "publishedBranch": "main"
+    "name": "quiescent-writing-demo"
   },
   "collections": {
     "posts": {

@@ -1,13 +1,31 @@
 import { expect, type Page, test } from "@playwright/test";
+import { memoryDocumentCache } from "../../server/src/document-cache.ts";
 import { createDocumentHandler } from "../../server/src/document-http.ts";
-import { createDocumentStore } from "../../server/src/document-store.ts";
+import { createDocumentService } from "../../server/src/document-service.ts";
 import { localR2Media } from "../../server/src/media.ts";
 import { fixture } from "../../server/test/forge-fixture.ts";
 import { type Collection, collectionSchema } from "../src/writing/collections.ts";
 
 async function mockDocuments(page: Page, collection: Collection) {
   const backend = fixture();
-  const service = createDocumentStore({
+  const media = localR2Media({
+    get: async () => null,
+    put: async () => {
+      throw new Error("This scenario does not upload media");
+    },
+  });
+  const service = createDocumentService({
+    cache: { storage: memoryDocumentCache(), key: collection },
+    media,
+    references: () => [],
+    lfs: {
+      upload: async () => {
+        throw new Error("No uploads in this fixture");
+      },
+      download: async () => {
+        throw new Error("No downloads in this fixture");
+      },
+    },
     forge: backend.forge,
     author: { name: "Writer", email: "test@example.test" },
     collection,
@@ -17,12 +35,7 @@ async function mockDocuments(page: Page, collection: Collection) {
     store: service,
     apiBase: `/api/documents/${collection}`,
     authorize: () => true,
-    media: localR2Media({
-      get: async () => null,
-      put: async () => {
-        throw new Error("This scenario does not upload media");
-      },
-    }),
+    media,
   });
   await page.route(new RegExp(`/api/documents/${collection}(?:/|$)`), async (route) => {
     const incoming = route.request();
@@ -341,4 +354,45 @@ test("a restored local draft derives its missing slug on first save", async ({ p
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Saved");
   expect((await service.listDocuments())[0]!.document.frontmatter.slug).toBe("a-restored-story");
+});
+
+test("cached listing shows freshness and searches without another request", async ({ page }) => {
+  const { service } = await mockDocuments(page, "posts");
+  await service.createDocument({
+    frontmatter: {
+      title: "Garden afternoon",
+      slug: "garden-afternoon",
+      description: "Picking herbs",
+      tags: ["plants"],
+      headerImage: null,
+    },
+    body: "Fresh mint",
+  });
+  await service.createDocument({
+    frontmatter: {
+      title: "A good dinner",
+      slug: "a-good-dinner",
+      description: "Soup at home",
+      tags: ["food"],
+      headerImage: null,
+    },
+    body: "Carrots",
+  });
+  await page.goto("/login");
+  await page.getByLabel("Password", { exact: true }).fill("quiescent-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  const section = page.locator('[data-collection="posts"]');
+  await expect(section.locator("li")).toHaveCount(2);
+  await expect(section.locator("[data-cache-status]")).toContainText("Last GitHub fetch:");
+  let calls = 0;
+  page.on("request", (request) => {
+    if (request.url().includes("/api/documents/posts")) calls++;
+  });
+  await section.getByRole("searchbox").fill("plants");
+  await expect(section.locator("li")).toHaveCount(1);
+  await expect(section.locator("li")).toContainText("Garden afternoon");
+  expect(calls).toBe(0);
+  await section.getByRole("button", { name: "Refresh from GitHub" }).click();
+  await expect(section.getByRole("button", { name: "Refresh from GitHub" })).toBeEnabled();
+  expect(calls).toBe(1);
 });

@@ -37,6 +37,31 @@ test("73 documents use bounded GitHub batches and fresh heads on each listing", 
       let response: unknown;
       if (url.endsWith("/graphql")) {
         const { variables } = JSON.parse(String(init?.body));
+        if (variables.expression) {
+          const [ref, directory] = variables.expression.split(":");
+          const entries = Object.entries(files.get(ref)!)
+            .filter(([path]) => path.startsWith(`${directory}/`))
+            .map(([path, text]) => ({
+              name: path.split("/").at(-1),
+              type: "blob",
+              object: { oid: sha(999), text, isTruncated: false },
+            }));
+          return Response.json({
+            data: { repository: { object: { __typename: "Tree", entries } } },
+          });
+        }
+        if (variables.branch) {
+          const ref = Object.fromEntries(
+            Object.entries(variables)
+              .filter(([key]) => /^a\d+$/.test(key))
+              .map(([key, value]) => [
+                key,
+                { status: "DIVERGED", baseTarget: { oid: main }, headTarget: { oid: value } },
+              ]),
+          );
+          return Response.json({ data: { repository: { ref } } });
+        }
+
         const repository = Object.fromEntries(
           Object.entries(variables)
             .filter(([key]) => key.startsWith("e"))
@@ -73,7 +98,7 @@ test("73 documents use bounded GitHub batches and fresh heads on each listing", 
   const first = await store.listDocuments();
   expect(first).toHaveLength(73);
   expect(requests.filter((url) => url.endsWith("/graphql"))).toHaveLength(7);
-  expect(requests).toHaveLength(41); // 3 discovery + 7 batches + 31 ancestry checks, previously 243.
+  expect(requests).toHaveLength(9); // 2 discovery + 1 directory + 5 file batches + 1 ancestry batch, previously 243.
   const branch = branches[0]!;
   const next = sha(100);
   const changed = { ...files.get(branch.commit.sha)! };
@@ -87,7 +112,7 @@ test("73 documents use bounded GitHub batches and fresh heads on each listing", 
   expect(
     (await store.listDocuments()).find((row) => row.document.id === id(43))?.document.body,
   ).toContain("External edit");
-  expect(requests).toHaveLength(41);
+  expect(requests).toHaveLength(9);
 });
 
 test("read-only draft selection never starts a cycle and rejects published/deleted revisions", async () => {

@@ -1,3 +1,4 @@
+import { memoryDocumentCache } from "@quiescent/server";
 import { fileMedia } from "@quiescent/server/file-media";
 import type { WritingEnv } from "../writing/app";
 export const env: WritingEnv = {
@@ -39,3 +40,11 @@ export const transformImage: import("@quiescent/astro/images").TransformImage = 
     headers: { "Content-Type": `image/${result.format}` },
   });
 };
+
+const documents = memoryDocumentCache();
+export function hostedDocumentCache() {
+  return documents;
+}
+export function scheduleCacheRefresh(promise: Promise<unknown>) {
+  void promise.catch(() => console.warn("Document cache background refresh failed"));
+}

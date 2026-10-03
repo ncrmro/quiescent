@@ -173,6 +173,50 @@ export class GitHubForge implements PublishingForge {
     return { path, sha: entry.sha, content: decodeBase64(blob.content) };
   }
 
+  async getDirectoryFiles(path: string, ref: string): Promise<FileContent[]> {
+    if (!/^[a-f0-9]{40}$/i.test(ref))
+      throw new ForgeError("Directory reads require an immutable commit SHA", 422, this.repoPath);
+    const response = await this.http.json<{
+      errors?: unknown[];
+      data?: {
+        repository: {
+          object: {
+            __typename: string;
+            entries?: Array<{
+              name: string;
+              type: string;
+              object: { oid: string; text?: string | null; isTruncated?: boolean } | null;
+            }> | null;
+          } | null;
+        } | null;
+      };
+    }>("/graphql", {
+      method: "POST",
+      body: JSON.stringify({
+        query: `query($owner: String!, $repo: String!, $expression: String!) { repository(owner: $owner, name: $repo) { object(expression: $expression) { __typename ... on Tree { entries { name type object { oid ... on Blob { text isTruncated } } } } } } }`,
+        variables: { owner: this.owner, repo: this.repository, expression: `${ref}:${path}` },
+      }),
+    });
+    if (response.errors?.length || !response.data?.repository)
+      throw new ForgeError("GitHub directory read failed", 502, this.repoPath);
+    const tree = response.data.repository.object;
+    if (tree === null) return [];
+    if (tree?.__typename !== "Tree" || !Array.isArray(tree.entries))
+      throw new ForgeError("Incomplete GitHub directory response", 502, this.repoPath);
+    const result: FileContent[] = [];
+    for (const entry of tree.entries.filter((item) => item.type === "blob")) {
+      const filename = `${path}/${entry.name}`;
+      if (!entry.object) throw new ForgeError("Missing GitHub directory blob", 502, filename);
+      const file =
+        entry.object.isTruncated || typeof entry.object.text !== "string"
+          ? await this.getFile(filename, ref)
+          : { path: filename, sha: entry.object.oid, content: entry.object.text };
+      if (!file) throw new ForgeError("Missing GitHub directory file", 502, filename);
+      result.push(file);
+    }
+    return result;
+  }
+
   async listDir(path = "", ref?: string): Promise<RepoEntry[]> {
     const query = ref ? `?ref=${encodeURIComponent(ref)}` : "";
     const entries = await this.http.json<GitHubContentsEntry[]>(
@@ -247,6 +291,71 @@ export class GitHubForge implements PublishingForge {
   async isAncestor(ancestor: string, head: string): Promise<boolean> {
     const result = await this.comparison(ancestor, head);
     return result.status === "ahead" || result.status === "identical";
+  }
+
+  async areAncestors(
+    ancestors: string[],
+    head: { branch: string; sha: string },
+  ): Promise<boolean[]> {
+    if ([head.sha, ...ancestors].some((sha) => !/^[a-f0-9]{40}$/i.test(sha)))
+      throw new ForgeError("Ancestry checks require immutable commit SHAs", 422, this.repoPath);
+    const result: boolean[] = [];
+    for (let offset = 0; offset < ancestors.length; offset += 50) {
+      const batch = ancestors.slice(offset, offset + 50);
+      result.push(...(await this.ancestorBatch(batch, head)));
+    }
+    return result;
+  }
+  private async ancestorBatch(
+    ancestors: string[],
+    head: { branch: string; sha: string },
+  ): Promise<boolean[]> {
+    const fields = ancestors
+      .map(
+        (_, i) =>
+          `a${i}: compare(headRef: $a${i}) { status baseTarget { oid } headTarget { oid } }`,
+      )
+      .join("\n");
+    const response = await this.http.json<{
+      errors?: unknown[];
+      data?: {
+        repository: {
+          ref: Record<
+            string,
+            { status: string; baseTarget: { oid: string }; headTarget: { oid: string } } | null
+          > | null;
+        } | null;
+      };
+    }>("/graphql", {
+      method: "POST",
+      body: JSON.stringify({
+        query: `query($owner: String!, $repo: String!, $branch: String!, ${ancestors.map((_, i) => `$a${i}: String!`).join(", ")}) { repository(owner: $owner, name: $repo) { ref(qualifiedName: $branch) { ${fields} } } }`,
+        variables: {
+          owner: this.owner,
+          repo: this.repository,
+          branch: `refs/heads/${head.branch}`,
+          ...Object.fromEntries(ancestors.map((sha, i) => [`a${i}`, sha])),
+        },
+      }),
+    });
+    if (response.errors?.length || !response.data?.repository)
+      throw new ForgeError("GitHub ancestry batch failed", 502, this.repoPath);
+    const results: boolean[] = [];
+    // Ref.compare has a mutable base. Trust only the comparison's exact immutable objects.
+    // A moving/deleted ref falls back to REST at the originally selected SHAs.
+    for (let i = 0; i < ancestors.length; i++) {
+      const comparison = response.data.repository.ref?.[`a${i}`];
+      if (response.data.repository.ref && comparison === undefined)
+        throw new ForgeError("Incomplete GitHub ancestry response", 502, this.repoPath);
+      const exact =
+        comparison?.baseTarget.oid === head.sha && comparison.headTarget.oid === ancestors[i];
+      results.push(
+        exact
+          ? comparison.status === "BEHIND" || comparison.status === "IDENTICAL"
+          : await this.isAncestor(ancestors[i]!, head.sha),
+      );
+    }
+    return results;
   }
 
   async mergeBranch(base: string, headSha: string): Promise<CommitResult> {

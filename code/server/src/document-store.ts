@@ -436,19 +436,30 @@ export function createDocumentStore<T extends Frontmatter = Frontmatter>(
     const candidates: Array<{ name: string; sha: string }> = [];
     const valid = branchesAtHead.filter(({ name }) => branches.id(name));
     // Retained merged branches may have an obsolete schema: filter before decoding them.
-    for (let offset = 0; offset < valid.length; offset += 6) {
-      const batch = valid.slice(offset, offset + 6);
-      const merged = await Promise.all(batch.map(({ sha }) => forge.isAncestor(sha, mainSha)));
-      candidates.push(...batch.filter((_, i) => !merged[i]));
+    if (forge.areAncestors) {
+      const merged = await forge.areAncestors(
+        valid.map(({ sha }) => sha),
+        { branch: main, sha: mainSha },
+      );
+      candidates.push(...valid.filter((_, i) => !merged[i]));
+    } else {
+      for (let offset = 0; offset < valid.length; offset += 6) {
+        const batch = valid.slice(offset, offset + 6);
+        const merged = await Promise.all(batch.map(({ sha }) => forge.isAncestor(sha, mainSha)));
+        candidates.push(...batch.filter((_, i) => !merged[i]));
+      }
     }
-    const mainIds = await layout.ids(mainSha);
-    const ids = [...new Set([...mainIds, ...candidates.map(({ name }) => branches.id(name)!)])];
+    const mainIndex = await layout.index(mainSha);
+    const ids = [
+      ...new Set([...mainIndex.ids, ...candidates.map(({ name }) => branches.id(name)!)]),
+    ];
     const records = await layout.readMany(
       [
         ...ids.map((id) => ({ id, ref: mainSha })),
         ...candidates.map(({ name, sha }) => ({ id: branches.id(name)!, ref: sha })),
       ],
       mainSha,
+      mainIndex.stateIndex,
     );
     const mainRecords = new Map(ids.map((id, i) => [id, records[i]]));
     const drafts: DocumentDraft<T>[] = candidates.flatMap(({ name, sha }, i) => {

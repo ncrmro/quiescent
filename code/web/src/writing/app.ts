@@ -1,4 +1,4 @@
-import { hostedMedia } from "quiescent:runtime";
+import { hostedDocumentCache, hostedMedia, scheduleCacheRefresh } from "quiescent:runtime";
 import { createForge, createLfsClient, requirePublishingForge } from "@quiescent/git";
 import {
   configuredCollection,
@@ -69,6 +69,19 @@ export function writingApp(env: WritingEnv, collection: Collection = "posts") {
   };
   const service = createDocumentService<ExampleMetadata>({
     ...configuredCollection<ExampleMetadata>(documentConfig, collection),
+    cache: {
+      storage: hostedDocumentCache(),
+      key: JSON.stringify([
+        documentConfig.repository.provider,
+        owner,
+        repo,
+        documentConfig.repository.publishedBranch ?? "main",
+        collection,
+        documentConfig.collections[collection],
+      ]),
+      ttlMs: 60 * 60 * 1000,
+      waitUntil: scheduleCacheRefresh,
+    },
     references: (document) => [
       ...markdownImages(document.body),
       ...(document.frontmatter.headerImage ? [document.frontmatter.headerImage] : []),

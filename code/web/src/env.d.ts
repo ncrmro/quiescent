@@ -12,6 +12,8 @@ declare module "cloudflare:workers" {
   export const env: Cloudflare.Env;
 }
 declare module "quiescent:runtime" {
+  export function hostedDocumentCache(): import("@quiescent/server").DocumentCacheStorage;
+  export function scheduleCacheRefresh(promise: Promise<unknown>): void;
   export const transformImage: import("@quiescent/astro/images").TransformImage;
   export const env: ExampleEnv;
   export const warmFetch: import("@quiescent/astro").CacheFetch;
