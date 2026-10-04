@@ -1,7 +1,7 @@
 {
-  "code/git": "0.2.0",
-  "code/server": "0.2.0",
-  "code/editor": "0.2.0",
-  "code/wiki": "0.0.1",
-  "code/astro": "0.0.0"
+  "code/git": "0.3.0",
+  "code/server": "0.3.0",
+  "code/editor": "0.3.0",
+  "code/wiki": "0.1.0",
+  "code/astro": "0.1.0"
 }

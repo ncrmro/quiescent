@@ -1,6 +1,6 @@
 {
   "name": "@quiescent/server",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "Schema-validated Markdown documents, shared contracts, Git publishing, and media for Quiescent",
   "license": "MIT",
@@ -52,7 +52,7 @@
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
-    "@quiescent/git": "^0.2.0",
+    "@quiescent/git": "^0.3.0",
     "aws4fetch": "^1.0.20",
     "yaml": "^2.9.1",
     "@tiptap/core": "^3.31.3",
