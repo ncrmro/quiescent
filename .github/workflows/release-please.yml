@@ -45,7 +45,7 @@ jobs:
         if: steps.release.outputs.pr != ''
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_PR: ${{ fromJSON(steps.release.outputs.pr).number }}
+          RELEASE_PR: ${{ fromJSON(steps.release.outputs.pr || '{}').number }}
         run: |
           gh pr checkout "$RELEASE_PR"
           bun install --lockfile-only --ignore-scripts
