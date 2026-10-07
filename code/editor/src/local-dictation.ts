@@ -48,20 +48,20 @@ interface NativeRecognitionConstructor {
 }
 
 function nativeConstructor(): NativeRecognitionConstructor | undefined {
-  const candidate = (globalThis as { SpeechRecognition?: unknown }).SpeechRecognition;
-  if (typeof candidate !== "function") return undefined;
-  const speechRecognition = candidate as unknown as NativeRecognitionConstructor;
-  if (
-    typeof speechRecognition.available !== "function" ||
-    typeof speechRecognition.install !== "function"
-  )
-    return undefined;
   try {
+    const candidate = (globalThis as { SpeechRecognition?: unknown }).SpeechRecognition;
+    if (typeof candidate !== "function") return undefined;
+    const speechRecognition = candidate as unknown as NativeRecognitionConstructor;
+    if (
+      typeof speechRecognition.available !== "function" ||
+      typeof speechRecognition.install !== "function"
+    )
+      return undefined;
     if (!("processLocally" in new speechRecognition())) return undefined;
+    return speechRecognition;
   } catch {
     return undefined;
   }
-  return speechRecognition;
 }
 
 /** Returns only an unprefixed implementation with the mandatory on-device API. */
@@ -129,6 +129,7 @@ export interface LocalDictationControllerOptions extends LocalDictationOptions {
   button: HTMLButtonElement;
   interim: HTMLElement;
   insert: (text: string) => void;
+  onStart?: () => void;
   onStatus?: (message: string) => void;
 }
 
@@ -165,29 +166,57 @@ export function createLocalDictation(options: LocalDictationControllerOptions) {
   let checking = false;
   let installing = false;
   let enabled = true;
+  let stopping = false;
   let availability: LocalSpeechAvailability | undefined;
   let run = 0;
   let insertedThrough = 0;
   const present = (label: string, disabled = false) => {
     options.button.textContent = label;
+    options.button.setAttribute("aria-label", label);
     options.button.disabled = disabled || !enabled;
   };
-  const report = (message: string) => options.onStatus?.(message);
+  const report = (message: string) => {
+    options.interim.textContent = message;
+    options.onStatus?.(message);
+  };
+  const render = () => {
+    if (stopping) return present("Stopping dictation…", true);
+    if (recognition) return present("Stop dictation");
+    if (installing) return present("Installing dictation…", true);
+    if (checking) return present("Checking dictation…", true);
+    if (!provider) return present("Dictation unsupported", true);
+    const labels: Record<LocalSpeechAvailability, string> = {
+      available: "Dictate",
+      downloadable: "Install dictation",
+      downloading: "Language downloading",
+      unavailable: "Dictation unavailable",
+    };
+    present(
+      labels[availability ?? "unavailable"],
+      availability !== "available" && availability !== "downloadable",
+    );
+  };
   const detach = (instance: LocalSpeechRecognition) => {
-    instance.onend = null;
-    instance.onerror = null;
-    instance.onresult = null;
+    try {
+      instance.onend = null;
+      instance.onerror = null;
+      instance.onresult = null;
+    } catch {
+      // Session identity guards still reject callbacks if provider cleanup fails.
+    }
   };
   const finish = (message?: string) => {
     recognition = undefined;
+    stopping = false;
     options.interim.textContent = "";
-    present("Dictate");
+    render();
     if (message) report(message);
   };
   const cancel = () => {
     run++;
     const current = recognition;
     recognition = undefined;
+    stopping = false;
     options.interim.textContent = "";
     if (current) {
       detach(current);
@@ -197,12 +226,12 @@ export function createLocalDictation(options: LocalDictationControllerOptions) {
         /* It may already have ended. */
       }
     }
-    if (!disposed) present("Dictate");
+    if (!disposed) render();
   };
   const check = async () => {
     if (!provider) {
       present("Dictation unsupported", true);
-      report("This browser does not support on-device dictation.");
+      options.interim.textContent = "This browser does not support on-device dictation.";
       return;
     }
     checking = true;
@@ -210,22 +239,21 @@ export function createLocalDictation(options: LocalDictationControllerOptions) {
     try {
       availability = await provider.available({ langs: [options.lang], processLocally: true });
       if (disposed) return;
-      if (availability === "available") present("Dictate");
-      else if (availability === "downloadable") present("Install dictation");
-      else if (availability === "downloading") {
-        present("Language downloading", true);
-        report("The on-device language pack is still downloading.");
-      } else {
-        present("Dictation unavailable", true);
-        report(`On-device dictation is unavailable for ${options.lang}.`);
-      }
+      const messages: Record<LocalSpeechAvailability, string> = {
+        available: "",
+        downloadable: `Install the on-device language pack for ${options.lang} to dictate.`,
+        downloading: "The on-device language pack is still downloading.",
+        unavailable: `On-device dictation is unavailable for ${options.lang}.`,
+      };
+      options.interim.textContent = messages[availability];
     } catch {
       if (!disposed) {
-        present("Dictation unavailable", true);
-        report("Could not check on-device dictation support.");
+        availability = "unavailable";
+        options.interim.textContent = "Could not check on-device dictation support.";
       }
     } finally {
       checking = false;
+      if (!disposed) render();
     }
   };
   const install = async () => {
@@ -248,18 +276,24 @@ export function createLocalDictation(options: LocalDictationControllerOptions) {
       }
     } finally {
       installing = false;
+      if (!disposed) render();
     }
   };
   const start = () => {
-    if (!provider || recognition || disposed) return;
-    const instance = provider.create();
-    instance.lang = options.lang;
-    instance.continuous = true;
-    instance.interimResults = true;
-    instance.processLocally = true;
-    if (!instance.processLocally) {
-      report("This browser cannot guarantee on-device dictation.");
-      present("Dictation unsupported", true);
+    if (!provider || recognition || disposed || !enabled) return;
+    let instance: LocalSpeechRecognition;
+    try {
+      instance = provider.create();
+      recognition = instance;
+      instance.lang = options.lang;
+      instance.continuous = true;
+      instance.interimResults = true;
+      instance.processLocally = true;
+      if (!instance.processLocally) throw new Error("Local recognition unavailable");
+      options.onStart?.();
+    } catch {
+      cancel();
+      report("Dictation could not start on this device.");
       return;
     }
     const currentRun = ++run;
@@ -267,40 +301,41 @@ export function createLocalDictation(options: LocalDictationControllerOptions) {
     recognition = instance;
     present("Stop dictation");
     report("Listening on this device…");
-    instance.onresult = (event) => {
-      if (disposed || recognition !== instance || currentRun !== run) return;
-      const update = collectResults(event, insertedThrough, options.insert);
-      insertedThrough = update.insertedThrough;
-      options.interim.textContent = update.interim;
-    };
-    instance.onerror = (event) => {
-      if (recognition !== instance || currentRun !== run) return;
-      detach(instance);
-      finish(errorMessage(event.error));
-    };
-    instance.onend = () => {
-      if (recognition !== instance || currentRun !== run) return;
-      detach(instance);
-      finish("Dictation ended.");
-    };
     try {
+      instance.onresult = (event) => {
+        if (disposed || recognition !== instance || currentRun !== run) return;
+        const update = collectResults(event, insertedThrough, options.insert);
+        insertedThrough = update.insertedThrough;
+        options.interim.textContent = update.interim;
+      };
+      instance.onerror = (event) => {
+        if (recognition !== instance || currentRun !== run) return;
+        cancel();
+        report(errorMessage(event.error));
+      };
+      instance.onend = () => {
+        if (recognition !== instance || currentRun !== run) return;
+        detach(instance);
+        finish("Dictation ended.");
+      };
       instance.start();
     } catch {
-      detach(instance);
-      finish("Dictation could not start.");
+      cancel();
+      report("Dictation could not start.");
     }
   };
   const activate = () => {
-    if (checking || installing || disposed) return;
+    if (checking || installing || disposed || !enabled || stopping) return;
     if (recognition) {
       const current = recognition;
-      detach(current);
+      stopping = true;
+      render();
       try {
         current.stop();
       } catch {
-        /* It may already have ended. */
+        cancel();
+        report("Dictation could not stop normally.");
       }
-      finish("Dictation stopped.");
     } else if (availability === "downloadable") void install();
     else if (availability === "available") start();
     else void check();
@@ -312,12 +347,7 @@ export function createLocalDictation(options: LocalDictationControllerOptions) {
     setEnabled(nextEnabled: boolean) {
       enabled = nextEnabled;
       if (!enabled) cancel();
-      options.button.disabled =
-        !enabled ||
-        checking ||
-        installing ||
-        !provider ||
-        (availability !== "available" && availability !== "downloadable");
+      render();
     },
     destroy() {
       disposed = true;

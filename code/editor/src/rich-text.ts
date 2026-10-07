@@ -104,18 +104,18 @@ export function createWritingEditor(options: WritingEditorOptions) {
       from = transaction.mapping.map(from);
       to = transaction.mapping.map(to);
     });
-    button.addEventListener("pointerdown", () => {
-      from = editor.state.selection.from;
-      to = editor.state.selection.to;
-    });
     dictation = createLocalDictation({
       ...options.localDictation,
       button,
       interim,
-      ...(options.onStatus ? { onStatus: options.onStatus } : {}),
+      onStart: () => {
+        from = editor.state.selection.from;
+        to = editor.state.selection.to;
+      },
       insert: (text) => {
         if (!editable || disposed || !text) return;
         editor.view.dispatch(editor.state.tr.insertText(text, from, to));
+        from = to;
       },
     });
   }

@@ -87,6 +87,12 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   markdownInput.setAttribute("aria-label", "Markdown body");
   markdownInput.hidden = true;
   q("[data-editor]").after(markdownInput);
+  const dictationNotice = document.createElement("p");
+  dictationNotice.dataset.dictationNotice = "";
+  dictationNotice.textContent =
+    "Dictation is unavailable while this document is in verbatim Markdown mode.";
+  dictationNotice.hidden = true;
+  markdownInput.after(dictationNotice);
   markdownInput.addEventListener("input", () => changed());
   const status = (message: string, phase: EditorPhase = "notice") => {
     const state: EditorState = {
@@ -362,8 +368,9 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     markdownInput.value = draft.document.body;
     markdownInput.hidden = !markdownMode;
     q("[data-editor]").hidden = markdownMode;
-    if (markdownMode && options.localDictation)
-      status("Dictation is unavailable while this document is in verbatim Markdown mode.");
+    // Layout hooks may have moved the textarea since it was mounted.
+    markdownInput.after(dictationNotice);
+    dictationNotice.hidden = !markdownMode || !options.localDictation;
     editor = markdownMode
       ? undefined
       : createWritingEditor({

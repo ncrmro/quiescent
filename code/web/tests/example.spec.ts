@@ -425,14 +425,14 @@ test("cached listing shows freshness and searches without another request", asyn
   expect(calls).toBe(1);
 });
 
-test("mocked local dictation inserts plain text with undo and autosave", async ({ page }) => {
+async function mountDictationFixture(page: Page, body = "Before", unavailable = false) {
   const savedBodies: string[] = [];
   const draft = {
     document: {
       id: "dictation-document",
       createdAt: "2026-10-07",
       frontmatter: { title: "Dictation" },
-      body: "Before",
+      body,
     },
     branch: "draft/dictation-document",
     headSha: "initial",
@@ -460,57 +460,152 @@ test("mocked local dictation inserts plain text with undo and autosave", async (
   });
   await page.goto("/login");
   await page.locator("body").evaluate((body) => body.replaceChildren());
-  await page.evaluate(async (moduleUrl) => {
-    const { mountDocumentApp } = await import(moduleUrl);
-    document.body.innerHTML = '<div id="dictation-editor"></div>';
-    const root = document.getElementById("dictation-editor")!;
-    const recognition = {
-      continuous: false,
-      interimResults: false,
-      lang: "",
-      processLocally: false,
-      onend: null,
-      onerror: null,
-      onresult: null,
-      start() {},
-      stop() {},
-      abort() {},
-    };
-    Object.assign(window, { testRecognition: recognition });
-    mountDocumentApp(root, {
-      apiBase: "/dictation-api",
-      initialDocumentId: "dictation-document",
-      initialDocument: () => ({ frontmatter: { title: "" }, body: "" }),
-      documentPath: () => "/read",
-      localDictation: {
-        lang: "en-US",
-        provider: {
-          available: async () => "available",
-          install: async () => true,
-          create: () => recognition,
+  await page.evaluate(
+    async ({ moduleUrl, unavailable }) => {
+      const { mountDocumentApp }: typeof import("../../editor/src/writing.ts") = await import(
+        moduleUrl
+      );
+      document.body.innerHTML = '<div id="dictation-editor"></div>';
+      const root = document.getElementById("dictation-editor")!;
+      const recognition = {
+        continuous: false,
+        interimResults: false,
+        lang: "",
+        processLocally: false,
+        onend: null,
+        onerror: null,
+        onresult: null,
+        start() {},
+        stop() {},
+        abort() {},
+      };
+      Object.assign(window, { testRecognition: recognition });
+      mountDocumentApp(root, {
+        apiBase: "/dictation-api",
+        initialDocumentId: "dictation-document",
+        initialDocument: () => ({ frontmatter: { title: "" }, body: "" }),
+        documentPath: () => "/read",
+        layout: (root, host) => {
+          // Exercise a host moving the textarea away from the default layout.
+          root.insertBefore(host.slots.markdown, root.firstChild);
+          return undefined;
         },
-      },
-    });
-  }, writingModuleUrl);
-  const body = page.getByRole("textbox", { name: "Document body" });
-  await expect(body).toBeVisible();
-  await expect(page.getByRole("button", { name: "Dictate" })).toBeEnabled();
-  await page.getByRole("button", { name: "Dictate" }).click();
+        onState: (state) => {
+          root.dataset.phase = state.phase;
+        },
+        localDictation: {
+          lang: "en-US",
+          provider: {
+            available: async () => {
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              return unavailable ? "unavailable" : "available";
+            },
+            install: async () => true,
+            create: () => recognition,
+          },
+        },
+      });
+    },
+    { moduleUrl: writingModuleUrl, unavailable },
+  );
+  return savedBodies;
+}
+
+test("mocked local dictation availability preserves recovery and save status", async ({ page }) => {
+  await page.goto("/login");
   await page.evaluate(() => {
-    const recognition = (
-      window as typeof window & {
-        testRecognition: { onresult: ((event: unknown) => void) | null };
-      }
-    ).testRecognition;
-    recognition.onresult?.({
-      resultIndex: 0,
-      results: [{ transcript: "<b>spoken</b>", final: true }],
-    });
+    localStorage.setItem(
+      "quiescent-writing:/dictation-api:dictation-document:old",
+      JSON.stringify({
+        document: { frontmatter: { title: "Recovered" }, body: "Recovered body" },
+        updatedAt: Date.now(),
+      }),
+    );
   });
-  await expect(body).toContainText("<b>spoken</b>");
-  await expect(page.locator(".tiptap b")).toHaveCount(0);
-  await expect.poll(() => savedBodies.at(-1)).toContain("&lt;b&gt;spoken&lt;/b&gt;");
-  await page.getByRole("button", { name: "Undo" }).click();
-  await expect(body).not.toContainText("<b>spoken</b>");
-  await expect.poll(() => savedBodies.at(-1)).not.toContain("&lt;b&gt;spoken&lt;/b&gt;");
+  page.on("dialog", (dialog) => dialog.accept());
+  const savedBodies = await mountDictationFixture(page, "Before", true);
+  await expect(
+    page.getByRole("button", { name: "Dictation unavailable", exact: true }),
+  ).toBeDisabled();
+  await expect(page.locator("[data-dictation-interim]")).toContainText("unavailable");
+  await expect(page.locator("#dictation-editor")).toHaveAttribute("data-phase", "notice");
+  await expect(page.locator("[role=status]").first()).toContainText("Recovered unsaved writing");
+  await page.getByRole("button", { name: "Save now", exact: true }).click();
+  await expect.poll(() => savedBodies.at(-1)).toBe("Recovered body");
+  await expect(page.locator("[role=status]").first()).toHaveText("Saved");
 });
+
+test("mocked local dictation Markdown explanation persists beside a moved textarea", async ({
+  page,
+}) => {
+  await mountDictationFixture(page, "<table><tr><td>verbatim</td></tr></table>");
+  await expect(page.getByRole("textbox", { name: "Markdown body" })).toBeVisible();
+  await expect(page.locator("[data-dictation-notice]")).toBeVisible();
+  await expect(page.locator("[data-dictation-notice]")).toContainText("verbatim Markdown mode");
+  await page.getByRole("textbox", { name: "Markdown body" }).fill("Edited **Markdown**");
+  await expect(page.locator("[role=status]")).toHaveText("Saved");
+  await expect(page.locator("[data-dictation-notice]")).toBeVisible();
+});
+
+for (const activation of ["keyboard", "programmatic"] as const) {
+  test(`mocked local dictation ${activation} replaces selection, drains Stop, undoes and autosaves`, async ({
+    page,
+  }) => {
+    const savedBodies = await mountDictationFixture(page);
+    const body = page.getByRole("textbox", { name: "Document body" });
+    await expect(body).toBeVisible();
+    await expect(page.getByRole("button", { name: "Dictate" })).toBeEnabled();
+    await body.press("ControlOrMeta+a");
+    if (activation === "keyboard") {
+      await page.getByRole("button", { name: "Dictate" }).focus();
+      await page.keyboard.press("Enter");
+    } else {
+      await page
+        .getByRole("button", { name: "Dictate" })
+        .evaluate((button) => (button as HTMLButtonElement).click());
+    }
+    await expect(page.getByRole("button", { name: "Stop dictation", exact: true })).toBeEnabled();
+    await page.evaluate(() => {
+      const recognition = (
+        window as typeof window & {
+          testRecognition: { onresult: ((event: unknown) => void) | null };
+        }
+      ).testRecognition;
+      recognition.onresult?.({
+        resultIndex: 0,
+        results: [{ transcript: "<b>spoken</b>", final: true }],
+      });
+    });
+    await expect(body).toHaveText("<b>spoken</b>");
+    // Moving the caret before Stop must not reset the session's insertion target.
+    await body.press("Home");
+    await page.getByRole("button", { name: "Stop dictation", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Stopping dictation…", exact: true }),
+    ).toBeDisabled();
+    await page.evaluate(() => {
+      const recognition = (
+        window as typeof window & {
+          testRecognition: {
+            onresult: ((event: unknown) => void) | null;
+            onend: (() => void) | null;
+          };
+        }
+      ).testRecognition;
+      const results = [
+        { transcript: "<b>spoken</b>", final: true },
+        { transcript: " tail", final: true },
+      ];
+      recognition.onresult?.({ resultIndex: 1, results });
+      recognition.onresult?.({ resultIndex: 0, results });
+      recognition.onend?.();
+    });
+    await expect(body).toHaveText("<b>spoken</b> tail");
+    await expect(page.getByRole("button", { name: "Dictate", exact: true })).toBeEnabled();
+    await expect(page.locator(".tiptap b")).toHaveCount(0);
+    await expect.poll(() => savedBodies.at(-1)).toContain("&lt;b&gt;spoken&lt;/b&gt;");
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(body).not.toContainText("<b>spoken</b>");
+    await expect.poll(() => savedBodies.at(-1)).not.toContain("&lt;b&gt;spoken&lt;/b&gt;");
+  });
+}
