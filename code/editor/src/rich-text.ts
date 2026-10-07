@@ -1,8 +1,10 @@
 import { safeLink, validateDocument, type WritingDocument } from "@quiescent/server/content";
 import { Editor } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
+import { Selection } from "@tiptap/pm/state";
 import StarterKit from "@tiptap/starter-kit";
 import type { EditorPhase, EditorToolbar } from "./host.ts";
+import { createLocalDictation, type LocalDictationOptions } from "./local-dictation.ts";
 export interface WritingEditorOptions {
   parent: HTMLElement;
   /** Hosts may move command buttons within this toolbar; editor behavior is retained. */
@@ -12,6 +14,8 @@ export interface WritingEditorOptions {
   uploadImage: (file: File) => Promise<string>;
   onStatus?: (message: string, phase?: EditorPhase) => void;
   mediaUrl?: (src: string) => string;
+  /** Opt-in browser dictation. Recognition is accepted only when guaranteed on-device. */
+  localDictation?: LocalDictationOptions;
 }
 export function createWritingEditor(options: WritingEditorOptions) {
   const toolbar = document.createElement("div");
@@ -53,6 +57,8 @@ export function createWritingEditor(options: WritingEditorOptions) {
     onUpdate: () => options.onChange(validateDocument(editor.getJSON())),
   });
   const commands = new Map<string, HTMLButtonElement>();
+  let editable = true;
+  let disposed = false;
   const add = (label: string, action: () => void) => {
     const b = document.createElement("button");
     b.type = "button";
@@ -85,14 +91,42 @@ export function createWritingEditor(options: WritingEditorOptions) {
   });
   add("Undo", () => editor.chain().focus().undo().run());
   add("Redo", () => editor.chain().focus().redo().run());
+  let dictation: ReturnType<typeof createLocalDictation> | undefined;
+  if (options.localDictation) {
+    const button = add("Dictate", () => {});
+    const interim = document.createElement("span");
+    interim.dataset.dictationInterim = "";
+    interim.setAttribute("aria-live", "polite");
+    toolbar.append(interim);
+    let from = editor.state.selection.from;
+    let to = editor.state.selection.to;
+    editor.on("transaction", ({ transaction }) => {
+      from = transaction.mapping.map(from);
+      to = transaction.mapping.map(to);
+    });
+    dictation = createLocalDictation({
+      ...options.localDictation,
+      button,
+      interim,
+      onStart: () => {
+        from = editor.state.selection.from;
+        to = editor.state.selection.to;
+      },
+      insert: (text) => {
+        if (!editable || disposed || !text) return;
+        const transaction = editor.state.tr.insertText(text, from, to);
+        const end = transaction.mapping.map(to);
+        editor.view.dispatch(transaction);
+        from = to = Selection.near(transaction.doc.resolve(end), -1).to;
+      },
+    });
+  }
   const file = document.createElement("input");
   file.type = "file";
   file.accept = "image/jpeg,image/png,image/webp,image/gif";
   file.hidden = true;
   toolbar.append(file);
   const uploads = new Set<Promise<void>>();
-  let editable = true;
-  let disposed = false;
   const imageButton = add("Add image", () => file.click());
   const descriptionButton = add("Image description", () => {
     if (!editor.isActive("image")) return options.onStatus?.("Select an image first.");
@@ -166,6 +200,7 @@ export function createWritingEditor(options: WritingEditorOptions) {
       toolbar.querySelectorAll("button").forEach((b) => {
         b.disabled = !enabled || (b === imageButton && uploads.size > 0);
       });
+      dictation?.setEnabled(enabled);
     },
     waitForUploads: async () => {
       const results = await Promise.allSettled([...uploads]);
@@ -174,6 +209,7 @@ export function createWritingEditor(options: WritingEditorOptions) {
     },
     destroy: () => {
       disposed = true;
+      dictation?.destroy();
       disposeToolbar?.();
       editor.destroy();
       toolbar.remove();

@@ -19,11 +19,13 @@ type Draft = DocumentDraft;
 
 import { createWritingEditor } from "./rich-text.ts";
 
+export type { LocalDictationOptions, LocalSpeechProvider } from "./local-dictation.ts";
 export { createWritingEditor, type WritingEditorOptions } from "./rich-text.ts";
 export interface DocumentAppOptions {
   /** Arrange the mounted controls before opening a document. Keep them inside root. */
   layout?: (root: HTMLElement, host: EditorHost) => undefined | (() => void);
   configureToolbar?: import("./rich-text.ts").WritingEditorOptions["configureToolbar"];
+  localDictation?: import("./local-dictation.ts").LocalDictationOptions;
   formatStatus?: (message: string, state: EditorState) => string;
   onState?: (state: EditorState) => void;
   mediaUrl?: import("@quiescent/server/content").DocumentMediaUrlResolver;
@@ -85,6 +87,12 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
   markdownInput.setAttribute("aria-label", "Markdown body");
   markdownInput.hidden = true;
   q("[data-editor]").after(markdownInput);
+  const dictationNotice = document.createElement("p");
+  dictationNotice.dataset.dictationNotice = "";
+  dictationNotice.textContent =
+    "Dictation is unavailable while this document is in verbatim Markdown mode.";
+  dictationNotice.hidden = true;
+  markdownInput.after(dictationNotice);
   markdownInput.addEventListener("input", () => changed());
   const status = (message: string, phase: EditorPhase = "notice") => {
     const state: EditorState = {
@@ -360,11 +368,15 @@ export function mountDocumentApp(root: HTMLElement, options: DocumentAppOptions)
     markdownInput.value = draft.document.body;
     markdownInput.hidden = !markdownMode;
     q("[data-editor]").hidden = markdownMode;
+    // Layout hooks may have moved the textarea since it was mounted.
+    markdownInput.after(dictationNotice);
+    dictationNotice.hidden = !markdownMode || !options.localDictation;
     editor = markdownMode
       ? undefined
       : createWritingEditor({
           parent: q("[data-editor]"),
           ...(options.configureToolbar ? { configureToolbar: options.configureToolbar } : {}),
+          ...(options.localDictation ? { localDictation: options.localDictation } : {}),
           document: fromMarkdown(draft.document.body),
           onChange: changed,
           onStatus: status,
