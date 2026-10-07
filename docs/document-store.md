@@ -188,6 +188,15 @@ metadata fields have `data-metadata-field` containers, and toolbar buttons have
 validation, recovery, and atomic save. Blog-specific sheets and labels belong to the
 example app, rather than the document store.
 
+Dictation is opt-in. Pass `localDictation: { lang: "en-US" }` to
+`mountDocumentApp`; `configureToolbar` can place its visible `dictate` command through
+`context.commands.get("dictate")`. The editor accepts only the unprefixed browser
+Speech Recognition API when it supports `processLocally`, checks
+`available({ langs: [lang], processLocally: true })`, and offers a separate language-pack
+installation action when needed. It never falls back to network recognition. Dictation
+is disabled with an explanation for documents opened in verbatim Markdown mode. Browser
+support, microphone permission, and the requested on-device language pack are required.
+
 Optional `DocumentBody` and `DocumentImage` exports are under
 `@quiescent/astro/components/*`. Override `imageComponent` on the body renderer or
 use the document/media APIs directly. The metadata map is optional: `resolveImage(filename)`

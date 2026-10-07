@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { expect, type Page, test } from "@playwright/test";
 import { sqliteDocumentCache } from "../../server/src/document-cache-sqlite.ts";
 import { createDocumentHandler } from "../../server/src/document-http.ts";
@@ -5,6 +6,10 @@ import { createDocumentService } from "../../server/src/document-service.ts";
 import { localR2Media } from "../../server/src/media.ts";
 import { fixture } from "../../server/test/forge-fixture.ts";
 import { type Collection, collectionSchema } from "../src/writing/collections.ts";
+
+const writingModuleUrl = `/@fs${fileURLToPath(
+  new URL("../../editor/src/writing.ts", import.meta.url),
+)}`;
 
 async function mockDocuments(page: Page, collection: Collection) {
   const backend = fixture();
@@ -418,4 +423,94 @@ test("cached listing shows freshness and searches without another request", asyn
   await section.getByRole("button", { name: "Refresh from GitHub" }).click();
   await expect(section.getByRole("button", { name: "Refresh from GitHub" })).toBeEnabled();
   expect(calls).toBe(1);
+});
+
+test("mocked local dictation inserts plain text with undo and autosave", async ({ page }) => {
+  const savedBodies: string[] = [];
+  const draft = {
+    document: {
+      id: "dictation-document",
+      createdAt: "2026-10-07",
+      frontmatter: { title: "Dictation" },
+      body: "Before",
+    },
+    branch: "draft/dictation-document",
+    headSha: "initial",
+    state: "draft",
+  };
+  await page.route("**/dictation-api/schema", (route) =>
+    route.fulfill({
+      json: {
+        type: "object",
+        required: ["title"],
+        properties: { title: { type: "string", title: "Title" } },
+      },
+    }),
+  );
+  await page.route("**/dictation-api/dictation-document", async (route) => {
+    if (route.request().method() === "PUT") {
+      const payload = route.request().postDataJSON();
+      savedBodies.push(payload.document.body);
+      await route.fulfill({
+        json: { ...draft, document: payload.document, headSha: `saved-${savedBodies.length}` },
+      });
+      return;
+    }
+    await route.fulfill({ json: draft });
+  });
+  await page.goto("/login");
+  await page.locator("body").evaluate((body) => body.replaceChildren());
+  await page.evaluate(async (moduleUrl) => {
+    const { mountDocumentApp } = await import(moduleUrl);
+    document.body.innerHTML = '<div id="dictation-editor"></div>';
+    const root = document.getElementById("dictation-editor")!;
+    const recognition = {
+      continuous: false,
+      interimResults: false,
+      lang: "",
+      processLocally: false,
+      onend: null,
+      onerror: null,
+      onresult: null,
+      start() {},
+      stop() {},
+      abort() {},
+    };
+    Object.assign(window, { testRecognition: recognition });
+    mountDocumentApp(root, {
+      apiBase: "/dictation-api",
+      initialDocumentId: "dictation-document",
+      initialDocument: () => ({ frontmatter: { title: "" }, body: "" }),
+      documentPath: () => "/read",
+      localDictation: {
+        lang: "en-US",
+        provider: {
+          available: async () => "available",
+          install: async () => true,
+          create: () => recognition,
+        },
+      },
+    });
+  }, writingModuleUrl);
+  const body = page.getByRole("textbox", { name: "Document body" });
+  await expect(body).toBeVisible();
+  await expect(page.getByRole("button", { name: "Dictate" })).toBeEnabled();
+  await page.getByRole("button", { name: "Dictate" }).click();
+  await page.evaluate(() => {
+    const recognition = (
+      window as typeof window & {
+        testRecognition: { onresult: ((event: unknown) => void) | null };
+      }
+    ).testRecognition;
+    recognition.onresult?.({
+      resultIndex: 0,
+      results: [{ transcript: "<b>spoken</b>", final: true }],
+    });
+  });
+  await expect(body).toContainText("<b>spoken</b>");
+  await expect(page.locator(".tiptap b")).toHaveCount(0);
+  await expect.poll(() => savedBodies.at(-1)).toContain("&lt;b&gt;spoken&lt;/b&gt;");
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(body).not.toContainText("<b>spoken</b>");
+  await expect.poll(() => savedBodies.at(-1)).not.toContain("&lt;b&gt;spoken&lt;/b&gt;");
 });
