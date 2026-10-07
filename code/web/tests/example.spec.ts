@@ -488,6 +488,7 @@ async function mountDictationFixture(page: Page, body = "Before", unavailable = 
         layout: (root, host) => {
           // Exercise a host moving the textarea away from the default layout.
           root.insertBefore(host.slots.markdown, root.firstChild);
+          root.appendChild(host.slots.status);
           return undefined;
         },
         onState: (state) => {
@@ -529,10 +530,11 @@ test("mocked local dictation availability preserves recovery and save status", a
   ).toBeDisabled();
   await expect(page.locator("[data-dictation-interim]")).toContainText("unavailable");
   await expect(page.locator("#dictation-editor")).toHaveAttribute("data-phase", "notice");
-  await expect(page.locator("[role=status]").first()).toContainText("Recovered unsaved writing");
+  await expect(page.getByRole("status")).toHaveCount(1);
+  await expect(page.getByRole("status")).toContainText("Recovered unsaved writing");
   await page.getByRole("button", { name: "Save now", exact: true }).click();
   await expect.poll(() => savedBodies.at(-1)).toBe("Recovered body");
-  await expect(page.locator("[role=status]").first()).toHaveText("Saved");
+  await expect(page.getByRole("status")).toHaveText("Saved");
 });
 
 test("mocked local dictation Markdown explanation persists beside a moved textarea", async ({
@@ -601,11 +603,14 @@ for (const activation of ["keyboard", "programmatic"] as const) {
       recognition.onend?.();
     });
     await expect(body).toHaveText("<b>spoken</b> tail");
+    await expect(body.locator("p")).toHaveCount(1);
     await expect(page.getByRole("button", { name: "Dictate", exact: true })).toBeEnabled();
     await expect(page.locator(".tiptap b")).toHaveCount(0);
-    await expect.poll(() => savedBodies.at(-1)).toContain("&lt;b&gt;spoken&lt;/b&gt;");
+    await expect.poll(() => savedBodies.at(-1)).toBe("&lt;b&gt;spoken&lt;/b&gt; tail");
     await page.getByRole("button", { name: "Undo" }).click();
-    await expect(body).not.toContainText("<b>spoken</b>");
-    await expect.poll(() => savedBodies.at(-1)).not.toContain("&lt;b&gt;spoken&lt;/b&gt;");
+    await expect(body).not.toContainText(" tail");
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(body).toHaveText("Before");
+    await expect.poll(() => savedBodies.at(-1)).toBe("Before");
   });
 }

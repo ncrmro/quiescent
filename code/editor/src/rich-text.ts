@@ -1,6 +1,7 @@
 import { safeLink, validateDocument, type WritingDocument } from "@quiescent/server/content";
 import { Editor } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
+import { Selection } from "@tiptap/pm/state";
 import StarterKit from "@tiptap/starter-kit";
 import type { EditorPhase, EditorToolbar } from "./host.ts";
 import { createLocalDictation, type LocalDictationOptions } from "./local-dictation.ts";
@@ -95,7 +96,6 @@ export function createWritingEditor(options: WritingEditorOptions) {
     const button = add("Dictate", () => {});
     const interim = document.createElement("span");
     interim.dataset.dictationInterim = "";
-    interim.setAttribute("role", "status");
     interim.setAttribute("aria-live", "polite");
     toolbar.append(interim);
     let from = editor.state.selection.from;
@@ -114,8 +114,10 @@ export function createWritingEditor(options: WritingEditorOptions) {
       },
       insert: (text) => {
         if (!editable || disposed || !text) return;
-        editor.view.dispatch(editor.state.tr.insertText(text, from, to));
-        from = to;
+        const transaction = editor.state.tr.insertText(text, from, to);
+        const end = transaction.mapping.map(to);
+        editor.view.dispatch(transaction);
+        from = to = Selection.near(transaction.doc.resolve(end), -1).to;
       },
     });
   }

@@ -12,7 +12,7 @@
     },
     "code/astro": {
       "name": "@quiescent/astro",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@quiescent/server": "^0.2.0",
       },
@@ -26,11 +26,12 @@
     },
     "code/editor": {
       "name": "@quiescent/editor",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
-        "@quiescent/server": "^0.2.0",
+        "@quiescent/server": "^0.3.0",
         "@tiptap/core": "^3.31.3",
         "@tiptap/extension-image": "^3.31.3",
+        "@tiptap/pm": "^3.31.3",
         "@tiptap/starter-kit": "^3.31.3",
       },
       "devDependencies": {
@@ -40,7 +41,7 @@
     },
     "code/git": {
       "name": "@quiescent/git",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "devDependencies": {
         "@types/bun": "^1.2.0",
         "typescript": "^5.8.0",
@@ -48,10 +49,10 @@
     },
     "code/server": {
       "name": "@quiescent/server",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
         "@cfworker/json-schema": "^4.1.1",
-        "@quiescent/git": "^0.2.0",
+        "@quiescent/git": "^0.3.0",
         "@tiptap/core": "^3.31.3",
         "@tiptap/extension-image": "^3.31.3",
         "@tiptap/markdown": "^3.31.3",
