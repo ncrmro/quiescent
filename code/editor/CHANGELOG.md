@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/ncrmro/quiescent/compare/quiescent-editor-v0.3.0...quiescent-editor-v0.4.0) (2026-10-07)
+
+
+### Features
+
+* **editor:** add on-device dictation ([#23](https://github.com/ncrmro/quiescent/issues/23)) ([3a8b719](https://github.com/ncrmro/quiescent/commit/3a8b7198b49ea2d08e291d845d9aae55c9890072))
+
 ## [0.3.0](https://github.com/ncrmro/quiescent/compare/quiescent-editor-v0.2.0...quiescent-editor-v0.3.0) (2026-10-03)
 
 
